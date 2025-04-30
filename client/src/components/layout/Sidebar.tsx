@@ -16,7 +16,6 @@ import {
   Waves,
   BarChart3,
   Share2,
-  Radio,
   MapPin,
   AlertTriangle
 } from 'lucide-react';
@@ -32,7 +31,7 @@ const NavItem: FC<NavItemProps> = ({ href, icon, text, isActive }) => {
   return (
     <li className="mb-1">
       <Link href={href}>
-        <a className={`flex items-center py-3 px-4 ${
+        <a className={`flex items-center py-3 px-4 text-white ${
           isActive 
             ? "bg-primary bg-opacity-20 border-l-4 border-primary" 
             : "hover:bg-sidebar-accent hover:bg-opacity-30 transition-colors"
@@ -68,7 +67,7 @@ const Sidebar: FC = () => {
           
           {/* Stations Section */}
           <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Stations</h3>
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Stations</h3>
           </div>
           <NavItem 
             href="/stations" 
@@ -85,7 +84,7 @@ const Sidebar: FC = () => {
           
           {/* Events Section */}
           <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Events</h3>
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Events</h3>
           </div>
           <NavItem 
             href="/event-map" 
@@ -114,7 +113,7 @@ const Sidebar: FC = () => {
           
           {/* Monitoring Section */}
           <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Monitoring</h3>
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Monitoring</h3>
           </div>
           <NavItem 
             href="/network-status" 
@@ -149,7 +148,7 @@ const Sidebar: FC = () => {
           
           {/* Tools Section */}
           <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Tools</h3>
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Tools</h3>
           </div>
           <NavItem 
             href="/analysis" 
