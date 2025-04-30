@@ -41,20 +41,46 @@ export function useSeismicData() {
         const stationsData = await stationsRes.json();
         setStations(stationsData);
         
-        // Fetch recent events
-        const eventsRes = await apiRequest('GET', '/api/events/recent');
-        const eventsData = await eventsRes.json();
-        setEvents(eventsData);
+        // First try to fetch real earthquakes from USGS API
+        try {
+          const earthquakesRes = await apiRequest('GET', '/api/earthquakes');
+          const earthquakeData = await earthquakesRes.json();
+          
+          if (earthquakeData && earthquakeData.length > 0) {
+            console.log('Loaded real earthquake data from USGS:', earthquakeData.length);
+            setEvents(earthquakeData);
+            
+            // Set first earthquake event as selected
+            if (earthquakeData.length > 0) {
+              setSelectedEvent(earthquakeData[0]);
+            }
+          } else {
+            // Fallback to default events
+            const eventsRes = await apiRequest('GET', '/api/events/recent');
+            const eventsData = await eventsRes.json();
+            setEvents(eventsData);
+            
+            if (eventsData.length > 0) {
+              setSelectedEvent(eventsData[0]);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching earthquake data, falling back to simulated events:', err);
+          
+          // Fallback to default events
+          const eventsRes = await apiRequest('GET', '/api/events/recent');
+          const eventsData = await eventsRes.json();
+          setEvents(eventsData);
+          
+          if (eventsData.length > 0) {
+            setSelectedEvent(eventsData[0]);
+          }
+        }
         
         // Fetch research networks
         const networksRes = await apiRequest('GET', '/api/networks');
         const networksData = await networksRes.json();
         setResearchNetworks(networksData);
-        
-        // Set first event as selected
-        if (eventsData.length > 0) {
-          setSelectedEvent(eventsData[0]);
-        }
       } catch (error) {
         console.error('Error fetching initial data:', error);
       }

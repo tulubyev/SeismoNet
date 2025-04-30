@@ -483,6 +483,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoints for earthquake data from external sources
+  
+  // Manually trigger earthquake data sync
+  app.post('/api/earthquakes/sync', requireRole("administrator"), async (req, res) => {
+    try {
+      const { magnitude, period } = req.body;
+      let mag: any = magnitude || 4.5;
+      let per: 'day' | 'week' | 'month' = period || 'week';
+      
+      // Validate magnitude
+      if (mag !== 'significant' && typeof mag === 'string') {
+        mag = parseFloat(mag);
+      }
+      
+      if (mag !== 'significant' && ![1.0, 2.5, 4.5].includes(mag)) {
+        mag = 4.5;
+      }
+      
+      // Validate period
+      if (!['day', 'week', 'month'].includes(per)) {
+        per = 'week';
+      }
+      
+      console.log(`Manually triggering earthquake sync with magnitude ${mag} and period ${per}`);
+      const newEventsCount = await syncEarthquakeData(mag, per);
+      
+      res.json({ 
+        message: `Earthquake data sync complete`, 
+        newEvents: newEventsCount,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error syncing earthquake data:', error);
+      res.status(500).json({ message: 'Error syncing earthquake data' });
+    }
+  });
+  
+  // Get all earthquakes (combines local and external data)
+  app.get('/api/earthquakes', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const events = await storage.getRecentEvents(limit);
+      
+      // Filter to only include earthquakes (type = 'earthquake')
+      const earthquakes = events.filter(event => event.type === 'earthquake');
+      
+      res.json(earthquakes);
+    } catch (error) {
+      console.error('Error fetching earthquakes:', error);
+      res.status(500).json({ message: 'Error fetching earthquakes' });
+    }
+  });
+
+  // Schedule regular earthquake data synchronization (every 30 minutes)
+  const syncJob = scheduleEarthquakeSyncJob(30);
+
   return httpServer;
 }
 
