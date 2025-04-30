@@ -998,7 +998,7 @@ const initializeDatabase = async () => {
         username: "admin",
         fullName: "System Administrator",
         email: "admin@seismic-network.org",
-        password: "admin123", // In a real system, this would be hashed
+        password: "password", // In a real system, this would be hashed
         role: "administrator",
         active: true,
         organization: "Seismic Network Research Center",
