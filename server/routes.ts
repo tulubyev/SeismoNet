@@ -204,6 +204,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error updating alert' });
     }
   });
+  
+  // --- Field Operations API Routes ---
+  
+  // Get all regions
+  app.get('/api/regions', async (req, res) => {
+    try {
+      const regions = await storage.getRegions();
+      res.json(regions);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching regions' });
+    }
+  });
+  
+  // Get region by ID
+  app.get('/api/regions/:id', async (req, res) => {
+    try {
+      const regionId = parseInt(req.params.id);
+      const region = await storage.getRegion(regionId);
+      if (!region) {
+        return res.status(404).json({ message: 'Region not found' });
+      }
+      res.json(region);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching region' });
+    }
+  });
+  
+  // Get stations in a region
+  app.get('/api/regions/:id/stations', async (req, res) => {
+    try {
+      const regionId = parseInt(req.params.id);
+      const stations = await storage.getStationsByRegionId(regionId);
+      res.json(stations);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching stations for region' });
+    }
+  });
+  
+  // Get all maintenance records for a station
+  app.get('/api/stations/:stationId/maintenance', async (req, res) => {
+    try {
+      const records = await storage.getMaintenanceRecords(req.params.stationId);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching maintenance records' });
+    }
+  });
+  
+  // Get a specific maintenance record
+  app.get('/api/maintenance/:id', async (req, res) => {
+    try {
+      const recordId = parseInt(req.params.id);
+      const record = await storage.getMaintenanceRecord(recordId);
+      if (!record) {
+        return res.status(404).json({ message: 'Maintenance record not found' });
+      }
+      res.json(record);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching maintenance record' });
+    }
+  });
+  
+  // Create a new maintenance record
+  app.post('/api/stations/:stationId/maintenance', async (req, res) => {
+    try {
+      const stationId = req.params.stationId;
+      const station = await storage.getStationByStationId(stationId);
+      
+      if (!station) {
+        return res.status(404).json({ message: 'Station not found' });
+      }
+      
+      const record = {
+        ...req.body,
+        stationId
+      };
+      
+      const newRecord = await storage.createMaintenanceRecord(record);
+      res.status(201).json(newRecord);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating maintenance record' });
+    }
+  });
+  
+  // Update maintenance record status
+  app.patch('/api/maintenance/:id/status', async (req, res) => {
+    try {
+      const recordId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ message: 'Status is required' });
+      }
+      
+      const updatedRecord = await storage.updateMaintenanceStatus(recordId, status);
+      
+      if (!updatedRecord) {
+        return res.status(404).json({ message: 'Maintenance record not found' });
+      }
+      
+      res.json(updatedRecord);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating maintenance status' });
+    }
+  });
+  
+  // Get upcoming maintenance records
+  app.get('/api/maintenance/upcoming', async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const records = await storage.getUpcomingMaintenanceRecords(days);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching upcoming maintenance records' });
+    }
+  });
+  
+  // Update station battery info
+  app.patch('/api/stations/:stationId/battery', async (req, res) => {
+    try {
+      const stationId = req.params.stationId;
+      const { batteryLevel, batteryVoltage, powerConsumption } = req.body;
+      
+      if (batteryLevel === undefined || batteryVoltage === undefined || powerConsumption === undefined) {
+        return res.status(400).json({ message: 'Battery level, voltage, and power consumption are required' });
+      }
+      
+      const updatedStation = await storage.updateStationBatteryInfo(
+        stationId, 
+        batteryLevel, 
+        batteryVoltage, 
+        powerConsumption
+      );
+      
+      if (!updatedStation) {
+        return res.status(404).json({ message: 'Station not found' });
+      }
+      
+      res.json(updatedStation);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating battery information' });
+    }
+  });
+  
+  // Update station storage info
+  app.patch('/api/stations/:stationId/storage', async (req, res) => {
+    try {
+      const stationId = req.params.stationId;
+      const { storageRemaining } = req.body;
+      
+      if (storageRemaining === undefined) {
+        return res.status(400).json({ message: 'Storage remaining percentage is required' });
+      }
+      
+      const updatedStation = await storage.updateStationStorageInfo(stationId, storageRemaining);
+      
+      if (!updatedStation) {
+        return res.status(404).json({ message: 'Station not found' });
+      }
+      
+      res.json(updatedStation);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating storage information' });
+    }
+  });
 
   return httpServer;
 }
@@ -308,6 +473,73 @@ function startSimulation(ws: WebSocket) {
               }));
             }
           });
+        }
+      });
+    }
+    
+    // Simulate field station battery and storage changes
+    if (Math.random() < 0.1) { // 10% chance each interval
+      // Choose a random station
+      const stationIds = ["PNWST-03", "SOCAL-12", "ALASKA-07", "FIJI-01"];
+      const randomStationId = stationIds[Math.floor(Math.random() * stationIds.length)];
+      
+      storage.getStationByStationId(randomStationId).then(station => {
+        if (station) {
+          // Simulate some battery drain (0-1% decrease)
+          const batteryDrain = Math.random();
+          
+          // If this is the Alaska station, deplete more rapidly
+          const modifier = randomStationId === "ALASKA-07" ? 2 : 1;
+          const newBatteryLevel = Math.max(0, (station.batteryLevel || 100) - (batteryDrain * modifier));
+          
+          // Battery voltage changes with level
+          const newVoltage = Math.max(
+            10, 
+            (station.batteryVoltage || 12) - (batteryDrain * 0.05 * modifier)
+          );
+          
+          // Power consumption varies slightly
+          const newPowerConsumption = 
+            (station.powerConsumption || 3) + ((Math.random() - 0.5) * 0.2);
+          
+          // Storage decreases as data is collected
+          const storageDecrease = Math.random() * 0.3; // 0-0.3% decrease
+          const newStorageRemaining = Math.max(
+            0, 
+            (station.storageRemaining || 100) - storageDecrease
+          );
+          
+          // First update battery info
+          storage.updateStationBatteryInfo(
+            randomStationId,
+            newBatteryLevel,
+            newVoltage,
+            newPowerConsumption
+          ).then(() => {
+            // Then update storage info
+            storage.updateStationStorageInfo(randomStationId, newStorageRemaining);
+          });
+          
+          // Generate alerts for low battery (only for Alaska to demonstrate alerts)
+          if (randomStationId === "ALASKA-07" && newBatteryLevel < 40 && Math.random() < 0.3) {
+            const alert = {
+              alertType: "low_battery",
+              severity: "warning",
+              message: `Low battery on ${randomStationId} station (${newBatteryLevel.toFixed(0)}%)`,
+              timestamp: new Date(),
+              relatedEntityId: randomStationId,
+              relatedEntityType: "station",
+              isRead: false
+            };
+            
+            storage.createAlert(alert).then(newAlert => {
+              // Send alert via WebSocket
+              ws.send(JSON.stringify({
+                type: WebSocketMessageType.ALERT,
+                payload: newAlert
+              }));
+            });
+          }
         }
       });
     }
