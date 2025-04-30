@@ -13,12 +13,22 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import AuthPage from '@/pages/auth-page';
 
-// Import mobile pages
-import MobileDashboard from './pages/MobileDashboard';
-import MobileStations from './pages/MobileStations';
-import MobileFieldMap from './pages/MobileFieldMap';
-import MobileDataCollection from './pages/MobileDataCollection';
-import MobileSettings from './pages/MobileSettings';
+import { Suspense, lazy } from 'react';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load mobile components to avoid TypeScript errors
+const MobileDashboard = lazy(() => import('./pages/MobileDashboard'));
+const MobileStations = lazy(() => import('./pages/MobileStations'));
+const MobileFieldMap = lazy(() => import('./pages/MobileFieldMap'));
+const MobileDataCollection = lazy(() => import('./pages/MobileDataCollection'));
+const MobileSettings = lazy(() => import('./pages/MobileSettings'));
+
+// Loading fallback component
+const LoadingComponent = () => (
+  <div className="flex items-center justify-center p-8">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
 
 const TabBar: FC = () => {
   const [location, navigate] = useLocation();
@@ -165,24 +175,36 @@ const MobileApp: FC = () => {
     <div className="bg-gray-50 min-h-screen pb-16">
       <TopBar title={getPageTitle()} />
       
-      <Switch>
-        <Route path="/mobile" component={MobileDashboard} />
-        <Route path="/mobile/stations" component={MobileStations} />
-        <Route path="/mobile/field-map" component={MobileFieldMap} />
-        <Route path="/mobile/data-collection" component={MobileDataCollection} />
-        <Route path="/mobile/settings" component={MobileSettings} />
-        <Route>
-          <div className="p-4 text-center">
-            <p className="text-gray-500">Page not found</p>
-            <Button 
-              variant="link" 
-              onClick={() => window.location.href = '/mobile'}
-            >
-              Go to Dashboard
-            </Button>
-          </div>
-        </Route>
-      </Switch>
+      <Suspense fallback={<LoadingComponent />}>
+        <Switch>
+          <Route path="/mobile">
+            <MobileDashboard />
+          </Route>
+          <Route path="/mobile/stations">
+            <MobileStations />
+          </Route>
+          <Route path="/mobile/field-map">
+            <MobileFieldMap />
+          </Route>
+          <Route path="/mobile/data-collection">
+            <MobileDataCollection />
+          </Route>
+          <Route path="/mobile/settings">
+            <MobileSettings />
+          </Route>
+          <Route>
+            <div className="p-4 text-center">
+              <p className="text-gray-500">Page not found</p>
+              <Button 
+                variant="link" 
+                onClick={() => window.location.href = '/mobile'}
+              >
+                Go to Dashboard
+              </Button>
+            </div>
+          </Route>
+        </Switch>
+      </Suspense>
       
       <TabBar />
     </div>
