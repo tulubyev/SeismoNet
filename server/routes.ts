@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
+import { syncEarthquakeData, scheduleEarthquakeSyncJob } from "./services/earthquakeApi";
 import { setupAuth, requireRole } from "./auth";
 
 // Clients connected via WebSocket
