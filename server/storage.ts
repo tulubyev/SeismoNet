@@ -129,7 +129,7 @@ export class MemStorage implements IStorage {
         username: "admin",
         fullName: "System Administrator",
         email: "admin@seismic-network.org",
-        password: "admin123", // In a real system, this would be hashed
+        password: "password", // User-requested plain password
         role: "administrator",
         active: true,
         organization: "Seismic Network Research Center",
@@ -140,7 +140,7 @@ export class MemStorage implements IStorage {
         username: "fieldtech",
         fullName: "Field Technician",
         email: "fieldtech@seismic-network.org",
-        password: "tech123", // In a real system, this would be hashed
+        password: "password", // Standard password for testing
         role: "user",
         active: true,
         organization: "Seismic Network Research Center",
@@ -151,7 +151,7 @@ export class MemStorage implements IStorage {
         username: "researcher",
         fullName: "Seismic Researcher",
         email: "researcher@seismic-network.org",
-        password: "research123", // In a real system, this would be hashed
+        password: "password", // In a real system, this would be hashed
         role: "viewer",
         active: true,
         organization: "University Research Institute",
@@ -1020,7 +1020,7 @@ const initializeDatabase = async () => {
         username: "researcher",
         fullName: "Seismic Researcher",
         email: "researcher@seismic-network.org",
-        password: "research123", // In a real system, this would be hashed
+        password: "password", // In a real system, this would be hashed
         role: "viewer",
         active: true,
         organization: "University Research Institute",
