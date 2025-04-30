@@ -304,6 +304,15 @@ export class MemStorage implements IStorage {
         apiEndpoint: "https://www.hinet.bosai.go.jp/"
       },
       {
+        networkId: "JMA",
+        name: "Japan Meteorological Agency",
+        region: "Japan",
+        connectionStatus: "connected",
+        lastSyncTimestamp: new Date(Date.now() - 3 * 60 * 1000), // 3 minutes ago
+        syncedDataVolume: 93.7,
+        apiEndpoint: "https://www.jma.go.jp/bosai/quake/data/list.json"
+      },
+      {
         networkId: "GFZ",
         name: "GFZ Network",
         region: "Germany",
