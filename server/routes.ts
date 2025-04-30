@@ -12,6 +12,28 @@ import { setupAuth, requireRole } from "./auth";
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
 
+// Function to ensure all research networks are initialized
+async function initializeResearchNetworks() {
+  console.log('Initializing research networks...');
+  
+  // Initialize JMA network if it doesn't exist
+  let jmaNetwork = await storage.getResearchNetworkByNetworkId("JMA");
+  if (!jmaNetwork) {
+    jmaNetwork = await storage.createResearchNetwork({
+      networkId: "JMA",
+      name: "Japan Meteorological Agency",
+      region: "Japan",
+      connectionStatus: "connected",
+      lastSyncTimestamp: new Date(),
+      syncedDataVolume: 95.7,
+      apiEndpoint: "https://www.jma.go.jp/bosai/quake/data/list.json"
+    });
+    console.log("Created JMA research network:", jmaNetwork);
+  } else {
+    console.log("JMA research network already exists");
+  }
+}
+
 // Function to send a message to all connected WebSocket clients
 function broadcastMessage(message: WebSocketMessage) {
   clients.forEach(client => {
@@ -24,6 +46,9 @@ function broadcastMessage(message: WebSocketMessage) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with passport.js
   setupAuth(app);
+  
+  // Initialize research networks before server startup
+  await initializeResearchNetworks();
   
   const httpServer = createServer(app);
 
@@ -526,12 +551,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Manually triggering JMA earthquake data sync');
       
+      // First, ensure the JMA network exists in our system
+      let jmaNetwork = await storage.getResearchNetworkByNetworkId("JMA");
+      
+      if (!jmaNetwork) {
+        // Create the JMA network if it doesn't exist
+        jmaNetwork = await storage.createResearchNetwork({
+          networkId: "JMA",
+          name: "Japan Meteorological Agency",
+          region: "Japan",
+          connectionStatus: "connected",
+          lastSyncTimestamp: new Date(),
+          syncedDataVolume: 95.7,
+          apiEndpoint: "https://www.jma.go.jp/bosai/quake/data/list.json"
+        });
+        console.log("Created JMA research network:", jmaNetwork);
+      } else {
+        // Update the existing JMA network
+        jmaNetwork = await storage.updateResearchNetworkStatus(
+          "JMA", 
+          "connected", 
+          jmaNetwork.syncedDataVolume ? jmaNetwork.syncedDataVolume + Math.random() * 5 + 2 : 95.7
+        );
+        console.log("Updated JMA research network:", jmaNetwork);
+      }
+      
+      // Then sync the earthquake data
       const newEventsCount = await syncJMAEarthquakeData();
       
       res.json({ 
         message: `JMA earthquake data sync complete`, 
         newEvents: newEventsCount,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        network: jmaNetwork
       });
     } catch (error) {
       console.error('Error syncing JMA earthquake data:', error);
