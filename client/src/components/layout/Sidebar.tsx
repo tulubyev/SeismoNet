@@ -7,7 +7,18 @@ import {
   Globe,
   History,
   Calculator,
-  Cog
+  Cog,
+  PlusCircle,
+  ActivitySquare,
+  Zap,
+  Activity,
+  Network,
+  Waves,
+  BarChart3,
+  Share2,
+  Radio,
+  MapPin,
+  AlertTriangle
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -54,12 +65,28 @@ const Sidebar: FC = () => {
             text="Dashboard" 
             isActive={location === '/'} 
           />
+          
+          {/* Stations Section */}
+          <div className="mt-5 mb-2 px-4 hidden md:block">
+            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Stations</h3>
+          </div>
           <NavItem 
             href="/stations" 
             icon={<SatelliteDish className="size-5" />} 
-            text="Stations" 
+            text="View All Stations" 
             isActive={location === '/stations'} 
           />
+          <NavItem 
+            href="/stations/new" 
+            icon={<PlusCircle className="size-5" />} 
+            text="Add New Station" 
+            isActive={location === '/stations/new'} 
+          />
+          
+          {/* Events Section */}
+          <div className="mt-5 mb-2 px-4 hidden md:block">
+            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Events</h3>
+          </div>
           <NavItem 
             href="/event-map" 
             icon={<Globe className="size-5" />} 
@@ -72,6 +99,23 @@ const Sidebar: FC = () => {
             text="Event History" 
             isActive={location === '/event-history'} 
           />
+          <NavItem 
+            href="/events/intensity" 
+            icon={<ActivitySquare className="size-5" />} 
+            text="Events by Intensity" 
+            isActive={location === '/events/intensity'} 
+          />
+          <NavItem 
+            href="/events/major" 
+            icon={<Zap className="size-5" />} 
+            text="Major Events" 
+            isActive={location === '/events/major'} 
+          />
+          
+          {/* Tools Section */}
+          <div className="mt-5 mb-2 px-4 hidden md:block">
+            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Tools</h3>
+          </div>
           <NavItem 
             href="/analysis" 
             icon={<Calculator className="size-5" />} 
