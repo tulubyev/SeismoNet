@@ -1,5 +1,6 @@
 import { FC } from 'react';
 import { Link, useLocation } from 'wouter';
+import { useAuth } from '@/hooks/use-auth';
 import {
   SquareDashedBottom,
   Gauge,
@@ -11,14 +12,25 @@ import {
   PlusCircle,
   ActivitySquare,
   Zap,
-  Activity,
+  LogOut,
   Network,
   Waves,
   BarChart3,
   Share2,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  UserCircle,
+  Shield
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface NavItemProps {
   href: string;
@@ -45,7 +57,40 @@ const NavItem: FC<NavItemProps> = ({ href, icon, text, isActive }) => {
 };
 
 const Sidebar: FC = () => {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { user, logoutMutation } = useAuth();
+  
+  const handleLogout = () => {
+    logoutMutation.mutate();
+    navigate('/auth');
+  };
+  
+  // Get user's initials for avatar
+  const getUserInitials = () => {
+    if (!user) return "?";
+    
+    const nameParts = user.fullName.split(" ");
+    if (nameParts.length >= 2) {
+      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
+    }
+    return nameParts[0].substring(0, 2).toUpperCase();
+  };
+  
+  // Show role badge for administrators
+  const getRoleBadge = () => {
+    if (!user) return null;
+    
+    if (user.role === "administrator") {
+      return (
+        <div className="flex items-center text-xs text-amber-300 mt-1">
+          <Shield className="h-3 w-3 mr-1" />
+          <span>Administrator</span>
+        </div>
+      );
+    }
+    
+    return <p className="text-xs text-gray-300 capitalize">{user.role}</p>;
+  };
   
   return (
     <aside className="w-16 md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300">
@@ -166,20 +211,72 @@ const Sidebar: FC = () => {
       </nav>
       
       <div className="p-4 border-t border-slate-600">
-        <div className="hidden md:flex items-center">
-          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-sm font-semibold text-white">JS</span>
+        {user ? (
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                  <span className="text-sm font-semibold text-white">{getUserInitials()}</span>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-white">{user.fullName}</p>
+                  {getRoleBadge()}
+                </div>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-slate-700">
+                    <UserCircle className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Link href="/settings">
+                      <div className="flex items-center">
+                        <Cog className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout} disabled={logoutMutation.isPending}>
+                    <div className="flex items-center text-red-500">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>{logoutMutation.isPending ? "Logging out..." : "Logout"}</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
+            {/* Mobile View */}
+            <div className="md:hidden flex flex-col items-center gap-2">
+              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                <span className="text-sm font-semibold text-white">{getUserInitials()}</span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-slate-700 flex items-center" 
+                onClick={handleLogout}
+                disabled={logoutMutation.isPending}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>{logoutMutation.isPending ? "..." : "Logout"}</span>
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-center">
+            <Link href="/auth">
+              <Button variant="secondary" size="sm" className="w-full">
+                Login
+              </Button>
+            </Link>
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium text-white">Dr. John Smith</p>
-            <p className="text-xs text-gray-300">Seismologist</p>
-          </div>
-        </div>
-        <div className="md:hidden flex justify-center">
-          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-sm font-semibold text-white">JS</span>
-          </div>
-        </div>
+        )}
       </div>
     </aside>
   );

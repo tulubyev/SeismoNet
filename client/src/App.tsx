@@ -3,6 +3,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/lib/protected-route";
 
 // Pages
 import Dashboard from "@/pages/Dashboard";
@@ -13,29 +15,41 @@ import EventHistory from "@/pages/EventHistory";
 import Analysis from "@/pages/Analysis";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
+import AuthPage from "@/pages/auth-page";
 
 function Router() {
   return (
     <Switch>
-      {/* Main Pages */}
-      <Route path="/" component={Dashboard} />
-      <Route path="/stations" component={Stations} />
-      <Route path="/stations/new" component={AddStation} />
-      <Route path="/event-map" component={EventMap} />
-      <Route path="/event-history" component={EventHistory} />
-      <Route path="/analysis" component={Analysis} />
-      <Route path="/settings" component={Settings} />
+      {/* Auth Page - Public */}
+      <Route path="/auth" component={AuthPage} />
       
-      {/* Event Intensity Pages */}
-      <Route path="/events/intensity" component={EventHistory} />
-      <Route path="/events/major" component={EventHistory} />
+      {/* Protected Main Pages */}
+      <ProtectedRoute path="/" component={Dashboard} />
+      <ProtectedRoute path="/stations" component={Stations} />
+      <ProtectedRoute 
+        path="/stations/new" 
+        component={AddStation} 
+        requiredRole={["administrator", "user"]} 
+      />
+      <ProtectedRoute path="/event-map" component={EventMap} />
+      <ProtectedRoute path="/event-history" component={EventHistory} />
+      <ProtectedRoute path="/analysis" component={Analysis} />
+      <ProtectedRoute 
+        path="/settings" 
+        component={Settings} 
+        requiredRole="administrator" 
+      />
       
-      {/* Dashboard Component Pages */}
-      <Route path="/network-status" component={Dashboard} />
-      <Route path="/live-waveforms" component={Dashboard} />
-      <Route path="/status-detail" component={Dashboard} />
-      <Route path="/data-exchange" component={Dashboard} />
-      <Route path="/alerts" component={Dashboard} />
+      {/* Protected Event Intensity Pages */}
+      <ProtectedRoute path="/events/intensity" component={EventHistory} />
+      <ProtectedRoute path="/events/major" component={EventHistory} />
+      
+      {/* Protected Dashboard Component Pages */}
+      <ProtectedRoute path="/network-status" component={Dashboard} />
+      <ProtectedRoute path="/live-waveforms" component={Dashboard} />
+      <ProtectedRoute path="/status-detail" component={Dashboard} />
+      <ProtectedRoute path="/data-exchange" component={Dashboard} />
+      <ProtectedRoute path="/alerts" component={Dashboard} />
       
       {/* Fallback to 404 */}
       <Route component={NotFound} />
@@ -46,10 +60,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
