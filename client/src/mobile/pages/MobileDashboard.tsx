@@ -107,7 +107,7 @@ const MobileDashboard: FC = () => {
               </span>
               <GanttChart className={`h-5 w-5 ${(networkStatus?.dataProcessingHealth ?? 0) > 90 ? 'text-green-500' : 'text-blue-500'}`} />
             </div>
-            <span className="text-xs mt-1 text-slate-500">Last: {networkStatus?.lastSyncTime ? new Date(networkStatus.lastSyncTime).toLocaleTimeString() : 'Unknown'}</span>
+            <span className="text-xs mt-1 text-slate-500">Last: Unknown</span>
           </div>
         </CardContent>
       </Card>

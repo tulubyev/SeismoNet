@@ -1,578 +1,478 @@
 import { FC, useState } from 'react';
 import { useSeismicData } from '@/hooks/useSeismicData';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Activity,
-  Clipboard, 
-  FileText, 
-  Camera, 
-  Mic, 
-  UploadCloud, 
-  Save,
-  Gauge,
-  MapPin,
-  Mountain,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  WrenchIcon
-} from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
+import {
+  FileText,
+  Activity,
+  Upload,
+  Download,
+  Camera,
+  CheckCircle,
+  Clock,
+  Info,
+  Mic,
+  Save,
+  LocateFixed,
+  WrenchIcon,
+} from 'lucide-react';
+
+// Custom Waveform component since it's not available in lucide-react
+const Waveform = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M2 12h2" />
+    <path d="M6 12h2" />
+    <path d="M10 12h2" />
+    <path d="M14 12h2" />
+    <path d="M18 12h2" />
+    <path d="M22 12h2" />
+    <path d="M6 16v-4" />
+    <path d="M10 16v-8" />
+    <path d="M14 16v-4" />
+    <path d="M18 16V8" />
+  </svg>
+);
+
+interface CollectionMode {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+}
 
 const MobileDataCollection: FC = () => {
   const { stations } = useSeismicData();
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('record');
-  const [activeStation, setActiveStation] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('collect');
+  const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordDuration, setRecordDuration] = useState(60);
-  const [recordingProgress, setRecordingProgress] = useState(0);
-  const [samplingRate, setSamplingRate] = useState([100]);
-  const [recordingQuality, setRecordingQuality] = useState('medium');
-  const [gpsCoordinates, setGpsCoordinates] = useState({ lat: '', lng: '' });
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [sampleRate, setSampleRate] = useState(50);
   const [notes, setNotes] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [customEventInfo, setCustomEventInfo] = useState({
-    eventType: 'seismic',
-    magnitude: '',
-    depth: '',
-    description: ''
-  });
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   
-  // Simulate starting a recording
-  const handleStartRecording = () => {
-    if (!activeStation) {
-      toast({
-        title: "No station selected",
-        description: "Please select a station before recording",
-        variant: "destructive"
-      });
-      return;
+  // Collection modes
+  const collectionModes: CollectionMode[] = [
+    {
+      id: 'waveform',
+      name: 'Waveform',
+      description: 'Record seismic waveform data',
+      icon: <Waveform className="h-6 w-6" />
+    },
+    {
+      id: 'maintenance',
+      name: 'Maintenance',
+      description: 'Record station maintenance data',
+      icon: <WrenchIcon className="h-6 w-6" />
+    },
+    {
+      id: 'photo',
+      name: 'Photo',
+      description: 'Take photos of the station',
+      icon: <Camera className="h-6 w-6" />
+    },
+    {
+      id: 'audio',
+      name: 'Audio',
+      description: 'Record ambient audio',
+      icon: <Mic className="h-6 w-6" />
     }
-    
-    setIsRecording(true);
-    setRecordingProgress(0);
-    
-    // Simulate progress
-    const interval = setInterval(() => {
-      setRecordingProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsRecording(false);
-          toast({
-            title: "Recording completed",
-            description: `Captured ${recordDuration}s of data at ${samplingRate}Hz`
-          });
-          return 100;
-        }
-        return prev + (100 / (recordDuration / 2));
-      });
-    }, 500);
+  ];
+  
+  // Handle record toggle
+  const handleRecordToggle = () => {
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+      if (uploadStatus === 'idle') {
+        setUploadStatus('uploading');
+        // Simulate upload progress
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 10;
+          setUploadProgress(progress);
+          if (progress >= 100) {
+            clearInterval(interval);
+            setUploadStatus('success');
+          }
+        }, 300);
+      }
+    } else {
+      // Start recording
+      setIsRecording(true);
+      setRecordingTime(0);
+      setUploadProgress(0);
+      setUploadStatus('idle');
+      // Simulate recording time
+      const interval = setInterval(() => {
+        setRecordingTime(prev => {
+          if (!isRecording) {
+            clearInterval(interval);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    }
   };
   
-  // Simulate data upload
-  const handleUpload = () => {
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          toast({
-            title: "Upload complete",
-            description: "Data has been saved to the central repository"
-          });
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 300);
-  };
-  
-  // Simulate saving local data
-  const handleSaveLocal = () => {
-    toast({
-      title: "Data saved locally",
-      description: "Will be synced when connection is available"
-    });
-  };
-  
-  // Simulate submitting a custom event
-  const handleSubmitEvent = () => {
-    toast({
-      title: "Event submitted",
-      description: "Your custom event has been recorded"
-    });
-    
-    setCustomEventInfo({
-      eventType: 'seismic',
-      magnitude: '',
-      depth: '',
-      description: ''
-    });
+  // Format seconds to MM:SS
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
   return (
     <div className="p-4 pb-16">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 mb-6">
-          <TabsTrigger value="record" className="text-xs">
-            <Activity className="h-4 w-4 mr-1" />
-            Record
-          </TabsTrigger>
-          <TabsTrigger value="upload" className="text-xs">
-            <UploadCloud className="h-4 w-4 mr-1" />
-            Upload
-          </TabsTrigger>
-          <TabsTrigger value="events" className="text-xs">
-            <FileText className="h-4 w-4 mr-1" />
-            Event Log
-          </TabsTrigger>
+      <Tabs defaultValue="collect" value={activeTab} onValueChange={setActiveTab} className="mb-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="collect" className="text-xs">Collect Data</TabsTrigger>
+          <TabsTrigger value="history" className="text-xs">History</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="record" className="mt-0">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Record Waveform Data</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="station-select" className="flex items-center text-sm mb-2">
-                  <MapPin className="h-4 w-4 mr-2 text-blue-500" />
-                  Select Station
-                </Label>
-                <Select
-                  value={activeStation || ''}
-                  onValueChange={setActiveStation}
-                >
-                  <SelectTrigger id="station-select">
-                    <SelectValue placeholder="Select a station" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stations.map(station => (
-                      <SelectItem 
-                        key={station.id} 
-                        value={station.stationId}
-                        disabled={station.status !== 'online'}
-                      >
-                        {station.name} - {station.status === 'online' ? 
-                          <span className="text-green-500">Online</span> : 
-                          <span className="text-red-500">Offline</span>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="recording-quality" className="flex items-center text-sm mb-2">
-                  <Gauge className="h-4 w-4 mr-2 text-amber-500" />
-                  Recording Quality
-                </Label>
-                <RadioGroup 
-                  id="recording-quality" 
-                  value={recordingQuality} 
-                  onValueChange={setRecordingQuality}
-                  className="flex justify-between space-x-2"
-                >
-                  <div className="flex flex-col items-center space-y-1 flex-1">
-                    <RadioGroupItem 
-                      value="low" 
-                      id="r-low" 
-                      className="peer sr-only" 
-                    />
-                    <Label 
-                      htmlFor="r-low" 
-                      className="peer-data-[state=checked]:border-primary 
-                      peer-data-[state=checked]:bg-primary/10 h-20 w-full
-                      flex flex-col items-center justify-center rounded-lg
-                      border-2 border-muted cursor-pointer hover:bg-accent"
-                    >
-                      <span>Low</span>
-                      <span className="text-xs text-muted-foreground">50Hz</span>
-                    </Label>
-                  </div>
-                  
-                  <div className="flex flex-col items-center space-y-1 flex-1">
-                    <RadioGroupItem 
-                      value="medium" 
-                      id="r-medium" 
-                      className="peer sr-only" 
-                    />
-                    <Label 
-                      htmlFor="r-medium" 
-                      className="peer-data-[state=checked]:border-primary 
-                      peer-data-[state=checked]:bg-primary/10 h-20 w-full
-                      flex flex-col items-center justify-center rounded-lg
-                      border-2 border-muted cursor-pointer hover:bg-accent"
-                    >
-                      <span>Medium</span>
-                      <span className="text-xs text-muted-foreground">100Hz</span>
-                    </Label>
-                  </div>
-                  
-                  <div className="flex flex-col items-center space-y-1 flex-1">
-                    <RadioGroupItem 
-                      value="high" 
-                      id="r-high" 
-                      className="peer sr-only" 
-                    />
-                    <Label 
-                      htmlFor="r-high" 
-                      className="peer-data-[state=checked]:border-primary 
-                      peer-data-[state=checked]:bg-primary/10 h-20 w-full
-                      flex flex-col items-center justify-center rounded-lg
-                      border-2 border-muted cursor-pointer hover:bg-accent"
-                    >
-                      <span>High</span>
-                      <span className="text-xs text-muted-foreground">200Hz</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-2">
-                  <Label className="flex items-center text-sm">
-                    <Clock className="h-4 w-4 mr-2 text-purple-500" />
-                    Recording Duration (seconds)
-                  </Label>
-                  <span className="text-sm font-medium">{recordDuration}s</span>
-                </div>
-                <Slider
-                  value={[recordDuration]}
-                  onValueChange={(vals) => setRecordDuration(vals[0])}
-                  min={10}
-                  max={300}
-                  step={10}
-                  disabled={isRecording}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="gps-auto" className="flex items-center justify-between text-sm">
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-2 text-red-500" />
-                    Use Current GPS Location
-                  </div>
-                  <Switch id="gps-auto" defaultChecked />
-                </Label>
-                
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div>
-                    <Label htmlFor="gps-lat" className="text-xs">Latitude</Label>
-                    <Input 
-                      id="gps-lat" 
-                      value={gpsCoordinates.lat}
-                      onChange={(e) => setGpsCoordinates({...gpsCoordinates, lat: e.target.value})}
-                      placeholder="0.000000"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="gps-lng" className="text-xs">Longitude</Label>
-                    <Input 
-                      id="gps-lng" 
-                      value={gpsCoordinates.lng}
-                      onChange={(e) => setGpsCoordinates({...gpsCoordinates, lng: e.target.value})}
-                      placeholder="0.000000"
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="notes" className="flex items-center text-sm mb-2">
-                  <FileText className="h-4 w-4 mr-2 text-blue-500" />
-                  Notes
-                </Label>
-                <Textarea 
-                  id="notes"
-                  placeholder="Add notes about this recording..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              
-              {isRecording ? (
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Recording in progress...</span>
-                    <span>{Math.round(recordingProgress)}%</span>
-                  </div>
-                  <Progress value={recordingProgress} className="h-2" />
-                  
-                  <Button 
-                    variant="destructive" 
-                    className="w-full mt-4"
-                    onClick={() => setIsRecording(false)}
-                  >
-                    Stop Recording
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <Button 
-                    variant="secondary" 
-                    className="flex items-center"
-                    onClick={handleSaveLocal}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Load Template
-                  </Button>
-                  
-                  <Button 
-                    className="flex items-center"
-                    onClick={handleStartRecording}
-                  >
-                    <Mic className="h-4 w-4 mr-2" />
-                    Start Recording
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="upload" className="mt-0">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Upload Data</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
-                <UploadCloud className="h-10 w-10 mx-auto mb-2 text-slate-400" />
-                <p className="text-sm text-slate-600 mb-2">Drag and drop files here or click to browse</p>
-                <p className="text-xs text-slate-500">Supported formats: .mseed, .sac, .gse, .segy</p>
-                
-                <Label 
-                  htmlFor="file-upload"
-                  className="inline-block mt-3 px-4 py-2 text-xs font-medium rounded-md bg-primary text-white cursor-pointer"
-                >
-                  Browse Files
-                </Label>
-                <Input 
-                  id="file-upload" 
-                  type="file" 
-                  className="hidden" 
-                  multiple
-                  accept=".mseed,.sac,.gse,.segy,.txt"
-                />
-              </div>
-              
-              <div className="pt-2">
-                <h3 className="text-sm font-medium mb-2">Selected Files (3)</h3>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 bg-slate-50 rounded-md text-sm">
-                    <div className="flex items-center">
-                      <FileText className="h-4 w-4 mr-2 text-blue-500" />
-                      <span>station_12_20230516.mseed</span>
-                    </div>
-                    <span className="text-xs">2.4 MB</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-2 bg-slate-50 rounded-md text-sm">
-                    <div className="flex items-center">
-                      <FileText className="h-4 w-4 mr-2 text-green-500" />
-                      <span>event_metadata.txt</span>
-                    </div>
-                    <span className="text-xs">12 KB</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-2 bg-slate-50 rounded-md text-sm">
-                    <div className="flex items-center">
-                      <Camera className="h-4 w-4 mr-2 text-amber-500" />
-                      <span>field_photo.jpg</span>
-                    </div>
-                    <span className="text-xs">1.1 MB</span>
-                  </div>
-                </div>
-              </div>
-              
-              {isUploading ? (
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Uploading files...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-2" />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <Button 
-                    variant="secondary" 
-                    className="flex items-center"
-                    onClick={handleSaveLocal}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Locally
-                  </Button>
-                  
-                  <Button 
-                    className="flex items-center"
-                    onClick={handleUpload}
-                  >
-                    <UploadCloud className="h-4 w-4 mr-2" />
-                    Upload Files
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="events" className="mt-0">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Submit Field Event</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="event-type" className="flex items-center text-sm mb-2">
-                  <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
-                  Event Type
-                </Label>
-                <Select
-                  value={customEventInfo.eventType}
-                  onValueChange={(val) => setCustomEventInfo({...customEventInfo, eventType: val})}
-                >
-                  <SelectTrigger id="event-type">
-                    <SelectValue placeholder="Select event type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="seismic">Seismic Event</SelectItem>
-                    <SelectItem value="landslide">Landslide</SelectItem>
-                    <SelectItem value="eruption">Volcanic Activity</SelectItem>
-                    <SelectItem value="equipment">Equipment Issue</SelectItem>
-                    <SelectItem value="other">Other Observation</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="magnitude" className="flex items-center text-sm mb-2">
-                    <Activity className="h-4 w-4 mr-2 text-red-500" />
-                    Magnitude Est.
-                  </Label>
-                  <Input 
-                    id="magnitude"
-                    type="number"
-                    step="0.1"
-                    placeholder="e.g. 3.5"
-                    value={customEventInfo.magnitude}
-                    onChange={(e) => setCustomEventInfo({...customEventInfo, magnitude: e.target.value})}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="depth" className="flex items-center text-sm mb-2">
-                    <Mountain className="h-4 w-4 mr-2 text-blue-500" />
-                    Depth Est. (km)
-                  </Label>
-                  <Input 
-                    id="depth"
-                    type="number"
-                    step="0.1"
-                    placeholder="e.g. 5.2"
-                    value={customEventInfo.depth}
-                    onChange={(e) => setCustomEventInfo({...customEventInfo, depth: e.target.value})}
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="event-description" className="flex items-center text-sm mb-2">
-                  <Clipboard className="h-4 w-4 mr-2 text-slate-500" />
-                  Description
-                </Label>
-                <Textarea 
-                  id="event-description"
-                  placeholder="Describe the event or observation in detail..."
-                  rows={4}
-                  value={customEventInfo.description}
-                  onChange={(e) => setCustomEventInfo({...customEventInfo, description: e.target.value})}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="attach-media" className="flex items-center text-sm">
-                  <Camera className="h-4 w-4 mr-2 text-pink-500" />
-                  Attach Media
-                </Label>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="text-xs h-8"
-                >
-                  <Camera className="h-3.5 w-3.5 mr-1" />
-                  Capture
-                </Button>
-              </div>
-              
-              <div className="pt-2">
-                <Button 
-                  className="w-full flex items-center justify-center"
-                  onClick={handleSubmitEvent}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Submit Event
-                </Button>
-              </div>
-              
-              <div className="border-t border-slate-200 pt-3 mt-4">
-                <h3 className="text-sm font-medium mb-2">Recent Submissions</h3>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 bg-slate-50 rounded-md text-sm">
-                    <div>
-                      <div className="font-medium flex items-center">
-                        <Activity className="h-3.5 w-3.5 mr-1.5 text-red-500" />
-                        Seismic Event
-                      </div>
-                      <div className="text-xs text-slate-500">Today, 10:23 AM</div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      M 2.8
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-2 bg-slate-50 rounded-md text-sm">
-                    <div>
-                      <div className="font-medium flex items-center">
-                        <WrenchIcon className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
-                        Equipment Issue
-                      </div>
-                      <div className="text-xs text-slate-500">Yesterday, 4:15 PM</div>
-                    </div>
-                    <Badge variant="outline" className="text-xs bg-blue-50">
-                      Station 5
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+      
+      <TabsContent value="collect" className="mt-0">
+        {!selectedMode ? (
+          <>
+            <h2 className="text-lg font-semibold mb-3">Select Collection Mode</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {collectionModes.map(mode => (
+                <Card 
+                  key={mode.id} 
+                  className="overflow-hidden cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => setSelectedMode(mode.id)}
+                >
+                  <CardContent className="p-4 flex flex-col items-center text-center">
+                    <div className="bg-primary/10 p-3 rounded-full mb-3">
+                      {mode.icon}
+                    </div>
+                    <h3 className="font-medium">{mode.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{mode.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                {selectedMode === 'waveform' && <Waveform className="h-5 w-5 mr-2 text-primary" />}
+                {selectedMode === 'maintenance' && <WrenchIcon className="h-5 w-5 mr-2 text-primary" />}
+                {selectedMode === 'photo' && <Camera className="h-5 w-5 mr-2 text-primary" />}
+                {selectedMode === 'audio' && <Mic className="h-5 w-5 mr-2 text-primary" />}
+                {collectionModes.find(m => m.id === selectedMode)?.name || 'Collection'}
+              </h2>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setSelectedMode(null);
+                  setIsRecording(false);
+                  setUploadStatus('idle');
+                }}
+              >
+                Change
+              </Button>
+            </div>
+            
+            <Card className="mb-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Station Selection
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {stations.slice(0, 4).map(station => (
+                    <div 
+                      key={station.id}
+                      className="border rounded-md p-2 cursor-pointer hover:border-primary transition-colors flex flex-col"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{station.name}</span>
+                        <span 
+                          className={`h-2 w-2 rounded-full ${
+                            station.status === 'online' ? 'bg-green-500' : 
+                            station.status === 'warning' ? 'bg-yellow-500' : 
+                            'bg-red-500'
+                          }`} 
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{station.stationId}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {selectedMode === 'waveform' && (
+              <>
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="sample-rate">Sample Rate ({sampleRate} Hz)</Label>
+                  </div>
+                  <Slider
+                    id="sample-rate"
+                    min={10}
+                    max={100}
+                    step={5}
+                    value={[sampleRate]}
+                    onValueChange={(values) => setSampleRate(values[0])}
+                    disabled={isRecording}
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="high-precision">High Precision Mode</Label>
+                    <Switch id="high-precision" disabled={isRecording} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Increases data quality but consumes more battery and storage
+                  </p>
+                </div>
+                
+                <Card className={`mb-4 ${isRecording ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center">
+                        {isRecording ? (
+                          <>
+                            <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse mr-2" />
+                            <span className="font-medium">Recording</span>
+                          </>
+                        ) : (
+                          <>
+                            <Waveform className="h-4 w-4 mr-2" />
+                            <span className="font-medium">Ready to record</span>
+                          </>
+                        )}
+                      </div>
+                      <span className="text-sm font-mono">
+                        {formatTime(recordingTime)}
+                      </span>
+                    </div>
+                    
+                    {isRecording && (
+                      <div className="mb-2">
+                        <div className="h-12 bg-slate-100 rounded-md overflow-hidden">
+                          {/* Simulated waveform visualization */}
+                          <div className="w-full h-full flex items-center justify-center relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <div className="w-full h-6 flex items-center">
+                                {Array.from({ length: 50 }).map((_, i) => (
+                                  <div 
+                                    key={i}
+                                    style={{ 
+                                      height: `${Math.abs(Math.sin(i / 3)) * 100}%`,
+                                      width: '2px',
+                                      marginRight: '2px',
+                                      background: 'rgba(59, 130, 246, 0.5)'
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {uploadStatus === 'uploading' && (
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-slate-500 mb-1">
+                          <span>Uploading data...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <Progress value={uploadProgress} />
+                      </div>
+                    )}
+                    
+                    {uploadStatus === 'success' && (
+                      <div className="flex items-center text-green-600 mb-3 text-sm">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Data uploaded successfully
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        variant={isRecording ? "destructive" : "default"}
+                        onClick={handleRecordToggle}
+                        disabled={uploadStatus === 'uploading'}
+                        className="w-full"
+                      >
+                        {isRecording ? 'Stop Recording' : 'Start Recording'}
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        disabled={isRecording || uploadStatus !== 'success'}
+                        className="w-full"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Locally
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+            
+            <div className="mb-4">
+              <Label htmlFor="notes" className="mb-1 block">Notes</Label>
+              <Textarea
+                id="notes"
+                placeholder="Add notes about the data collection..."
+                className="resize-none"
+                rows={4}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2 mb-4">
+              <Button variant="outline" size="sm" className="flex items-center">
+                <LocateFixed className="h-4 w-4 mr-1" />
+                Add Location
+              </Button>
+              
+              {selectedMode === 'maintenance' && (
+                <Button variant="outline" size="sm" className="flex items-center">
+                  <Camera className="h-4 w-4 mr-1" />
+                  Add Photo
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </TabsContent>
+      
+      <TabsContent value="history" className="mt-0">
+        <h2 className="text-lg font-semibold mb-3">Collection History</h2>
+        <div className="space-y-3">
+          {/* Sample entry 1 */}
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center">
+                  <Waveform className="h-4 w-4 mr-2 text-primary" />
+                  <div>
+                    <h3 className="font-medium text-sm">Waveform Collection</h3>
+                    <p className="text-xs text-muted-foreground">Station Alpha-1</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs">Uploaded</Badge>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                <span className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Today, 09:45 AM
+                </span>
+                <span>{(2.5).toFixed(1)} MB</span>
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Info className="h-3 w-3 mr-1" />
+                  Details
+                </Button>
+                <Button variant="outline" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Download className="h-3 w-3 mr-1" />
+                  Download
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Sample entry 2 */}
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center">
+                  <WrenchIcon className="h-4 w-4 mr-2 text-blue-500" />
+                  <div>
+                    <h3 className="font-medium text-sm">Maintenance Record</h3>
+                    <p className="text-xs text-muted-foreground">Station Beta-3</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs">Local Only</Badge>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                <span className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Yesterday, 15:30 PM
+                </span>
+                <span>{(0.8).toFixed(1)} MB</span>
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Info className="h-3 w-3 mr-1" />
+                  Details
+                </Button>
+                <Button variant="default" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Upload className="h-3 w-3 mr-1" />
+                  Upload
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Sample entry 3 */}
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center">
+                  <Camera className="h-4 w-4 mr-2 text-green-500" />
+                  <div>
+                    <h3 className="font-medium text-sm">Photo Collection</h3>
+                    <p className="text-xs text-muted-foreground">Station Delta-7</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs">Uploaded</Badge>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                <span className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Apr 25, 11:20 AM
+                </span>
+                <span>{(5.3).toFixed(1)} MB</span>
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Info className="h-3 w-3 mr-1" />
+                  Details
+                </Button>
+                <Button variant="outline" size="sm" className="text-xs h-7 px-2 flex items-center">
+                  <Download className="h-3 w-3 mr-1" />
+                  Download
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
     </div>
   );
 };
