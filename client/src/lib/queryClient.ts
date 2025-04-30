@@ -12,15 +12,36 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
-
-  await throwIfResNotOk(res);
-  return res;
+  console.log(`Making ${method} request to ${url}`, data ? { data } : '');
+  
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        ...(data ? { "Content-Type": "application/json" } : {}),
+        "Accept": "application/json",
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
+    
+    console.log(`Response from ${url}:`, { 
+      status: res.status, 
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries())
+    });
+    
+    if (res.status === 401) {
+      console.warn('Authentication error - redirecting to login');
+      return res;
+    }
+    
+    await throwIfResNotOk(res);
+    return res;
+  } catch (error) {
+    console.error(`API request error for ${url}:`, error);
+    throw error;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -29,16 +50,36 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
-    });
+    const url = queryKey[0] as string;
+    console.log(`Query request to ${url}`);
+    
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "Accept": "application/json"
+        },
+        credentials: "include",
+      });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+      console.log(`Query response from ${url}:`, { 
+        status: res.status, 
+        statusText: res.statusText
+      });
+      
+      if (res.status === 401) {
+        console.warn('Authentication error in query');
+        if (unauthorizedBehavior === "returnNull") {
+          console.log('Returning null for unauthorized query');
+          return null;
+        }
+      }
+
+      await throwIfResNotOk(res);
+      return await res.json();
+    } catch (error) {
+      console.error(`Query error for ${url}:`, error);
+      throw error;
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
   };
 
 export const queryClient = new QueryClient({

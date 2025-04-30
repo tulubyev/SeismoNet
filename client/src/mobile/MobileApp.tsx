@@ -158,6 +158,9 @@ const MobileApp: FC = () => {
     return <AuthPage />;
   }
   
+  // Debug user authentication status
+  console.log("MobileApp authenticated user:", user);
+  
   return (
     <div className="bg-gray-50 min-h-screen pb-16">
       <TopBar title={getPageTitle()} />

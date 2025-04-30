@@ -68,14 +68,18 @@ function ViewSwitcher() {
 
 function Router() {
   const isMobile = useIsMobile();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   
   // Auto-redirect to mobile view on small screens, except if already on mobile
   useEffect(() => {
+    console.log("App routing - current location:", location, "isMobile:", isMobile);
+    
     if (isMobile && !location.startsWith('/mobile') && location !== '/auth') {
-      window.location.href = '/mobile';
+      console.log("Redirecting to mobile view");
+      // Using navigate instead of direct href assignment to ensure React router is used
+      navigate('/mobile');
     }
-  }, [isMobile, location]);
+  }, [isMobile, location, navigate]);
   
   return (
     <>
