@@ -31,14 +31,14 @@ const NavItem: FC<NavItemProps> = ({ href, icon, text, isActive }) => {
   return (
     <li className="mb-1">
       <Link href={href}>
-        <a className={`flex items-center py-3 px-4 text-white ${
+        <div className={`flex items-center py-3 px-4 text-white ${
           isActive 
-            ? "bg-primary bg-opacity-20 border-l-4 border-primary" 
-            : "hover:bg-sidebar-accent hover:bg-opacity-30 transition-colors"
+            ? "bg-blue-500 border-l-4 border-white" 
+            : "hover:bg-slate-700 transition-colors"
         }`}>
           <div className="w-5 text-center">{icon}</div>
           <span className="hidden md:block ml-3">{text}</span>
-        </a>
+        </div>
       </Link>
     </li>
   );
@@ -48,7 +48,7 @@ const Sidebar: FC = () => {
   const [location] = useLocation();
   
   return (
-    <aside className="w-16 md:w-64 bg-sidebar-background text-sidebar-foreground flex flex-col transition-all duration-300">
+    <aside className="w-16 md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300">
       <div className="p-4 flex items-center justify-center md:justify-start">
         <div className="bg-primary rounded-lg p-2 flex items-center justify-center">
           <SquareDashedBottom className="size-5" />
@@ -165,19 +165,19 @@ const Sidebar: FC = () => {
         </ul>
       </nav>
       
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-slate-600">
         <div className="hidden md:flex items-center">
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-            <span className="text-sm font-semibold">JS</span>
+          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+            <span className="text-sm font-semibold text-white">JS</span>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium">Dr. John Smith</p>
-            <p className="text-xs opacity-70">Seismologist</p>
+            <p className="text-sm font-medium text-white">Dr. John Smith</p>
+            <p className="text-xs text-gray-300">Seismologist</p>
           </div>
         </div>
         <div className="md:hidden flex justify-center">
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-            <span className="text-sm font-semibold">JS</span>
+          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+            <span className="text-sm font-semibold text-white">JS</span>
           </div>
         </div>
       </div>
