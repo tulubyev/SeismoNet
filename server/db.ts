@@ -4,16 +4,27 @@ import ws from "ws";
 import * as schemaImport from "@shared/schema";
 
 // Extract table definitions
-const { stations, events, waveformData, researchNetworks, systemStatus, alerts } = schemaImport;
+const { 
+  regions,
+  stations, 
+  events, 
+  waveformData, 
+  researchNetworks, 
+  systemStatus, 
+  alerts,
+  maintenanceRecords
+} = schemaImport;
 
 // Export the schema for direct use in other files
 export const schema = {
+  regions,
   stations,
   events,
   waveformData,
   researchNetworks,
   systemStatus,
-  alerts
+  alerts,
+  maintenanceRecords
 };
 
 neonConfig.webSocketConstructor = ws;

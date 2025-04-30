@@ -2,7 +2,18 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, rea
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Seismic stations
+// Geographic regions for grouping stations
+export const regions = pgTable("regions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  centerLatitude: numeric("center_latitude").notNull(),
+  centerLongitude: numeric("center_longitude").notNull(),
+  radiusKm: real("radius_km").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// Seismic stations with extended field operations capabilities
 export const stations = pgTable("stations", {
   id: serial("id").primaryKey(),
   stationId: text("station_id").notNull().unique(),
@@ -13,7 +24,30 @@ export const stations = pgTable("stations", {
   status: text("status").notNull().default("offline"), // online, degraded, offline
   lastUpdate: timestamp("last_update").notNull().defaultNow(),
   dataRate: real("data_rate"),
-  configuration: jsonb("configuration")
+  regionId: integer("region_id").references(() => regions.id),
+  
+  // Field operations data
+  batteryLevel: integer("battery_level"), // percentage (0-100)
+  batteryVoltage: real("battery_voltage"), // actual voltage reading
+  powerConsumption: real("power_consumption"), // in watts
+  solarCharging: real("solar_charging"), // in watts (if equipped with solar)
+  
+  // Hardware details
+  serialNumber: text("serial_number"),
+  firmwareVersion: text("firmware_version"),
+  hardwareModel: text("hardware_model"),
+  installationDate: timestamp("installation_date"),
+  
+  // Sensor parameters and calibration
+  sensorsCalibrated: boolean("sensors_calibrated").default(false),
+  lastCalibrationDate: timestamp("last_calibration_date"),
+  nextCalibrationDue: timestamp("next_calibration_due"),
+  calibrationParameters: jsonb("calibration_parameters"),
+  
+  // Configuration and additional data
+  configuration: jsonb("configuration"),
+  connectionStrength: integer("connection_strength"), // signal strength as percentage
+  storageRemaining: integer("storage_remaining") // percentage of local storage remaining
 });
 
 // Seismic events
@@ -78,15 +112,40 @@ export const alerts = pgTable("alerts", {
   isRead: boolean("is_read").notNull().default(false)
 });
 
+// Maintenance records for field devices
+export const maintenanceRecords = pgTable("maintenance_records", {
+  id: serial("id").primaryKey(),
+  stationId: text("station_id").notNull().references(() => stations.stationId),
+  maintenanceType: text("maintenance_type").notNull(), // calibration, repair, upgrade, inspection, battery
+  performedBy: text("performed_by").notNull(),
+  performedAt: timestamp("performed_at").notNull(),
+  scheduledAt: timestamp("scheduled_at"),
+  status: text("status").notNull().default("completed"), // scheduled, in-progress, completed, cancelled
+  description: text("description"),
+  findings: text("findings"),
+  partsReplaced: jsonb("parts_replaced"),
+  batteryReplaced: boolean("battery_replaced").default(false),
+  calibrationPerformed: boolean("calibration_performed").default(false),
+  firmwareUpdated: boolean("firmware_updated").default(false),
+  nextMaintenanceDue: timestamp("next_maintenance_due"),
+  images: jsonb("images"), // URLs to maintenance photos
+  notes: text("notes")
+});
+
 // Insert schemas
+export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
 export const insertStationSchema = createInsertSchema(stations).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertWaveformDataSchema = createInsertSchema(waveformData).omit({ id: true });
 export const insertResearchNetworkSchema = createInsertSchema(researchNetworks).omit({ id: true });
 export const insertSystemStatusSchema = createInsertSchema(systemStatus).omit({ id: true });
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true });
+export const insertMaintenanceRecordSchema = createInsertSchema(maintenanceRecords).omit({ id: true });
 
 // Types
+export type Region = typeof regions.$inferSelect;
+export type InsertRegion = z.infer<typeof insertRegionSchema>;
+
 export type Station = typeof stations.$inferSelect;
 export type InsertStation = z.infer<typeof insertStationSchema>;
 
@@ -104,6 +163,9 @@ export type InsertSystemStatus = z.infer<typeof insertSystemStatusSchema>;
 
 export type Alert = typeof alerts.$inferSelect;
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
+
+export type MaintenanceRecord = typeof maintenanceRecords.$inferSelect;
+export type InsertMaintenanceRecord = z.infer<typeof insertMaintenanceRecordSchema>;
 
 // Types for API communication
 export type SeismicDataPoint = {
