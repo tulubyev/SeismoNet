@@ -1,6 +1,29 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Define user roles
+export const userRoleEnum = pgEnum('user_role', ['administrator', 'user', 'viewer']);
+
+// User accounts
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  role: userRoleEnum("role").notNull().default('viewer'),
+  active: boolean("active").notNull().default(true),
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  profileImage: text("profile_image"),
+  contactPhone: text("contact_phone"),
+  organization: text("organization"),
+  jobTitle: text("job_title"),
+  specialization: text("specialization"),
+  preferences: jsonb("preferences")
+});
 
 // Geographic regions for grouping stations
 export const regions = pgTable("regions", {
@@ -133,6 +156,7 @@ export const maintenanceRecords = pgTable("maintenance_records", {
 });
 
 // Insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
 export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
 export const insertStationSchema = createInsertSchema(stations).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
@@ -143,6 +167,9 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true });
 export const insertMaintenanceRecordSchema = createInsertSchema(maintenanceRecords).omit({ id: true });
 
 // Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
 export type Region = typeof regions.$inferSelect;
 export type InsertRegion = z.infer<typeof insertRegionSchema>;
 

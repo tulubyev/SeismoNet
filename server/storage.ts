@@ -19,6 +19,16 @@ import {
 
 // Interface for storage operations
 export interface IStorage {
+  // User operations
+  getUsers(): Promise<User[]>;
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined>;
+  updateUserRole(id: number, role: 'administrator' | 'user' | 'viewer'): Promise<User | undefined>;
+  updateUserStatus(id: number, active: boolean): Promise<User | undefined>;
+  
   // Region operations
   getRegions(): Promise<Region[]>;
   getRegion(id: number): Promise<Region | undefined>;
@@ -73,6 +83,7 @@ export interface IStorage {
 
 // In-memory storage implementation
 export class MemStorage implements IStorage {
+  private users: Map<number, User>;
   private stations: Map<number, Station>;
   private events: Map<number, Event>;
   private waveformData: Map<number, WaveformData>;
@@ -80,6 +91,7 @@ export class MemStorage implements IStorage {
   private systemStatuses: Map<number, SystemStatus>;
   private alerts: Map<number, Alert>;
   
+  private currentUserId: number;
   private currentStationId: number;
   private currentEventId: number;
   private currentWaveformDataId: number;
