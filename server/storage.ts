@@ -1,4 +1,6 @@
 import { 
+  Region,
+  InsertRegion,
   Station, 
   InsertStation, 
   Event, 
@@ -10,17 +12,28 @@ import {
   SystemStatus,
   InsertSystemStatus,
   Alert,
-  InsertAlert
+  InsertAlert,
+  MaintenanceRecord,
+  InsertMaintenanceRecord
 } from "@shared/schema";
 
 // Interface for storage operations
 export interface IStorage {
+  // Region operations
+  getRegions(): Promise<Region[]>;
+  getRegion(id: number): Promise<Region | undefined>;
+  getRegionByName(name: string): Promise<Region | undefined>;
+  createRegion(region: InsertRegion): Promise<Region>;
+  
   // Station operations
   getStations(): Promise<Station[]>;
+  getStationsByRegionId(regionId: number): Promise<Station[]>;
   getStation(id: number): Promise<Station | undefined>;
   getStationByStationId(stationId: string): Promise<Station | undefined>;
   createStation(station: InsertStation): Promise<Station>;
   updateStationStatus(stationId: string, status: string): Promise<Station | undefined>;
+  updateStationBatteryInfo(stationId: string, batteryLevel: number, batteryVoltage: number, powerConsumption: number): Promise<Station | undefined>;
+  updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined>;
   
   // Event operations
   getEvents(): Promise<Event[]>;
@@ -33,6 +46,13 @@ export interface IStorage {
   // Waveform data operations
   getWaveformData(stationId: string, limit: number): Promise<WaveformData[]>;
   createWaveformData(waveformData: InsertWaveformData): Promise<WaveformData>;
+  
+  // Maintenance operations
+  getMaintenanceRecords(stationId: string): Promise<MaintenanceRecord[]>;
+  getMaintenanceRecord(id: number): Promise<MaintenanceRecord | undefined>;
+  createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord>;
+  updateMaintenanceStatus(id: number, status: string): Promise<MaintenanceRecord | undefined>;
+  getUpcomingMaintenanceRecords(days: number): Promise<MaintenanceRecord[]>;
   
   // Research network operations
   getResearchNetworks(): Promise<ResearchNetwork[]>;
@@ -483,14 +503,46 @@ export class MemStorage implements IStorage {
 }
 
 import { db } from './db';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and, isNull, gt, lte } from 'drizzle-orm';
 import { schema } from './db';
+import {
+  regions, stations, events, waveformData, researchNetworks,
+  systemStatus, alerts, maintenanceRecords
+} from "@shared/schema";
 
 // Database storage implementation
 export class DatabaseStorage implements IStorage {
+  // Region operations
+  async getRegions(): Promise<Region[]> {
+    return db.query.regions.findMany();
+  }
+  
+  async getRegion(id: number): Promise<Region | undefined> {
+    return db.query.regions.findFirst({
+      where: (regions, { eq }) => eq(regions.id, id)
+    });
+  }
+  
+  async getRegionByName(name: string): Promise<Region | undefined> {
+    return db.query.regions.findFirst({
+      where: (regions, { eq }) => eq(regions.name, name)
+    });
+  }
+  
+  async createRegion(region: InsertRegion): Promise<Region> {
+    const [newRegion] = await db.insert(schema.regions).values(region).returning();
+    return newRegion;
+  }
+  
   // Station operations
   async getStations(): Promise<Station[]> {
     return db.query.stations.findMany();
+  }
+  
+  async getStationsByRegionId(regionId: number): Promise<Station[]> {
+    return db.query.stations.findMany({
+      where: (stations, { eq }) => eq(stations.regionId, regionId)
+    });
   }
   
   async getStation(id: number): Promise<Station | undefined> {
@@ -514,6 +566,37 @@ export class DatabaseStorage implements IStorage {
     const [updatedStation] = await db
       .update(schema.stations)
       .set({ status, lastUpdate: new Date() })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  }
+  
+  async updateStationBatteryInfo(
+    stationId: string, 
+    batteryLevel: number, 
+    batteryVoltage: number, 
+    powerConsumption: number
+  ): Promise<Station | undefined> {
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ 
+        batteryLevel, 
+        batteryVoltage, 
+        powerConsumption,
+        lastUpdate: new Date() 
+      })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  }
+  
+  async updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined> {
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ 
+        storageRemaining,
+        lastUpdate: new Date() 
+      })
       .where(eq(schema.stations.stationId, stationId))
       .returning();
     return updatedStation;
@@ -569,6 +652,63 @@ export class DatabaseStorage implements IStorage {
   async createWaveformData(data: InsertWaveformData): Promise<WaveformData> {
     const [newData] = await db.insert(schema.waveformData).values(data).returning();
     return newData;
+  }
+  
+  // Maintenance operations
+  async getMaintenanceRecords(stationId: string): Promise<MaintenanceRecord[]> {
+    return db.query.maintenanceRecords.findMany({
+      where: (records, { eq }) => eq(records.stationId, stationId),
+      orderBy: (records, { desc }) => [desc(records.performedAt)]
+    });
+  }
+  
+  async getMaintenanceRecord(id: number): Promise<MaintenanceRecord | undefined> {
+    return db.query.maintenanceRecords.findFirst({
+      where: (records, { eq }) => eq(records.id, id)
+    });
+  }
+  
+  async createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord> {
+    const [newRecord] = await db.insert(schema.maintenanceRecords).values(record).returning();
+    
+    // If calibration was performed, update the station calibration info
+    if (record.calibrationPerformed) {
+      await db
+        .update(schema.stations)
+        .set({ 
+          sensorsCalibrated: true,
+          lastCalibrationDate: record.performedAt,
+          nextCalibrationDue: record.nextMaintenanceDue
+        })
+        .where(eq(schema.stations.stationId, record.stationId));
+    }
+    
+    return newRecord;
+  }
+  
+  async updateMaintenanceStatus(id: number, status: string): Promise<MaintenanceRecord | undefined> {
+    const [updatedRecord] = await db
+      .update(schema.maintenanceRecords)
+      .set({ status })
+      .where(eq(schema.maintenanceRecords.id, id))
+      .returning();
+    
+    return updatedRecord;
+  }
+  
+  async getUpcomingMaintenanceRecords(days: number): Promise<MaintenanceRecord[]> {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+    
+    return db.query.maintenanceRecords.findMany({
+      where: (records, { and, lte, gt, eq }) => 
+        and(
+          lte(records.scheduledAt, futureDate),
+          gt(records.scheduledAt, new Date()),
+          eq(records.status, "scheduled")
+        ),
+      orderBy: (records, { asc }) => [asc(records.scheduledAt)]
+    });
   }
   
   // Research network operations
@@ -660,7 +800,50 @@ const initializeDatabase = async () => {
   if (existingStations.length === 0) {
     console.log('Initializing database with sample data...');
     
-    // Sample stations
+    // Sample regions
+    const sampleRegions: InsertRegion[] = [
+      {
+        name: "Pacific Northwest",
+        description: "Cascadia Subduction Zone Region",
+        centerLatitude: "47.6062",
+        centerLongitude: "-122.3321",
+        radiusKm: 500,
+        createdAt: new Date()
+      },
+      {
+        name: "Southern California",
+        description: "San Andreas Fault Region",
+        centerLatitude: "34.0522",
+        centerLongitude: "-118.2437",
+        radiusKm: 300,
+        createdAt: new Date()
+      },
+      {
+        name: "Alaska",
+        description: "Aleutian Islands Region",
+        centerLatitude: "61.2181",
+        centerLongitude: "-149.9003",
+        radiusKm: 800,
+        createdAt: new Date()
+      },
+      {
+        name: "South Pacific",
+        description: "Fiji and Surrounding Islands",
+        centerLatitude: "-18.1134",
+        centerLongitude: "178.4253",
+        radiusKm: 1000,
+        createdAt: new Date()
+      }
+    ];
+    
+    // Create regions first
+    const regionMap = new Map<string, number>();
+    for (const region of sampleRegions) {
+      const createdRegion = await dbStorage.createRegion(region);
+      regionMap.set(region.name, createdRegion.id);
+    }
+    
+    // Sample stations with field operations data
     const sampleStations: InsertStation[] = [
       {
         stationId: "PNWST-03",
@@ -671,7 +854,35 @@ const initializeDatabase = async () => {
         status: "online",
         lastUpdate: new Date(),
         dataRate: 1.2,
-        configuration: {}
+        regionId: regionMap.get("Pacific Northwest"),
+        
+        // Field operations data
+        batteryLevel: 87,
+        batteryVoltage: 12.8,
+        powerConsumption: 3.2,
+        solarCharging: 5.1,
+        
+        // Hardware details
+        serialNumber: "PNW-2023-03458",
+        firmwareVersion: "v2.1.5",
+        hardwareModel: "Seismic-Pro X3",
+        installationDate: new Date(2023, 3, 15), // April 15, 2023
+        
+        // Calibration data
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2023, 8, 10), // September 10, 2023
+        nextCalibrationDue: new Date(2024, 2, 10), // March 10, 2024
+        
+        storageRemaining: 78,
+        connectionStrength: 92,
+        configuration: {
+          samplingRate: 100,
+          triggerThreshold: 0.02,
+          filterSettings: {
+            lowPass: 40,
+            highPass: 0.1
+          }
+        }
       },
       {
         stationId: "SOCAL-12",
@@ -682,7 +893,35 @@ const initializeDatabase = async () => {
         status: "online",
         lastUpdate: new Date(),
         dataRate: 1.5,
-        configuration: {}
+        regionId: regionMap.get("Southern California"),
+        
+        // Field operations data
+        batteryLevel: 65,
+        batteryVoltage: 11.9,
+        powerConsumption: 4.1,
+        solarCharging: 4.2,
+        
+        // Hardware details
+        serialNumber: "SOCAL-2022-12874",
+        firmwareVersion: "v2.0.8",
+        hardwareModel: "Seismic-Pro X2",
+        installationDate: new Date(2022, 6, 22), // July 22, 2022
+        
+        // Calibration data
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2023, 5, 18), // June 18, 2023
+        nextCalibrationDue: new Date(2023, 11, 18), // December 18, 2023
+        
+        storageRemaining: 52,
+        connectionStrength: 88,
+        configuration: {
+          samplingRate: 120,
+          triggerThreshold: 0.015,
+          filterSettings: {
+            lowPass: 45,
+            highPass: 0.08
+          }
+        }
       },
       {
         stationId: "ALASKA-07",
@@ -693,7 +932,36 @@ const initializeDatabase = async () => {
         status: "degraded",
         lastUpdate: new Date(),
         dataRate: 0.8,
-        configuration: {}
+        regionId: regionMap.get("Alaska"),
+        
+        // Field operations data (showing degraded performance)
+        batteryLevel: 41,
+        batteryVoltage: 10.8,
+        powerConsumption: 3.9,
+        solarCharging: 2.1,
+        
+        // Hardware details
+        serialNumber: "AK-2023-00792",
+        firmwareVersion: "v2.1.2",
+        hardwareModel: "Seismic-Pro X3 Arctic",
+        installationDate: new Date(2023, 1, 8), // February 8, 2023
+        
+        // Calibration data
+        sensorsCalibrated: false,
+        lastCalibrationDate: new Date(2023, 1, 5), // February 5, 2023
+        
+        storageRemaining: 34,
+        connectionStrength: 51,
+        configuration: {
+          samplingRate: 100,
+          triggerThreshold: 0.025,
+          filterSettings: {
+            lowPass: 40,
+            highPass: 0.1
+          },
+          arcticMode: true,
+          heatingElement: "enabled"
+        }
       },
       {
         stationId: "FIJI-01",
@@ -704,7 +972,37 @@ const initializeDatabase = async () => {
         status: "online",
         lastUpdate: new Date(),
         dataRate: 1.0,
-        configuration: {}
+        regionId: regionMap.get("South Pacific"),
+        
+        // Field operations data
+        batteryLevel: 92,
+        batteryVoltage: 13.2,
+        powerConsumption: 2.8,
+        solarCharging: 6.5,
+        
+        // Hardware details
+        serialNumber: "SP-2023-05189",
+        firmwareVersion: "v2.1.5",
+        hardwareModel: "Seismic-Pro X3 Tropical",
+        installationDate: new Date(2023, 0, 12), // January 12, 2023
+        
+        // Calibration data
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2023, 7, 28), // August 28, 2023
+        nextCalibrationDue: new Date(2024, 1, 28), // February 28, 2024
+        
+        storageRemaining: 85,
+        connectionStrength: 78,
+        configuration: {
+          samplingRate: 100,
+          triggerThreshold: 0.018,
+          filterSettings: {
+            lowPass: 40,
+            highPass: 0.1
+          },
+          humidityProtection: "enhanced",
+          waterproofing: "IPX8"
+        }
       }
     ];
     
@@ -884,11 +1182,128 @@ const initializeDatabase = async () => {
         relatedEntityId: "HAWAII",
         relatedEntityType: "cluster",
         isRead: true
+      },
+      {
+        alertType: "low_battery",
+        severity: "warning",
+        message: "Low battery on ALASKA-07 station (41%)",
+        timestamp: new Date(Date.now() - 180 * 60 * 1000), // 3 hours ago
+        relatedEntityId: "ALASKA-07",
+        relatedEntityType: "station",
+        isRead: false
+      },
+      {
+        alertType: "calibration_due",
+        severity: "info", 
+        message: "Calibration due for SOCAL-12 station",
+        timestamp: new Date(Date.now() - 200 * 60 * 1000), // 3 hours 20 minutes ago
+        relatedEntityId: "SOCAL-12",
+        relatedEntityType: "station",
+        isRead: false
       }
     ];
     
     for (const alert of sampleAlerts) {
       await dbStorage.createAlert(alert);
+    }
+    
+    // Sample maintenance records
+    const sampleMaintenanceRecords: InsertMaintenanceRecord[] = [
+      {
+        stationId: "PNWST-03",
+        maintenanceType: "calibration",
+        performedBy: "John Smith",
+        performedAt: new Date(2023, 8, 10), // September 10, 2023
+        status: "completed",
+        description: "Regular 6-month calibration",
+        findings: "Sensors were within acceptable parameters, minor adjustment to vertical sensor",
+        partsReplaced: JSON.stringify([]),
+        batteryReplaced: false,
+        calibrationPerformed: true,
+        firmwareUpdated: true,
+        nextMaintenanceDue: new Date(2024, 2, 10), // March 10, 2024
+        notes: "Station is in excellent condition, no issues found"
+      },
+      {
+        stationId: "SOCAL-12",
+        maintenanceType: "calibration",
+        performedBy: "Maria Garcia",
+        performedAt: new Date(2023, 5, 18), // June 18, 2023
+        status: "completed",
+        description: "Regular 6-month calibration",
+        findings: "Sensors required recalibration, horizontal sensor drift corrected",
+        partsReplaced: JSON.stringify(["Weather shield", "Communication cable"]),
+        batteryReplaced: false,
+        calibrationPerformed: true,
+        firmwareUpdated: true,
+        nextMaintenanceDue: new Date(2023, 11, 18), // December 18, 2023
+        notes: "Station needed cleaning due to dust accumulation"
+      },
+      {
+        stationId: "SOCAL-12",
+        maintenanceType: "battery",
+        performedBy: "David Chen",
+        performedAt: new Date(2023, 2, 8), // March 8, 2023
+        status: "completed",
+        description: "Scheduled battery replacement",
+        findings: "Old battery was at 40% of original capacity",
+        partsReplaced: JSON.stringify(["Main battery"]),
+        batteryReplaced: true,
+        calibrationPerformed: false,
+        firmwareUpdated: false,
+        notes: "Replaced with higher capacity battery model"
+      },
+      {
+        stationId: "ALASKA-07",
+        maintenanceType: "repair",
+        performedBy: "Robert Johnson",
+        performedAt: new Date(2023, 4, 22), // May 22, 2023
+        status: "completed",
+        description: "Emergency maintenance - communication failure",
+        findings: "Communication module damaged by water ingress",
+        partsReplaced: JSON.stringify(["Communication module", "Weather seals", "External antenna"]),
+        batteryReplaced: false,
+        calibrationPerformed: false,
+        firmwareUpdated: true,
+        notes: "Additional waterproofing measures implemented"
+      },
+      {
+        stationId: "ALASKA-07",
+        maintenanceType: "calibration",
+        performedBy: "Sarah Williams",
+        scheduledAt: new Date(2023, 11, 15), // December 15, 2023
+        status: "scheduled",
+        description: "Urgent calibration and system check",
+        notes: "Priority maintenance due to degraded performance"
+      },
+      {
+        stationId: "FIJI-01",
+        maintenanceType: "upgrade",
+        performedBy: "James Taylor",
+        performedAt: new Date(2023, 7, 28), // August 28, 2023
+        status: "completed",
+        description: "Hardware and firmware upgrade",
+        findings: "Successfully upgraded to latest specifications",
+        partsReplaced: JSON.stringify(["Processing unit", "Data storage module"]),
+        batteryReplaced: false,
+        calibrationPerformed: true,
+        firmwareUpdated: true,
+        nextMaintenanceDue: new Date(2024, 1, 28), // February 28, 2024
+        notes: "Full system upgrade completed, improved data processing capabilities"
+      },
+      {
+        stationId: "PNWST-03", 
+        maintenanceType: "inspection",
+        performedBy: "Michelle Thompson",
+        scheduledAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days in the future
+        status: "scheduled",
+        description: "Routine quarterly inspection",
+        notes: "Check solar panel efficiency and network connectivity"
+      }
+    ];
+    
+    for (const record of sampleMaintenanceRecords) {
+      await dbStorage.createMaintenanceRecord(record);
     }
     
     console.log('Database initialization complete.');
