@@ -176,6 +176,30 @@ export function setupAuth(app: Express) {
   app.get("/api/user-info", requireRole(["administrator", "user"]), (req, res) => {
     res.json({ message: "User access granted", user: req.user });
   });
+  
+  // Update user role (admin only)
+  app.patch("/api/users/:id/role", requireRole("administrator"), async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { role } = req.body;
+      
+      if (!role || !['administrator', 'user', 'viewer'].includes(role)) {
+        return res.status(400).json({ message: 'Valid role is required (administrator, user, or viewer)' });
+      }
+      
+      console.log(`Updating user ID ${userId} to role: ${role}`);
+      const updatedUser = await storage.updateUserRole(userId, role as 'administrator' | 'user' | 'viewer');
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      res.json({ message: "User role updated successfully", user: updatedUser });
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: 'Error updating user role' });
+    }
+  });
 }
 
 // Middleware to require a specific role or array of roles
