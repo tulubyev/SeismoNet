@@ -1,4 +1,5 @@
 import { FC, useState } from 'react';
+import { useLocation } from 'wouter';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import { useSeismicData } from '@/hooks/useSeismicData';
@@ -14,11 +15,32 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { format } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { format, formatDistanceToNow } from 'date-fns';
+import { Activity, ArrowUpRight, MapPin, Clock, AlertTriangle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 const EventHistory: FC = () => {
-  const { events, selectEvent } = useSeismicData();
+  const { events, selectEvent, selectedEvent } = useSeismicData();
   const [filter, setFilter] = useState('all');
+  const [showDetails, setShowDetails] = useState(false);
+  const [_, location] = useLocation();
+  
+  // Check if we're on the major events page
+  const isMajorEventsPage = location.includes('/events/major');
+  
+  // Set filter for major events if we're on that page
+  useState(() => {
+    if (isMajorEventsPage) {
+      setFilter('major');
+    }
+  });
   
   const filteredEvents = events.filter(event => {
     if (filter === 'all') return true;
@@ -28,21 +50,28 @@ const EventHistory: FC = () => {
     return true;
   });
   
+  const handleViewDetails = (eventId: string) => {
+    selectEvent(eventId);
+    setShowDetails(true);
+  };
+  
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       
       <main className="flex-1 overflow-y-auto bg-slate-ultralight">
         <Header 
-          title="Event History" 
-          subtitle="Historical seismic event data" 
+          title={isMajorEventsPage ? "Major Events" : "Event History"} 
+          subtitle={isMajorEventsPage ? "High magnitude seismic events" : "Historical seismic event data"} 
         />
         
         <div className="p-6">
           <Card>
             <CardContent className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold text-slate-dark">Seismic Events</h2>
+                <h2 className="text-lg font-semibold text-slate-dark">
+                  {isMajorEventsPage ? "Major Seismic Events" : "Seismic Events"}
+                </h2>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setFilter('all')}
@@ -136,7 +165,7 @@ const EventHistory: FC = () => {
                       </TableCell>
                       <TableCell>
                         <button 
-                          onClick={() => selectEvent(event.eventId)}
+                          onClick={() => handleViewDetails(event.eventId)}
                           className="text-xs text-primary hover:text-primary-dark"
                         >
                           Details
@@ -150,6 +179,118 @@ const EventHistory: FC = () => {
           </Card>
         </div>
       </main>
+      
+      {/* Event Details Dialog */}
+      {selectedEvent && (
+        <Dialog open={showDetails} onOpenChange={setShowDetails}>
+          <DialogContent className="sm:max-w-[550px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <Activity className="mr-2 h-5 w-5 text-status-danger" />
+                Seismic Event Details
+              </DialogTitle>
+              <DialogDescription>
+                {selectedEvent.region} - {format(new Date(selectedEvent.timestamp), 'MMM dd, yyyy, HH:mm:ss')}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="border rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 flex items-center space-x-2">
+                  <div className="h-8 w-8 rounded-full bg-status-danger bg-opacity-10 flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 text-status-danger" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-lg">Magnitude {selectedEvent.magnitude.toFixed(1)}</h3>
+                    <p className="text-sm text-slate-DEFAULT">{selectedEvent.location || 'Unknown location'}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center text-sm text-slate-DEFAULT">
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Epicenter
+                  </div>
+                  <p className="text-sm">
+                    {selectedEvent.latitude.toString()}° {parseFloat(selectedEvent.latitude.toString()) >= 0 ? 'N' : 'S'}, 
+                    {selectedEvent.longitude.toString()}° {parseFloat(selectedEvent.longitude.toString()) >= 0 ? 'E' : 'W'}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center text-sm text-slate-DEFAULT">
+                    <Clock className="mr-2 h-4 w-4" />
+                    Time
+                  </div>
+                  <p className="text-sm">
+                    {formatDistanceToNow(new Date(selectedEvent.timestamp), { addSuffix: true })}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center text-sm text-slate-DEFAULT">
+                    <ArrowUpRight className="mr-2 h-4 w-4" />
+                    Depth
+                  </div>
+                  <p className="text-sm">{selectedEvent.depth.toFixed(1)} km</p>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center text-sm text-slate-DEFAULT">
+                    Status
+                  </div>
+                  <p className="text-sm capitalize">{selectedEvent.status}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Event Impact Analysis</h4>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Potential Damage</span>
+                    <span>
+                      {selectedEvent.magnitude >= 6.0 ? 'Severe' : 
+                       selectedEvent.magnitude >= 5.0 ? 'Moderate' : 
+                       selectedEvent.magnitude >= 4.0 ? 'Light' : 'Minimal'}
+                    </span>
+                  </div>
+                  <Progress value={
+                    selectedEvent.magnitude >= 6.0 ? 100 : 
+                    selectedEvent.magnitude >= 5.0 ? 70 : 
+                    selectedEvent.magnitude >= 4.0 ? 40 : 20
+                  } className="h-2" />
+                </div>
+                
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Population Affected</span>
+                    <span>
+                      {selectedEvent.magnitude >= 6.0 ? 'Large' : 
+                       selectedEvent.magnitude >= 5.0 ? 'Moderate' : 
+                       selectedEvent.magnitude >= 4.0 ? 'Small' : 'Very Few'}
+                    </span>
+                  </div>
+                  <Progress value={
+                    selectedEvent.magnitude >= 6.0 ? 90 : 
+                    selectedEvent.magnitude >= 5.0 ? 60 : 
+                    selectedEvent.magnitude >= 4.0 ? 30 : 10
+                  } className="h-2" />
+                </div>
+                
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Data Reliability</span>
+                    <span>{selectedEvent.status === 'verified' ? 'High' : 'Medium'}</span>
+                  </div>
+                  <Progress value={selectedEvent.status === 'verified' ? 90 : 60} className="h-2" />
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
