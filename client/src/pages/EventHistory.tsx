@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -30,17 +30,17 @@ const EventHistory: FC = () => {
   const { events, selectEvent, selectedEvent } = useSeismicData();
   const [filter, setFilter] = useState('all');
   const [showDetails, setShowDetails] = useState(false);
-  const [_, location] = useLocation();
+  const [location] = useLocation();
   
   // Check if we're on the major events page
-  const isMajorEventsPage = location.includes('/events/major');
+  const isMajorEventsPage = location === '/events/major';
   
   // Set filter for major events if we're on that page
-  useState(() => {
+  useEffect(() => {
     if (isMajorEventsPage) {
       setFilter('major');
     }
-  });
+  }, [isMajorEventsPage]);
   
   const filteredEvents = events.filter(event => {
     if (filter === 'all') return true;

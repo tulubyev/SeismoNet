@@ -88,7 +88,8 @@ function Router() {
         <Route path="/auth" component={AuthPage} />
         
         {/* Mobile App Routes */}
-        <Route path="/mobile/:*" component={MobileApp} />
+        <Route path="/mobile" component={MobileApp} />
+        <Route path="/mobile/:rest*" component={MobileApp} />
         
         {/* Protected Main Pages */}
         <ProtectedRoute path="/" component={Dashboard} />
