@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
+import { setupAuth, requireRole } from "./auth";
 
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
@@ -19,6 +20,9 @@ function broadcastMessage(message: WebSocketMessage) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication with passport.js
+  setupAuth(app);
+  
   const httpServer = createServer(app);
 
   // Set up WebSocket server

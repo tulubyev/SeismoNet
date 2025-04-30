@@ -988,6 +988,52 @@ const initializeDatabase = async () => {
   const existingUsers = await dbStorage.getUsers();
   const existingStations = await dbStorage.getStations();
   
+  // Initialize users if none exist
+  if (existingUsers.length === 0) {
+    console.log('Initializing users...');
+    
+    // Sample users for different roles
+    const sampleUsers: InsertUser[] = [
+      {
+        username: "admin",
+        fullName: "System Administrator",
+        email: "admin@seismic-network.org",
+        password: "admin123", // In a real system, this would be hashed
+        role: "administrator",
+        active: true,
+        organization: "Seismic Network Research Center",
+        jobTitle: "Network Administrator",
+        specialization: "System Administration"
+      },
+      {
+        username: "fieldtech",
+        fullName: "Field Technician",
+        email: "fieldtech@seismic-network.org",
+        password: "tech123", // In a real system, this would be hashed
+        role: "user",
+        active: true,
+        organization: "Seismic Network Research Center",
+        jobTitle: "Field Technician",
+        specialization: "Station Maintenance"
+      },
+      {
+        username: "researcher",
+        fullName: "Seismic Researcher",
+        email: "researcher@seismic-network.org",
+        password: "research123", // In a real system, this would be hashed
+        role: "viewer",
+        active: true,
+        organization: "University Research Institute",
+        jobTitle: "Researcher",
+        specialization: "Seismic Analysis"
+      }
+    ];
+    
+    for (const user of sampleUsers) {
+      await dbStorage.createUser(user);
+    }
+  }
+  
   if (existingStations.length === 0) {
     console.log('Initializing database with sample data...');
     
