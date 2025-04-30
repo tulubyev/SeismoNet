@@ -34,19 +34,23 @@ const EventHistory: FC = () => {
   
   // Check if we're on the major events page
   const isMajorEventsPage = location === '/events/major';
+  const isIntensityPage = location === '/events/intensity';
   
-  // Set filter for major events if we're on that page
+  // Set filter for special pages
   useEffect(() => {
     if (isMajorEventsPage) {
       setFilter('major');
+    } else if (isIntensityPage) {
+      setFilter('all'); // Show all on intensity page
     }
-  }, [isMajorEventsPage]);
+  }, [isMajorEventsPage, isIntensityPage]);
   
+  // Lower the threshold for major events to show more data
   const filteredEvents = events.filter(event => {
     if (filter === 'all') return true;
-    if (filter === 'major') return event.magnitude >= 5.0;
-    if (filter === 'moderate') return event.magnitude >= 3.0 && event.magnitude < 5.0;
-    if (filter === 'minor') return event.magnitude < 3.0;
+    if (filter === 'major') return event.magnitude >= 4.5; // Changed from 5.0 to show more events
+    if (filter === 'moderate') return event.magnitude >= 2.5 && event.magnitude < 4.5;
+    if (filter === 'minor') return event.magnitude < 2.5;
     return true;
   });
   
@@ -91,7 +95,7 @@ const EventHistory: FC = () => {
                         : 'bg-slate-light hover:bg-slate-light hover:bg-opacity-70'
                     }`}
                   >
-                    Major (≥5.0)
+                    Major (≥4.5)
                   </button>
                   <button 
                     onClick={() => setFilter('moderate')}
@@ -101,7 +105,7 @@ const EventHistory: FC = () => {
                         : 'bg-slate-light hover:bg-slate-light hover:bg-opacity-70'
                     }`}
                   >
-                    Moderate (3.0-4.9)
+                    Moderate (2.5-4.4)
                   </button>
                   <button 
                     onClick={() => setFilter('minor')}
@@ -111,7 +115,7 @@ const EventHistory: FC = () => {
                         : 'bg-slate-light hover:bg-slate-light hover:bg-opacity-70'
                     }`}
                   >
-                    Minor (&lt;3.0)
+                    Minor (&lt;2.5)
                   </button>
                 </div>
               </div>
@@ -144,9 +148,9 @@ const EventHistory: FC = () => {
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          event.magnitude >= 5.0 
+                          event.magnitude >= 4.5 
                             ? 'bg-status-danger text-white' 
-                            : event.magnitude >= 3.0 
+                            : event.magnitude >= 2.5 
                               ? 'bg-status-warning text-white' 
                               : 'bg-status-info text-white'
                         }`}>
@@ -251,15 +255,15 @@ const EventHistory: FC = () => {
                   <div className="flex justify-between text-sm mb-1">
                     <span>Potential Damage</span>
                     <span>
-                      {selectedEvent.magnitude >= 6.0 ? 'Severe' : 
-                       selectedEvent.magnitude >= 5.0 ? 'Moderate' : 
-                       selectedEvent.magnitude >= 4.0 ? 'Light' : 'Minimal'}
+                      {selectedEvent.magnitude >= 5.5 ? 'Severe' : 
+                       selectedEvent.magnitude >= 4.5 ? 'Moderate' : 
+                       selectedEvent.magnitude >= 3.5 ? 'Light' : 'Minimal'}
                     </span>
                   </div>
                   <Progress value={
-                    selectedEvent.magnitude >= 6.0 ? 100 : 
-                    selectedEvent.magnitude >= 5.0 ? 70 : 
-                    selectedEvent.magnitude >= 4.0 ? 40 : 20
+                    selectedEvent.magnitude >= 5.5 ? 100 : 
+                    selectedEvent.magnitude >= 4.5 ? 70 : 
+                    selectedEvent.magnitude >= 3.5 ? 40 : 20
                   } className="h-2" />
                 </div>
                 
@@ -267,15 +271,15 @@ const EventHistory: FC = () => {
                   <div className="flex justify-between text-sm mb-1">
                     <span>Population Affected</span>
                     <span>
-                      {selectedEvent.magnitude >= 6.0 ? 'Large' : 
-                       selectedEvent.magnitude >= 5.0 ? 'Moderate' : 
-                       selectedEvent.magnitude >= 4.0 ? 'Small' : 'Very Few'}
+                      {selectedEvent.magnitude >= 5.5 ? 'Large' : 
+                       selectedEvent.magnitude >= 4.5 ? 'Moderate' : 
+                       selectedEvent.magnitude >= 3.5 ? 'Small' : 'Very Few'}
                     </span>
                   </div>
                   <Progress value={
-                    selectedEvent.magnitude >= 6.0 ? 90 : 
-                    selectedEvent.magnitude >= 5.0 ? 60 : 
-                    selectedEvent.magnitude >= 4.0 ? 30 : 10
+                    selectedEvent.magnitude >= 5.5 ? 90 : 
+                    selectedEvent.magnitude >= 4.5 ? 60 : 
+                    selectedEvent.magnitude >= 3.5 ? 30 : 10
                   } className="h-2" />
                 </div>
                 
