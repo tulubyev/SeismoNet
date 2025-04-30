@@ -211,6 +211,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // SPECIAL DEBUG ROUTE - REMOVE IN PRODUCTION
+  app.get('/api/debug/users', async (req, res) => {
+    try {
+      // Get all users with passwords visible for debugging
+      const users = await storage.getUsers();
+      res.json({
+        message: "Debug information - ALL USER DATA INCLUDING PASSWORDS",
+        users: users.map(user => ({
+          id: user.id,
+          username: user.username,
+          password: user.password,
+          email: user.email,
+          role: user.role,
+          active: user.active
+        }))
+      });
+    } catch (error) {
+      console.error("Error in debug route:", error);
+      res.status(500).json({ error: "Failed to get debug info" });
+    }
+  });
+  
   // --- Field Operations API Routes ---
   
   // Get all regions

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Loader2, Lock, Mail, User } from "lucide-react";
+import { Loader2, Lock, Mail, User, Eye, EyeOff } from "lucide-react";
 
 // Login schema only requires username and password
 const loginSchema = z.object({
@@ -35,6 +35,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<string>("login");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [location, navigate] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
 
@@ -141,10 +142,21 @@ export default function AuthPage() {
                                 <Lock className="ml-2 h-5 w-5 text-muted-foreground" />
                                 <Input 
                                   className="border-none focus-visible:ring-0" 
-                                  type="password" 
+                                  type={showPassword ? "text" : "password"} 
                                   placeholder="Enter your password" 
                                   {...field} 
                                 />
+                                <button 
+                                  type="button"
+                                  className="mr-2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className="h-5 w-5" />
+                                  ) : (
+                                    <Eye className="h-5 w-5" />
+                                  )}
+                                </button>
                               </div>
                             </FormControl>
                             <FormMessage />
@@ -165,8 +177,20 @@ export default function AuthPage() {
                     </form>
                   </Form>
                 </CardContent>
-                <CardFooter className="flex flex-col">
-                  <p className="text-sm text-muted-foreground mt-4">
+                <CardFooter className="flex flex-col space-y-3">
+                  <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-200">
+                    <p className="font-medium">Debugging Info:</p>
+                    <p>Having trouble logging in? View all users and their passwords at:</p>
+                    <a 
+                      href="/api/debug/users" 
+                      target="_blank" 
+                      className="text-blue-600 hover:underline"
+                    >
+                      /api/debug/users
+                    </a>
+                    <p className="mt-1 text-xs">This endpoint is for debugging only and should be removed in production.</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
                     Don't have an account?{" "}
                     <button 
                       className="text-primary underline-offset-4 hover:underline" 
