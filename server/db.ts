@@ -5,6 +5,7 @@ import * as schemaImport from "@shared/schema";
 
 // Extract table definitions
 const { 
+  users,
   regions,
   stations, 
   events, 
@@ -17,6 +18,7 @@ const {
 
 // Export the schema for direct use in other files
 export const schema = {
+  users,
   regions,
   stations,
   events,

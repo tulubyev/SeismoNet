@@ -1,4 +1,6 @@
 import { 
+  User,
+  InsertUser,
   Region,
   InsertRegion,
   Station, 
@@ -100,6 +102,7 @@ export class MemStorage implements IStorage {
   private currentAlertId: number;
   
   constructor() {
+    this.users = new Map();
     this.stations = new Map();
     this.events = new Map();
     this.waveformData = new Map();
@@ -107,6 +110,7 @@ export class MemStorage implements IStorage {
     this.systemStatuses = new Map();
     this.alerts = new Map();
     
+    this.currentUserId = 1;
     this.currentStationId = 1;
     this.currentEventId = 1;
     this.currentWaveformDataId = 1;
@@ -119,6 +123,45 @@ export class MemStorage implements IStorage {
   }
   
   private initializeData() {
+    // Initialize users
+    const sampleUsers: InsertUser[] = [
+      {
+        username: "admin",
+        fullName: "System Administrator",
+        email: "admin@seismic-network.org",
+        password: "admin123", // In a real system, this would be hashed
+        role: "administrator",
+        active: true,
+        organization: "Seismic Network Research Center",
+        jobTitle: "Network Administrator",
+        specialization: "System Administration"
+      },
+      {
+        username: "fieldtech",
+        fullName: "Field Technician",
+        email: "fieldtech@seismic-network.org",
+        password: "tech123", // In a real system, this would be hashed
+        role: "user",
+        active: true,
+        organization: "Seismic Network Research Center",
+        jobTitle: "Field Technician",
+        specialization: "Station Maintenance"
+      },
+      {
+        username: "researcher",
+        fullName: "Seismic Researcher",
+        email: "researcher@seismic-network.org",
+        password: "research123", // In a real system, this would be hashed
+        role: "viewer",
+        active: true,
+        organization: "University Research Institute",
+        jobTitle: "Researcher",
+        specialization: "Seismic Analysis"
+      }
+    ];
+    
+    sampleUsers.forEach(user => this.createUser(user));
+    
     // Initialize stations
     const sampleStations: InsertStation[] = [
       {
@@ -341,6 +384,62 @@ export class MemStorage implements IStorage {
     sampleAlerts.forEach(alert => this.createAlert(alert));
   }
   
+  // User operations
+  async getUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+  
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+  
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username
+    );
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.email === email
+    );
+  }
+  
+  async createUser(user: InsertUser): Promise<User> {
+    const id = this.currentUserId++;
+    const now = new Date();
+    const newUser: User = {
+      ...user,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.users.set(id, newUser);
+    return newUser;
+  }
+  
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const user = await this.getUser(id);
+    if (user) {
+      const updatedUser: User = {
+        ...user,
+        ...userData,
+        updatedAt: new Date()
+      };
+      this.users.set(id, updatedUser);
+      return updatedUser;
+    }
+    return undefined;
+  }
+  
+  async updateUserRole(id: number, role: 'administrator' | 'user' | 'viewer'): Promise<User | undefined> {
+    return this.updateUser(id, { role });
+  }
+  
+  async updateUserStatus(id: number, active: boolean): Promise<User | undefined> {
+    return this.updateUser(id, { active });
+  }
+  
   // Station operations
   async getStations(): Promise<Station[]> {
     return Array.from(this.stations.values());
@@ -518,12 +617,83 @@ import { db } from './db';
 import { eq, desc, sql, and, isNull, gt, lte } from 'drizzle-orm';
 import { schema } from './db';
 import {
-  regions, stations, events, waveformData, researchNetworks,
+  users, regions, stations, events, waveformData, researchNetworks,
   systemStatus, alerts, maintenanceRecords
 } from "@shared/schema";
 
 // Database storage implementation
 export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUsers(): Promise<User[]> {
+    return db.query.users.findMany();
+  }
+  
+  async getUser(id: number): Promise<User | undefined> {
+    return db.query.users.findFirst({
+      where: (users, { eq }) => eq(users.id, id)
+    });
+  }
+  
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return db.query.users.findFirst({
+      where: (users, { eq }) => eq(users.username, username)
+    });
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return db.query.users.findFirst({
+      where: (users, { eq }) => eq(users.email, email)
+    });
+  }
+  
+  async createUser(user: InsertUser): Promise<User> {
+    const now = new Date();
+    const userWithTimestamps = {
+      ...user,
+      createdAt: now,
+      updatedAt: now,
+      lastLogin: null
+    };
+    const [newUser] = await db.insert(schema.users).values(userWithTimestamps).returning();
+    return newUser;
+  }
+  
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(schema.users)
+      .set({
+        ...userData,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.users.id, id))
+      .returning();
+    return updatedUser;
+  }
+  
+  async updateUserRole(id: number, role: 'administrator' | 'user' | 'viewer'): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(schema.users)
+      .set({
+        role,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.users.id, id))
+      .returning();
+    return updatedUser;
+  }
+  
+  async updateUserStatus(id: number, active: boolean): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(schema.users)
+      .set({
+        active,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.users.id, id))
+      .returning();
+    return updatedUser;
+  }
+  
   // Region operations
   async getRegions(): Promise<Region[]> {
     return db.query.regions.findMany();
@@ -815,6 +985,7 @@ const initializeDatabase = async () => {
   const dbStorage = new DatabaseStorage();
   
   // Check if there's already data in the database
+  const existingUsers = await dbStorage.getUsers();
   const existingStations = await dbStorage.getStations();
   
   if (existingStations.length === 0) {
