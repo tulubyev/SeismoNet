@@ -577,12 +577,17 @@ export class DatabaseStorage implements IStorage {
     batteryVoltage: number, 
     powerConsumption: number
   ): Promise<Station | undefined> {
+    // Convert floating point values to integers to avoid the type error
+    const batteryLevelInt = Math.round(batteryLevel);
+    const batteryVoltageInt = Math.round(batteryVoltage * 100) / 100; // Keep two decimal places
+    const powerConsumptionInt = Math.round(powerConsumption * 100) / 100; // Keep two decimal places
+    
     const [updatedStation] = await db
       .update(schema.stations)
       .set({ 
-        batteryLevel, 
-        batteryVoltage, 
-        powerConsumption,
+        batteryLevel: batteryLevelInt, 
+        batteryVoltage: batteryVoltageInt, 
+        powerConsumption: powerConsumptionInt,
         lastUpdate: new Date() 
       })
       .where(eq(schema.stations.stationId, stationId))
@@ -591,10 +596,13 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined> {
+    // Convert floating point values to integers to avoid the type error
+    const storageRemainingInt = Math.round(storageRemaining);
+    
     const [updatedStation] = await db
       .update(schema.stations)
       .set({ 
-        storageRemaining,
+        storageRemaining: storageRemainingInt,
         lastUpdate: new Date() 
       })
       .where(eq(schema.stations.stationId, stationId))
