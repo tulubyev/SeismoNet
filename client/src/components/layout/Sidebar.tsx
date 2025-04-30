@@ -112,6 +112,41 @@ const Sidebar: FC = () => {
             isActive={location === '/events/major'} 
           />
           
+          {/* Monitoring Section */}
+          <div className="mt-5 mb-2 px-4 hidden md:block">
+            <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Monitoring</h3>
+          </div>
+          <NavItem 
+            href="/network-status" 
+            icon={<Network className="size-5" />} 
+            text="Network Status" 
+            isActive={location === '/network-status'} 
+          />
+          <NavItem 
+            href="/live-waveforms" 
+            icon={<Waves className="size-5" />} 
+            text="Live Waveforms" 
+            isActive={location === '/live-waveforms'} 
+          />
+          <NavItem 
+            href="/status-detail" 
+            icon={<BarChart3 className="size-5" />} 
+            text="Status Detail" 
+            isActive={location === '/status-detail'} 
+          />
+          <NavItem 
+            href="/data-exchange" 
+            icon={<Share2 className="size-5" />} 
+            text="Research Networks" 
+            isActive={location === '/data-exchange'} 
+          />
+          <NavItem 
+            href="/alerts" 
+            icon={<AlertTriangle className="size-5" />} 
+            text="System Alerts" 
+            isActive={location === '/alerts'} 
+          />
+          
           {/* Tools Section */}
           <div className="mt-5 mb-2 px-4 hidden md:block">
             <h3 className="text-xs font-semibold text-slate-DEFAULT uppercase tracking-wider">Tools</h3>
