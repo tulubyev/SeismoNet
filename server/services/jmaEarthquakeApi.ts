@@ -100,14 +100,104 @@ function convertJMAIntensityToMercalli(jmaIntensity: string): string {
  */
 async function convertJMAEventToEvent(event: JMAEarthquakeEvent): Promise<InsertEvent | null> {
   try {
-    // Fetch detailed information for this event
-    const details = await fetchJMAEarthquakeDetails(event.eid);
+    // Try to fetch detailed information, but fall back to basic info if unavailable
+    let details: JMAEarthquakeDetails | null = null;
+    let useBasicInfo = false;
     
-    if (!details.earthquake || !details.earthquake.hypocenters || details.earthquake.hypocenters.length === 0) {
-      console.warn(`Missing hypocenter data for JMA event ${event.eid}`);
-      return null;
+    try {
+      details = await fetchJMAEarthquakeDetails(event.eid);
+    } catch (detailError) {
+      // Handle case where details page returns 404 or other error
+      console.warn(`Could not fetch details for JMA event ${event.eid}, using basic info instead`);
+      useBasicInfo = true;
     }
     
+    // If we couldn't get details or the details are incomplete, use basic info
+    if (useBasicInfo || !details || !details.earthquake || !details.earthquake.hypocenters || details.earthquake.hypocenters.length === 0) {
+      console.log(`Using basic info for JMA event ${event.eid}`);
+      
+      // Parse date from JMA format (trying to handle their date format)
+      // Event dates are a bit unpredictable, so we need to be careful
+      let timestamp = new Date(); // Default to current date/time
+      
+      try {
+        // event.at may be in form "20250426120657" (YYYYMMDDHHmmss) or may be a formatted string
+        if (event.at) {
+          // Check if it's a numeric format (YYYYMMDDHHmmss)
+          if (/^\d+$/.test(event.at) && event.at.length >= 8) {
+            // At minimum we need YYYYMMDD
+            const year = parseInt(event.at.substring(0, 4));
+            const month = parseInt(event.at.substring(4, 6)) - 1; // JS months are 0-based
+            const day = parseInt(event.at.substring(6, 8));
+            
+            // Add time components if available
+            let hour = 0, minute = 0, second = 0;
+            if (event.at.length >= 10) hour = parseInt(event.at.substring(8, 10));
+            if (event.at.length >= 12) minute = parseInt(event.at.substring(10, 12));
+            if (event.at.length >= 14) second = parseInt(event.at.substring(12, 14));
+            
+            // Create date with individual components
+            // This is more reliable than parsing ISO strings
+            timestamp = new Date(year, month, day, hour, minute, second);
+            
+            // Validate the timestamp
+            if (isNaN(timestamp.getTime())) {
+              console.warn(`Invalid date components from JMA event ${event.eid}: ${event.at}, using current date`);
+              timestamp = new Date();
+            }
+          } else {
+            // Try parsing as a standard date string
+            const parsedDate = new Date(event.at);
+            if (!isNaN(parsedDate.getTime())) {
+              timestamp = parsedDate;
+            } else {
+              console.warn(`Could not parse JMA date string: ${event.at}, using current date`);
+            }
+          }
+        } else {
+          console.warn(`No date information in JMA event ${event.eid}, using current date`);
+        }
+      } catch (dateError) {
+        console.warn(`Error parsing JMA date ${event.at}, using current date:`, dateError);
+      }
+      
+      // Final validation to ensure we never send an invalid date to the database
+      if (isNaN(timestamp.getTime())) {
+        console.warn(`Final validation: Invalid timestamp for JMA event ${event.eid}, using current date`);
+        timestamp = new Date();
+      }
+      
+      // Default to Tokyo coordinates if we don't have location info
+      const TOKYO_LATITUDE = 35.6762;
+      const TOKYO_LONGITUDE = 139.6503;
+      
+      return {
+        eventId: `JMA-${event.eid}`,
+        type: 'earthquake',
+        status: 'reported', // Less confidence without details
+        location: event.ttl || 'Japan',
+        region: 'Japan',
+        latitude: TOKYO_LATITUDE.toString(),
+        longitude: TOKYO_LONGITUDE.toString(),
+        depth: 10, // Default depth
+        magnitude: event.en?.mag || 0,
+        timestamp,
+        calculationConfidence: 0.7, // Lower confidence without details
+        data: {
+          source: 'JMA',
+          title: event.ttl,
+          intensity: {
+            jma: event.en?.int || '0',
+            mercalli: convertJMAIntensityToMercalli(event.en?.int || '0')
+          },
+          reportType: event.rtt,
+          serial: event.ser,
+          code: event.cod
+        }
+      };
+    }
+    
+    // If we have details, use them
     const hypocenter = details.earthquake.hypocenters[0];
     
     // Generate a unique event ID
@@ -115,7 +205,19 @@ async function convertJMAEventToEvent(event: JMAEarthquakeEvent): Promise<Insert
     
     // Parse date from JMA format (YYYY/MM/DD HH:MM:SS in JST)
     // Need to convert from JST (UTC+9) to UTC
-    const timestamp = new Date(details.earthquake.originTime);
+    let timestamp: Date;
+    try {
+      timestamp = new Date(details.earthquake.originTime);
+      
+      // Validate the timestamp
+      if (isNaN(timestamp.getTime())) {
+        console.warn(`Invalid date from JMA details for event ${event.eid}: ${details.earthquake.originTime}, using current date`);
+        timestamp = new Date();
+      }
+    } catch (dateError) {
+      console.warn(`Error parsing JMA date from details ${details.earthquake.originTime}, using current date`);
+      timestamp = new Date();
+    }
     
     return {
       eventId,
