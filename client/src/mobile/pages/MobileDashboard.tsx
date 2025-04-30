@@ -83,9 +83,9 @@ const MobileDashboard: FC = () => {
             <span className="text-xs text-slate-500 mb-1">Network</span>
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold">
-                {networkStatus?.connectionQuality ? `${networkStatus.connectionQuality}%` : 'N/A'}
+                {networkStatus?.networkConnectivityHealth ? `${networkStatus.networkConnectivityHealth}%` : 'N/A'}
               </span>
-              <Wifi className={`h-5 w-5 ${(networkStatus?.connectionQuality ?? 0) > 70 ? 'text-green-500' : 'text-amber-500'}`} />
+              <Wifi className={`h-5 w-5 ${(networkStatus?.networkConnectivityHealth ?? 0) > 70 ? 'text-green-500' : 'text-amber-500'}`} />
             </div>
             <span className="text-xs mt-1 text-slate-500">Signal Strength</span>
           </div>
@@ -103,9 +103,9 @@ const MobileDashboard: FC = () => {
             <span className="text-xs text-slate-500 mb-1">Data Sync</span>
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold">
-                {networkStatus?.dataSyncProgress ? `${networkStatus.dataSyncProgress}%` : 'N/A'}
+                {networkStatus?.dataProcessingHealth ? `${networkStatus.dataProcessingHealth}%` : 'N/A'}
               </span>
-              <GanttChart className={`h-5 w-5 ${(networkStatus?.dataSyncProgress ?? 0) > 90 ? 'text-green-500' : 'text-blue-500'}`} />
+              <GanttChart className={`h-5 w-5 ${(networkStatus?.dataProcessingHealth ?? 0) > 90 ? 'text-green-500' : 'text-blue-500'}`} />
             </div>
             <span className="text-xs mt-1 text-slate-500">Last: {networkStatus?.lastSyncTime ? new Date(networkStatus.lastSyncTime).toLocaleTimeString() : 'Unknown'}</span>
           </div>

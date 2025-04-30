@@ -25,8 +25,10 @@ import {
   Mountain,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  WrenchIcon
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const MobileDataCollection: FC = () => {
   const { stations } = useSeismicData();
