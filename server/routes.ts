@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Endpoints for earthquake data from external sources
   
-  // Manually trigger earthquake data sync
+  // Manually trigger USGS earthquake data sync
   app.post('/api/earthquakes/sync', requireRole("administrator"), async (req, res) => {
     try {
       const { magnitude, period } = req.body;
@@ -507,17 +507,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         per = 'week';
       }
       
-      console.log(`Manually triggering earthquake sync with magnitude ${mag} and period ${per}`);
+      console.log(`Manually triggering USGS earthquake sync with magnitude ${mag} and period ${per}`);
       const newEventsCount = await syncEarthquakeData(mag, per);
       
       res.json({ 
-        message: `Earthquake data sync complete`, 
+        message: `USGS earthquake data sync complete`, 
         newEvents: newEventsCount,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error syncing earthquake data:', error);
-      res.status(500).json({ message: 'Error syncing earthquake data' });
+      console.error('Error syncing USGS earthquake data:', error);
+      res.status(500).json({ message: 'Error syncing USGS earthquake data' });
+    }
+  });
+  
+  // Manually trigger JMA earthquake data sync
+  app.post('/api/earthquakes/sync/jma', requireRole("administrator"), async (req, res) => {
+    try {
+      console.log('Manually triggering JMA earthquake data sync');
+      
+      const newEventsCount = await syncJMAEarthquakeData();
+      
+      res.json({ 
+        message: `JMA earthquake data sync complete`, 
+        newEvents: newEventsCount,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error syncing JMA earthquake data:', error);
+      res.status(500).json({ message: 'Error syncing JMA earthquake data' });
     }
   });
   
@@ -538,7 +556,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Schedule regular earthquake data synchronization (every 30 minutes)
-  const syncJob = scheduleEarthquakeSyncJob(30);
+  const usgsEarthquakeJob = scheduleEarthquakeSyncJob(30);
+  
+  // Schedule JMA earthquake data synchronization (every 30 minutes)
+  const jmaEarthquakeJob = scheduleJMAEarthquakeSyncJob(30);
 
   return httpServer;
 }
