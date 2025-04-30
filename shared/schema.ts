@@ -37,6 +37,7 @@ export const events = pgTable("events", {
 export const waveformData = pgTable("waveform_data", {
   id: serial("id").primaryKey(),
   stationId: text("station_id").notNull().references(() => stations.stationId),
+  eventId: text("event_id").references(() => events.eventId),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   dataPoints: jsonb("data_points").notNull(),
   dataType: text("data_type").notNull(), // p-wave, s-wave, etc.

@@ -482,4 +482,425 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { db } from './db';
+import { eq, desc, sql } from 'drizzle-orm';
+import { schema } from './db';
+
+// Database storage implementation
+export class DatabaseStorage implements IStorage {
+  // Station operations
+  async getStations(): Promise<Station[]> {
+    return db.query.stations.findMany();
+  }
+  
+  async getStation(id: number): Promise<Station | undefined> {
+    return db.query.stations.findFirst({
+      where: (stations, { eq }) => eq(stations.id, id)
+    });
+  }
+  
+  async getStationByStationId(stationId: string): Promise<Station | undefined> {
+    return db.query.stations.findFirst({
+      where: (stations, { eq }) => eq(stations.stationId, stationId)
+    });
+  }
+  
+  async createStation(station: InsertStation): Promise<Station> {
+    const [newStation] = await db.insert(schema.stations).values(station).returning();
+    return newStation;
+  }
+  
+  async updateStationStatus(stationId: string, status: string): Promise<Station | undefined> {
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ status, lastUpdate: new Date() })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  }
+  
+  // Event operations
+  async getEvents(): Promise<Event[]> {
+    return db.query.events.findMany();
+  }
+  
+  async getRecentEvents(limit: number): Promise<Event[]> {
+    return db.query.events.findMany({
+      orderBy: (events, { desc }) => [desc(events.timestamp)],
+      limit
+    });
+  }
+  
+  async getEvent(id: number): Promise<Event | undefined> {
+    return db.query.events.findFirst({
+      where: (events, { eq }) => eq(events.id, id)
+    });
+  }
+  
+  async getEventByEventId(eventId: string): Promise<Event | undefined> {
+    return db.query.events.findFirst({
+      where: (events, { eq }) => eq(events.eventId, eventId)
+    });
+  }
+  
+  async createEvent(event: InsertEvent): Promise<Event> {
+    const [newEvent] = await db.insert(schema.events).values(event).returning();
+    return newEvent;
+  }
+  
+  async updateEventStatus(eventId: string, status: string): Promise<Event | undefined> {
+    const [updatedEvent] = await db
+      .update(schema.events)
+      .set({ status })
+      .where(eq(schema.events.eventId, eventId))
+      .returning();
+    return updatedEvent;
+  }
+  
+  // Waveform data operations
+  async getWaveformData(stationId: string, limit: number): Promise<WaveformData[]> {
+    return db.query.waveformData.findMany({
+      where: (waveformData, { eq }) => eq(waveformData.stationId, stationId),
+      orderBy: (waveformData, { desc }) => [desc(waveformData.timestamp)],
+      limit
+    });
+  }
+  
+  async createWaveformData(data: InsertWaveformData): Promise<WaveformData> {
+    const [newData] = await db.insert(schema.waveformData).values(data).returning();
+    return newData;
+  }
+  
+  // Research network operations
+  async getResearchNetworks(): Promise<ResearchNetwork[]> {
+    return db.query.researchNetworks.findMany();
+  }
+  
+  async getResearchNetwork(id: number): Promise<ResearchNetwork | undefined> {
+    return db.query.researchNetworks.findFirst({
+      where: (networks, { eq }) => eq(networks.id, id)
+    });
+  }
+  
+  async getResearchNetworkByNetworkId(networkId: string): Promise<ResearchNetwork | undefined> {
+    return db.query.researchNetworks.findFirst({
+      where: (networks, { eq }) => eq(networks.networkId, networkId)
+    });
+  }
+  
+  async createResearchNetwork(network: InsertResearchNetwork): Promise<ResearchNetwork> {
+    const [newNetwork] = await db.insert(schema.researchNetworks).values(network).returning();
+    return newNetwork;
+  }
+  
+  async updateResearchNetworkStatus(
+    networkId: string, 
+    status: string, 
+    dataVolume?: number
+  ): Promise<ResearchNetwork | undefined> {
+    const updateData: Partial<ResearchNetwork> = { 
+      connectionStatus: status,
+      lastSyncTimestamp: new Date()
+    };
+    
+    if (dataVolume !== undefined) {
+      updateData.syncedDataVolume = dataVolume;
+    }
+    
+    const [updatedNetwork] = await db
+      .update(schema.researchNetworks)
+      .set(updateData)
+      .where(eq(schema.researchNetworks.networkId, networkId))
+      .returning();
+    
+    return updatedNetwork;
+  }
+  
+  // System status operations
+  async getSystemStatus(): Promise<SystemStatus[]> {
+    return db.query.systemStatus.findMany();
+  }
+  
+  async createSystemStatus(status: InsertSystemStatus): Promise<SystemStatus> {
+    const [newStatus] = await db.insert(schema.systemStatus).values(status).returning();
+    return newStatus;
+  }
+  
+  // Alert operations
+  async getAlerts(limit: number): Promise<Alert[]> {
+    return db.query.alerts.findMany({
+      orderBy: (alerts, { desc }) => [desc(alerts.timestamp)],
+      limit
+    });
+  }
+  
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    const [newAlert] = await db.insert(schema.alerts).values(alert).returning();
+    return newAlert;
+  }
+  
+  async markAlertAsRead(id: number): Promise<Alert | undefined> {
+    const [updatedAlert] = await db
+      .update(schema.alerts)
+      .set({ isRead: true })
+      .where(eq(schema.alerts.id, id))
+      .returning();
+    
+    return updatedAlert;
+  }
+}
+
+// Initialize storage with sample data and export
+const initializeDatabase = async () => {
+  const dbStorage = new DatabaseStorage();
+  
+  // Check if there's already data in the database
+  const existingStations = await dbStorage.getStations();
+  
+  if (existingStations.length === 0) {
+    console.log('Initializing database with sample data...');
+    
+    // Sample stations
+    const sampleStations: InsertStation[] = [
+      {
+        stationId: "PNWST-03",
+        name: "Pacific Northwest Station 03",
+        location: "Seattle, WA",
+        latitude: "47.6062",
+        longitude: "-122.3321",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 1.2,
+        configuration: {}
+      },
+      {
+        stationId: "SOCAL-12",
+        name: "Southern California Station 12",
+        location: "Los Angeles, CA",
+        latitude: "34.0522",
+        longitude: "-118.2437",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 1.5,
+        configuration: {}
+      },
+      {
+        stationId: "ALASKA-07",
+        name: "Alaska Station 07",
+        location: "Anchorage, AK",
+        latitude: "61.2181",
+        longitude: "-149.9003",
+        status: "degraded",
+        lastUpdate: new Date(),
+        dataRate: 0.8,
+        configuration: {}
+      },
+      {
+        stationId: "FIJI-01",
+        name: "Fiji Station 01",
+        location: "Suva, Fiji",
+        latitude: "-18.1134",
+        longitude: "178.4253",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 1.0,
+        configuration: {}
+      }
+    ];
+    
+    for (const station of sampleStations) {
+      await dbStorage.createStation(station);
+    }
+    
+    // Sample events
+    const sampleEvents: InsertEvent[] = [
+      {
+        eventId: "EV-20230801-001",
+        region: "South Pacific Region",
+        location: "Fiji Islands",
+        latitude: "-18.1134",
+        longitude: "178.4253",
+        depth: 45.3,
+        magnitude: 5.7,
+        type: "earthquake",
+        status: "verified",
+        timestamp: new Date(Date.now() - 12 * 60 * 1000), // 12 minutes ago
+        calculationConfidence: 94,
+        data: {}
+      },
+      {
+        eventId: "EV-20230801-002",
+        region: "Aleutian Islands",
+        location: "Alaska, USA",
+        latitude: "52.5200",
+        longitude: "-171.9027",
+        depth: 28.7,
+        magnitude: 4.2,
+        type: "earthquake",
+        status: "verified",
+        timestamp: new Date(Date.now() - 38 * 60 * 1000), // 38 minutes ago
+        calculationConfidence: 92,
+        data: {}
+      },
+      {
+        eventId: "EV-20230801-003",
+        region: "Baja California",
+        location: "Mexico",
+        latitude: "30.2672",
+        longitude: "-115.7528",
+        depth: 12.4,
+        magnitude: 3.8,
+        type: "earthquake",
+        status: "verified",
+        timestamp: new Date(Date.now() - 72 * 60 * 1000), // 1 hour 12 minutes ago
+        calculationConfidence: 89,
+        data: {}
+      },
+      {
+        eventId: "EV-20230801-004",
+        region: "Central Italy",
+        location: "Perugia Province",
+        latitude: "43.0962",
+        longitude: "12.3861",
+        depth: 5.8,
+        magnitude: 2.6,
+        type: "earthquake",
+        status: "verified",
+        timestamp: new Date(Date.now() - 155 * 60 * 1000), // 2 hours 35 minutes ago
+        calculationConfidence: 87,
+        data: {}
+      }
+    ];
+    
+    for (const event of sampleEvents) {
+      await dbStorage.createEvent(event);
+    }
+    
+    // Sample research networks
+    const sampleNetworks: InsertResearchNetwork[] = [
+      {
+        networkId: "USGS",
+        name: "USGS Network",
+        region: "United States",
+        connectionStatus: "connected",
+        lastSyncTimestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+        syncedDataVolume: 86.2,
+        apiEndpoint: "https://earthquake.usgs.gov/fdsnws/event/1/"
+      },
+      {
+        networkId: "EMSC",
+        name: "EMSC",
+        region: "European-Mediterranean",
+        connectionStatus: "connected",
+        lastSyncTimestamp: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
+        syncedDataVolume: 74.5,
+        apiEndpoint: "https://www.seismicportal.eu/fdsnws/event/1/"
+      },
+      {
+        networkId: "NIED",
+        name: "NIED Network",
+        region: "Japan",
+        connectionStatus: "connected",
+        lastSyncTimestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+        syncedDataVolume: 58.1,
+        apiEndpoint: "https://www.hinet.bosai.go.jp/"
+      },
+      {
+        networkId: "GFZ",
+        name: "GFZ Network",
+        region: "Germany",
+        connectionStatus: "syncing",
+        lastSyncTimestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+        syncedDataVolume: 28.0,
+        apiEndpoint: "https://geofon.gfz-potsdam.de/eqinfo/list.php"
+      }
+    ];
+    
+    for (const network of sampleNetworks) {
+      await dbStorage.createResearchNetwork(network);
+    }
+    
+    // Sample system status
+    const sampleStatuses: InsertSystemStatus[] = [
+      {
+        component: "Data Processing",
+        status: "Excellent",
+        value: 98,
+        timestamp: new Date(),
+        message: "Data processing system running optimally"
+      },
+      {
+        component: "Network Connectivity",
+        status: "Good",
+        value: 94,
+        timestamp: new Date(),
+        message: "Network connectivity stable"
+      },
+      {
+        component: "Storage Capacity",
+        status: "Moderate",
+        value: 72,
+        timestamp: new Date(),
+        message: "Storage capacity at 72%, consider cleanup"
+      },
+      {
+        component: "API Performance",
+        status: "Good",
+        value: 89,
+        timestamp: new Date(),
+        message: "API performance within expected parameters"
+      }
+    ];
+    
+    for (const status of sampleStatuses) {
+      await dbStorage.createSystemStatus(status);
+    }
+    
+    // Sample alerts
+    const sampleAlerts: InsertAlert[] = [
+      {
+        alertType: "connection_timeout",
+        severity: "warning",
+        message: "Connection timeout on SOCAL-15",
+        timestamp: new Date(Date.now() - 24 * 60 * 1000), // 24 minutes ago
+        relatedEntityId: "SOCAL-15",
+        relatedEntityType: "station",
+        isRead: false
+      },
+      {
+        alertType: "station_offline",
+        severity: "danger",
+        message: "ALASKA-09 station offline",
+        timestamp: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
+        relatedEntityId: "ALASKA-09",
+        relatedEntityType: "station",
+        isRead: false
+      },
+      {
+        alertType: "scheduled_maintenance",
+        severity: "info",
+        message: "Scheduled maintenance for HAWAII cluster",
+        timestamp: new Date(Date.now() - 120 * 60 * 1000), // 2 hours ago
+        relatedEntityId: "HAWAII",
+        relatedEntityType: "cluster",
+        isRead: true
+      }
+    ];
+    
+    for (const alert of sampleAlerts) {
+      await dbStorage.createAlert(alert);
+    }
+    
+    console.log('Database initialization complete.');
+  }
+  
+  return dbStorage;
+};
+
+// Export the database storage
+export const storage = new DatabaseStorage();
+
+// Initialize database (this will be called when the server starts)
+initializeDatabase().catch(error => {
+  console.error('Failed to initialize database:', error);
+});
