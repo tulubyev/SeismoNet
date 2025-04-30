@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
+import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
+import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
@@ -369,6 +371,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error updating storage information' });
     }
   });
+  
+  // --- Notification API Routes ---
+  
+  // Send seismic event notification via Unisender
+  app.post('/api/notifications/email/event', async (req, res) => {
+    try {
+      const { eventId, recipients } = req.body;
+      
+      if (!process.env.UNISENDER_API_KEY) {
+        return res.status(400).json({ message: 'Unisender API key not configured' });
+      }
+      
+      if (!eventId || !recipients || !Array.isArray(recipients)) {
+        return res.status(400).json({ message: 'Event ID and recipients array are required' });
+      }
+      
+      const event = await storage.getEventByEventId(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      const result = await sendSeismicEventNotification(
+        process.env.UNISENDER_API_KEY,
+        recipients,
+        {
+          eventId: event.eventId,
+          region: event.region,
+          location: event.location || 'Unknown',
+          magnitude: event.magnitude,
+          depth: event.depth,
+          timestamp: event.timestamp.getTime()
+        }
+      );
+      
+      if (result) {
+        res.json({ success: true, message: 'Notification sent successfully' });
+      } else {
+        res.status(500).json({ success: false, message: 'Failed to send notification' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error sending email notification' });
+    }
+  });
+  
+  // Send seismic event notification via Telegram
+  app.post('/api/notifications/telegram/event', async (req, res) => {
+    try {
+      const { eventId, chatId } = req.body;
+      
+      if (!process.env.TELEGRAM_BOT_TOKEN) {
+        return res.status(400).json({ message: 'Telegram bot token not configured' });
+      }
+      
+      if (!eventId || !chatId) {
+        return res.status(400).json({ message: 'Event ID and chat ID are required' });
+      }
+      
+      const event = await storage.getEventByEventId(eventId);
+      if (!event) {
+        return res.status(404).json({ message: 'Event not found' });
+      }
+      
+      const result = await sendSeismicEventAlert(
+        process.env.TELEGRAM_BOT_TOKEN,
+        chatId,
+        {
+          eventId: event.eventId,
+          region: event.region,
+          location: event.location || 'Unknown',
+          magnitude: event.magnitude,
+          depth: event.depth,
+          timestamp: event.timestamp.getTime()
+        }
+      );
+      
+      if (result) {
+        res.json({ success: true, message: 'Telegram notification sent successfully' });
+      } else {
+        res.status(500).json({ success: false, message: 'Failed to send Telegram notification' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error sending Telegram notification' });
+    }
+  });
 
   return httpServer;
 }
@@ -532,12 +618,48 @@ function startSimulation(ws: WebSocket) {
               isRead: false
             };
             
-            storage.createAlert(alert).then(newAlert => {
+            storage.createAlert(alert).then(async newAlert => {
               // Send alert via WebSocket
               ws.send(JSON.stringify({
                 type: WebSocketMessageType.ALERT,
                 payload: newAlert
               }));
+              
+              // Send alert via Unisender and Telegram if API keys are available
+              if (process.env.UNISENDER_API_KEY) {
+                // For demo purposes, we're estimating remaining runtime based on battery level
+                // In a real system, this would be calculated based on actual power consumption
+                const estimatedRuntime = newBatteryLevel * 0.5; // 0.5 hours per 1% battery level
+                
+                await sendUnisenderBatteryAlert(
+                  process.env.UNISENDER_API_KEY,
+                  ['field_team@example.com', 'operations@example.com'],
+                  {
+                    stationId: randomStationId,
+                    stationName: station.name,
+                    batteryLevel: newBatteryLevel,
+                    batteryVoltage: newVoltage,
+                    estimatedRuntime: estimatedRuntime
+                  }
+                );
+              }
+              
+              if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+                // For demo purposes, we're estimating remaining runtime based on battery level
+                const estimatedRuntime = newBatteryLevel * 0.5; // 0.5 hours per 1% battery level
+                
+                await sendTelegramBatteryAlert(
+                  process.env.TELEGRAM_BOT_TOKEN,
+                  process.env.TELEGRAM_CHAT_ID,
+                  {
+                    stationId: randomStationId,
+                    stationName: station.name,
+                    batteryLevel: newBatteryLevel,
+                    batteryVoltage: newVoltage,
+                    estimatedRuntime: estimatedRuntime
+                  }
+                );
+              }
             });
           }
         }
