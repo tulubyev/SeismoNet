@@ -177,6 +177,48 @@ export function setupAuth(app: Express) {
     res.json({ message: "User access granted", user: req.user });
   });
   
+  // Debug endpoint to get all users (for troubleshooting)
+  app.get("/api/debug/users", async (req, res) => {
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const users = await storage.getUsers();
+        res.json({ 
+          message: "Debug information - ALL USER DATA INCLUDING PASSWORDS", 
+          users: users 
+        });
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ message: 'Error fetching users' });
+      }
+    } else {
+      res.status(403).json({ message: 'Debug endpoints disabled in production' });
+    }
+  });
+  
+  // Debug endpoint to promote Alexander Tulubyev to administrator (temporary)
+  app.get("/api/debug/promote-tulubyev", async (req, res) => {
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        // ID 5 is the administrator account
+        const updatedUser = await storage.updateUserRole(5, "administrator");
+        
+        // ID 4 is the tulubyev account
+        const updatedUser2 = await storage.updateUserRole(4, "administrator");
+        
+        res.json({ 
+          message: "Alexander Tulubyev promoted to administrator", 
+          user1: updatedUser,
+          user2: updatedUser2
+        });
+      } catch (error) {
+        console.error("Error updating user role:", error);
+        res.status(500).json({ message: 'Error updating user role' });
+      }
+    } else {
+      res.status(403).json({ message: 'Debug endpoints disabled in production' });
+    }
+  });
+  
   // Update user role (admin only)
   app.patch("/api/users/:id/role", requireRole("administrator"), async (req, res) => {
     try {
