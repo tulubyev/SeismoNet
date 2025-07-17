@@ -93,16 +93,16 @@ const Sidebar: FC = () => {
   };
   
   return (
-    <aside className="w-16 md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300">
-      <div className="p-4 flex items-center justify-center md:justify-start">
+    <aside className="w-16 md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300 h-screen">
+      <div className="p-4 flex items-center justify-center md:justify-start flex-shrink-0">
         <div className="bg-primary rounded-lg p-2 flex items-center justify-center">
           <SquareDashedBottom className="size-5" />
         </div>
         <span className="hidden md:block ml-3 font-semibold text-lg">SeismoNet</span>
       </div>
       
-      <nav className="flex-1 mt-6">
-        <ul>
+      <nav className="flex-1 mt-6 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+        <ul className="pb-4">
           <NavItem 
             href="/" 
             icon={<Gauge className="size-5" />} 
@@ -210,7 +210,7 @@ const Sidebar: FC = () => {
         </ul>
       </nav>
       
-      <div className="p-4 border-t border-slate-600">
+      <div className="p-4 border-t border-slate-600 flex-shrink-0">
         {user ? (
           <>
             {/* Desktop View */}
