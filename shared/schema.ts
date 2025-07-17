@@ -123,6 +123,40 @@ export const systemStatus = pgTable("system_status", {
   message: text("message")
 });
 
+// Historical analysis records
+export const historicalAnalysis = pgTable("historical_analysis", {
+  id: serial("id").primaryKey(),
+  analysisId: text("analysis_id").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  analysisType: text("analysis_type").notNull(), // 'trend', 'comparison', 'seasonal', 'statistical'
+  timeFrame: text("time_frame").notNull(), // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  parameters: jsonb("parameters").notNull(),
+  results: jsonb("results").notNull(),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  isPublic: boolean("is_public").default(false)
+});
+
+// Comparison studies
+export const comparisonStudies = pgTable("comparison_studies", {
+  id: serial("id").primaryKey(),
+  studyId: text("study_id").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  studyType: text("study_type").notNull(), // 'event_comparison', 'period_comparison', 'network_comparison'
+  primaryDataset: jsonb("primary_dataset").notNull(),
+  comparisonDataset: jsonb("comparison_dataset").notNull(),
+  comparisonResults: jsonb("comparison_results").notNull(),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  isPublic: boolean("is_public").default(false)
+});
+
 // Alerts and notifications
 export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
@@ -186,6 +220,16 @@ export type ResearchNetwork = typeof researchNetworks.$inferSelect;
 export type InsertResearchNetwork = z.infer<typeof insertResearchNetworkSchema>;
 
 export type SystemStatus = typeof systemStatus.$inferSelect;
+export type HistoricalAnalysis = typeof historicalAnalysis.$inferSelect;
+export type ComparisonStudy = typeof comparisonStudies.$inferSelect;
+
+// Insert schemas
+export const insertHistoricalAnalysisSchema = createInsertSchema(historicalAnalysis).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertComparisonStudySchema = createInsertSchema(comparisonStudies).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Insert types
+export type InsertHistoricalAnalysis = z.infer<typeof insertHistoricalAnalysisSchema>;
+export type InsertComparisonStudy = z.infer<typeof insertComparisonStudySchema>;
 export type InsertSystemStatus = z.infer<typeof insertSystemStatusSchema>;
 
 export type Alert = typeof alerts.$inferSelect;
