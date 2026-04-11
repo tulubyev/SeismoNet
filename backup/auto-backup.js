@@ -62,7 +62,7 @@ function createBackup() {
       size: stats.size,
       sizeMB: fileSizeInMB,
       type: 'automated',
-      database: 'seismic_network'
+      database: 'seismonet_db'
     };
     
     const metadataFile = path.join(backupDir, `auto-metadata-${timestamp}.json`);

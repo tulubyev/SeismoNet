@@ -53,7 +53,7 @@ try {
     filename: path.basename(backupFile),
     size: fileSizeInBytes,
     sizeMB: fileSizeInMB,
-    database: 'seismic_network'
+    database: 'seismonet_db'
   };
   
   const metadataFile = path.join(backupDir, `metadata-${timestamp}.json`);
