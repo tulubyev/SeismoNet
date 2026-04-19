@@ -1,5 +1,10 @@
 import { FC, useRef, useEffect, useState, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, RotateCcw, Maximize2 } from 'lucide-react';
 import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
 
 // ─── Projection helpers ───────────────────────────────────────────────────────
@@ -11,37 +16,33 @@ interface Pt2 { x: number; y: number; }
 
 function project(
   p: Pt3,
-  azimuth: number,   // degrees, horizontal rotation
-  elevation: number, // degrees, vertical tilt
+  azimuth: number,
+  elevation: number,
   scale: number,
   cx: number,
   cy: number
 ): Pt2 {
   const a = azimuth * DEG;
   const e = elevation * DEG;
-
-  // Rotate around Y-axis (azimuth)
   const rx = p.x * Math.cos(a) - p.y * Math.sin(a);
-  const ry = p.x * Math.sin(a) + p.y * Math.cos(a);
   const rz = p.z;
-
-  // Rotate around X-axis (elevation)
+  const ry = p.x * Math.sin(a) + p.y * Math.cos(a);
   const fx = rx;
-  const fy = ry * Math.cos(e) - rz * Math.sin(e);
   const fz = ry * Math.sin(e) + rz * Math.cos(e);
-
-  // Orthographic project (no perspective distortion)
-  return {
-    x: cx + fx * scale,
-    y: cy - fz * scale,
-  };
+  const fy = ry * Math.cos(e) - rz * Math.sin(e);
+  void fy;
+  return { x: cx + fx * scale, y: cy - fz * scale };
 }
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
 
 const STRUCT_COLORS: Record<string, { face: string; side: string; top: string }> = {
   reinforced_concrete: { face: '#c0cfe8', side: '#8fa3c0', top: '#dae4f2' },
+  frame:               { face: '#b8d4e8', side: '#7a9cb0', top: '#d0e8f4' },
+  monolithic:          { face: '#c4c8d8', side: '#9498b0', top: '#d8dce8' },
+  panel:               { face: '#b8c8d0', side: '#8898a0', top: '#ccdae0' },
   masonry:             { face: '#dfc9a8', side: '#b09878', top: '#ede0cb' },
+  brick:               { face: '#d4b898', side: '#a08868', top: '#e8d0b0' },
   steel:               { face: '#b0c4c4', side: '#7a9898', top: '#cde0e0' },
   wood:                { face: '#d4b896', side: '#a08060', top: '#e8d4bc' },
   mixed:               { face: '#c8c8d8', side: '#9898b0', top: '#dcdce8' },
@@ -89,7 +90,6 @@ function drawBox(
   const proj = (p: Pt3) => project(p, az, el, sc, cx, cy);
   ctx.globalAlpha = alpha;
 
-  // Front face (y = y0)
   drawFace(ctx, [
     proj({ x: x0,     y: y0, z: z0     }),
     proj({ x: x0 + w, y: y0, z: z0     }),
@@ -97,7 +97,6 @@ function drawBox(
     proj({ x: x0,     y: y0, z: z0 + h }),
   ], clr.face);
 
-  // Right face (x = x0+w)
   drawFace(ctx, [
     proj({ x: x0 + w, y: y0,     z: z0     }),
     proj({ x: x0 + w, y: y0 + d, z: z0     }),
@@ -105,7 +104,6 @@ function drawBox(
     proj({ x: x0 + w, y: y0,     z: z0 + h }),
   ], clr.side);
 
-  // Top face (z = z0+h)
   drawFace(ctx, [
     proj({ x: x0,     y: y0,     z: z0 + h }),
     proj({ x: x0 + w, y: y0,     z: z0 + h }),
@@ -121,14 +119,21 @@ function drawBox(
 interface Props {
   object: InfrastructureObject;
   sensors: SensorInstallation[];
+  editMode?: boolean;
+  onSaveSchema?: (params: SchemaParams) => void;
 }
 
-const FLOOR_H = 1.2;   // world units per floor
-const BLDG_W  = 4.0;
-const BLDG_D  = 3.0;
+export interface SchemaParams {
+  floors: number;
+  structuralSystem: string;
+  buildingWidth: number;
+  buildingDepth: number;
+}
+
+const FLOOR_H = 1.2;
 const SLAB_H  = 0.12;
 
-const Building3DViewer: FC<Props> = ({ object, sensors }) => {
+const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSaveSchema }) => {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const [azimuth,   setAzimuth]   = useState(-35);
   const [elevation, setElevation] = useState(28);
@@ -138,7 +143,23 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
   const autoRef = useRef(autoRotate);
   useEffect(() => { autoRef.current = autoRotate; }, [autoRotate]);
 
-  const floors = Math.max(object.floors ?? 5, 1);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Schema params (editable)
+  const [schemaFloors, setSchemaFloors]         = useState(Math.max(object.floors ?? 5, 1));
+  const [schemaStruct, setSchemaStruct]         = useState(object.structuralSystem ?? 'monolithic');
+  const [schemaBldgW,  setSchemaBldgW]          = useState(4.0);
+  const [schemaBldgD,  setSchemaBldgD]          = useState(3.0);
+
+  // Keep in sync with object prop
+  useEffect(() => {
+    setSchemaFloors(Math.max(object.floors ?? 5, 1));
+    setSchemaStruct(object.structuralSystem ?? 'monolithic');
+  }, [object.floors, object.structuralSystem]);
+
+  const floors = schemaFloors;
+  const BLDG_W = schemaBldgW;
+  const BLDG_D = schemaBldgD;
 
   // Map sensor to world position
   const sensorWorld = useCallback((inst: SensorInstallation): Pt3 => {
@@ -152,12 +173,11 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       case 'free_field':   z = 0.1;  break;
       default:             z = Math.max(1, floorN) * FLOOR_H - FLOOR_H / 2;
     }
-    // Spread sensors along width
     const idx = sensors.indexOf(inst);
     const xFrac = sensors.length > 1 ? (idx / (sensors.length - 1)) * 0.7 + 0.15 : 0.5;
     const yFrac = loc === 'free_field' ? -0.4 : 0.5;
     return { x: xFrac * BLDG_W - BLDG_W / 2 + BLDG_W / 2, y: yFrac * BLDG_D, z };
-  }, [sensors, floors]);
+  }, [sensors, floors, BLDG_W, BLDG_D]);
 
   // Main draw
   const draw = useCallback((az: number, el: number) => {
@@ -170,7 +190,6 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     const H = canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    // Background
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#0f172a');
     bg.addColorStop(1, '#1e293b');
@@ -181,9 +200,9 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     const cx = W * 0.48;
     const cy = H * 0.52;
     const proj = (p: Pt3) => project(p, az, el, sc, cx, cy);
-    const clr  = STRUCT_COLORS[object.structuralSystem ?? ''] ?? DEFAULT_COLOR;
+    const clr  = STRUCT_COLORS[schemaStruct] ?? DEFAULT_COLOR;
 
-    // ── Ground plane ──────────────────────────────────────────────────────────
+    // Grid
     ctx.globalAlpha = 0.18;
     const GX = 8, GZ_half = 5;
     for (let gx = -GX; gx <= GX; gx += 1.5) {
@@ -200,28 +219,26 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     }
     ctx.globalAlpha = 1;
 
-    // ── Foundation ────────────────────────────────────────────────────────────
+    // Foundation
     drawBox(ctx, 0, 0, -0.8, BLDG_W, BLDG_D, 0.8, {
       face: '#64748b', side: '#475569', top: '#94a3b8'
     }, az, el, sc, cx, cy, 0.7);
 
-    // ── Building floors ───────────────────────────────────────────────────────
+    // Floors
     for (let f = 0; f < floors; f++) {
       const z0 = f * FLOOR_H;
-      // Wall zone
       drawBox(ctx, 0, 0, z0, BLDG_W, BLDG_D, FLOOR_H - SLAB_H, clr, az, el, sc, cx, cy);
-      // Floor slab
       drawBox(ctx, 0, 0, z0 + FLOOR_H - SLAB_H, BLDG_W, BLDG_D, SLAB_H, {
         face: '#7c9cc0', side: '#5b7a9a', top: '#c0d4e8'
       }, az, el, sc, cx, cy);
     }
 
-    // ── Roof ──────────────────────────────────────────────────────────────────
+    // Roof
     drawBox(ctx, 0, 0, floors * FLOOR_H, BLDG_W, BLDG_D, 0.18, {
       face: '#475569', side: '#334155', top: '#64748b'
     }, az, el, sc, cx, cy);
 
-    // ── Column grid lines ─────────────────────────────────────────────────────
+    // Column lines
     ctx.globalAlpha = 0.25;
     const colPosX = [0.6, BLDG_W - 0.6];
     const colPosY = [0.5, BLDG_D - 0.5];
@@ -241,7 +258,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     });
     ctx.globalAlpha = 1;
 
-    // ── Floor number labels ────────────────────────────────────────────────────
+    // Floor labels
     for (let f = 0; f < floors; f++) {
       const midZ = f * FLOOR_H + FLOOR_H / 2;
       const lp = proj({ x: BLDG_W + 0.3, y: 0, z: midZ });
@@ -251,7 +268,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       ctx.fillText(`${f + 1}эт`, lp.x + 2, lp.y + 4);
     }
 
-    // ── Sensor cables (vertical line to floor slab) ───────────────────────────
+    // Sensor cables
     sensors.forEach(inst => {
       if (!inst.isActive) return;
       const sw = sensorWorld(inst);
@@ -271,7 +288,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       ctx.globalAlpha = 1;
     });
 
-    // ── Sensor markers ────────────────────────────────────────────────────────
+    // Sensor markers
     sensors.forEach(inst => {
       const sw   = sensorWorld(inst);
       const pp   = proj(sw);
@@ -279,7 +296,6 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       const col  = SENSOR_COLORS[loc] ?? '#94a3b8';
       const r    = sc * 0.45;
 
-      // Glow
       if (inst.isActive) {
         const grd = (canvasRef.current!.getContext('2d')!).createRadialGradient(pp.x, pp.y, 0, pp.x, pp.y, r * 2.5);
         grd.addColorStop(0, col + 'aa');
@@ -290,7 +306,6 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
         ctx.fill();
       }
 
-      // Body
       ctx.beginPath();
       ctx.arc(pp.x, pp.y, r, 0, Math.PI * 2);
       ctx.fillStyle = inst.isActive ? col : '#475569';
@@ -299,7 +314,6 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Axes mini-indicator (Z NS EW)
       const axes = (inst.measurementAxes ?? 'Z,NS,EW').split(',');
       axes.forEach((ax, i) => {
         const c = AXIS_COLORS[ax.trim()] ?? '#fff';
@@ -309,24 +323,22 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
         ctx.fill();
       });
 
-      // Station ID label
       ctx.font = `bold ${Math.round(sc * 0.36)}px monospace`;
       ctx.fillStyle = '#e2e8f0';
       ctx.textAlign = 'center';
       ctx.fillText(inst.stationId, pp.x, pp.y + r * 1.95);
     });
 
-    // ── Coordinate axes ───────────────────────────────────────────────────────
-    const axO  = proj({ x: -0.5, y: -0.5, z: 0 });
-    const axX  = proj({ x:  1.5, y: -0.5, z: 0 });
-    const axY  = proj({ x: -0.5, y:  1.5, z: 0 });
-    const axZ  = proj({ x: -0.5, y: -0.5, z: 2 });
-    const axs = [
+    // Axes
+    const axO = proj({ x: -0.5, y: -0.5, z: 0 });
+    const axX = proj({ x:  1.5, y: -0.5, z: 0 });
+    const axY = proj({ x: -0.5, y:  1.5, z: 0 });
+    const axZ = proj({ x: -0.5, y: -0.5, z: 2 });
+    [
       { p: axX, lbl: 'E→W', c: '#10b981' },
       { p: axY, lbl: 'N→S', c: '#3b82f6' },
       { p: axZ, lbl: '↑Z',  c: '#ef4444' },
-    ];
-    axs.forEach(({ p, lbl, c }) => {
+    ].forEach(({ p, lbl, c }) => {
       ctx.beginPath();
       ctx.moveTo(axO.x, axO.y);
       ctx.lineTo(p.x, p.y);
@@ -339,12 +351,19 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
       ctx.fillText(lbl, p.x, p.y - 4);
     });
 
-    // ── Title ─────────────────────────────────────────────────────────────────
+    // Title
+    const structLabels: Record<string,string> = {
+      monolithic:'Монолит', frame:'Каркас', brick:'Кирпич', panel:'Панель',
+      reinforced_concrete:'Ж/Б', steel:'Сталь', masonry:'Кладка', wood:'Дерево', mixed:'Смешан.'
+    };
     ctx.font = `bold ${Math.round(sc * 0.38)}px sans-serif`;
     ctx.fillStyle = 'rgba(148,163,184,0.85)';
     ctx.textAlign = 'left';
-    ctx.fillText(`${floors} эт. · ${object.structuralSystem?.replace('_', ' ') ?? '—'}`, 10, 18);
-  }, [object, sensors, sensorWorld]);
+    ctx.fillText(
+      `${floors} эт. · ${structLabels[schemaStruct] ?? schemaStruct} · ${BLDG_W.toFixed(0)}×${BLDG_D.toFixed(0)}м`,
+      10, 18
+    );
+  }, [object, sensors, sensorWorld, floors, schemaStruct, BLDG_W, BLDG_D]);
 
   // Auto-rotate
   useEffect(() => {
@@ -362,12 +381,10 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     return () => cancelAnimationFrame(rafId);
   }, [elevation, draw]);
 
-  // Draw on param change
   useEffect(() => {
     if (!autoRotate) draw(azimuth, elevation);
   }, [azimuth, elevation, autoRotate, draw]);
 
-  // Mouse drag
   const onMouseDown = (e: React.MouseEvent) => {
     setAutoRotate(false);
     drag.current = { startX: e.clientX, startY: e.clientY, az: azimuth, el: elevation };
@@ -384,18 +401,15 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
   };
   const onMouseUp = () => { drag.current = null; };
 
-  // Hover detection
   const onMouseMoveHover = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || drag.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (canvasRef.current.width  / rect.width);
     const my = (e.clientY - rect.top)  * (canvasRef.current.height / rect.height);
-
     const sc = Math.min(canvasRef.current.width, canvasRef.current.height) * 0.055;
     const cx = canvasRef.current.width  * 0.48;
     const cy = canvasRef.current.height * 0.52;
     const r  = sc * 0.45 + 6;
-
     let found: SensorInstallation | null = null;
     for (const inst of sensors) {
       const sw = sensorWorld(inst);
@@ -413,6 +427,23 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
     free_field:   'Свободное поле',
   };
 
+  const structOptions = [
+    { value: 'monolithic', label: 'Монолитный' },
+    { value: 'frame',      label: 'Каркасный' },
+    { value: 'brick',      label: 'Кирпичный' },
+    { value: 'panel',      label: 'Панельный' },
+    { value: 'reinforced_concrete', label: 'Ж/Б каркас' },
+    { value: 'steel',  label: 'Стальной каркас' },
+    { value: 'masonry',label: 'Кирпичная кладка' },
+    { value: 'wood',   label: 'Деревянный' },
+    { value: 'mixed',  label: 'Смешанный' },
+  ];
+
+  const handleSaveSchema = () => {
+    onSaveSchema?.({ floors: schemaFloors, structuralSystem: schemaStruct, buildingWidth: schemaBldgW, buildingDepth: schemaBldgD });
+    setShowSettings(false);
+  };
+
   return (
     <div className="space-y-2">
       {/* Canvas */}
@@ -428,13 +459,34 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
           onMouseLeave={onMouseUp}
         />
 
-        {/* Controls */}
-        <button
-          className="absolute top-2 right-2 text-[10px] bg-slate-800/80 text-slate-300 border border-slate-600 px-2 py-1 rounded hover:bg-slate-700 transition-colors"
-          onClick={() => setAutoRotate(v => !v)}
-        >
-          {autoRotate ? '⏸ Стоп' : '▶ Вращение'}
-        </button>
+        {/* Control bar */}
+        <div className="absolute top-2 right-2 flex gap-1.5">
+          {editMode && (
+            <button
+              className={`text-[10px] border px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+                showSettings
+                  ? 'bg-blue-600 text-white border-blue-500'
+                  : 'bg-slate-800/80 text-slate-300 border-slate-600 hover:bg-slate-700'
+              }`}
+              onClick={() => setShowSettings(v => !v)}
+            >
+              <Settings className="h-3 w-3" />
+              Параметры
+            </button>
+          )}
+          <button
+            className="text-[10px] bg-slate-800/80 text-slate-300 border border-slate-600 px-2 py-1 rounded hover:bg-slate-700 transition-colors flex items-center gap-1"
+            onClick={() => { setAzimuth(-35); setElevation(28); setAutoRotate(true); }}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </button>
+          <button
+            className="text-[10px] bg-slate-800/80 text-slate-300 border border-slate-600 px-2 py-1 rounded hover:bg-slate-700 transition-colors"
+            onClick={() => setAutoRotate(v => !v)}
+          >
+            {autoRotate ? '⏸' : '▶'}
+          </button>
+        </div>
 
         {/* Hovered sensor tooltip */}
         {hoveredSensor && (
@@ -449,6 +501,83 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
           </div>
         )}
       </div>
+
+      {/* Schema edit panel */}
+      {editMode && showSettings && (
+        <div className="bg-slate-900 border border-slate-600 rounded-xl p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <Maximize2 className="h-3.5 w-3.5 text-blue-400" />
+              Параметры 3D-схемы
+            </p>
+            <p className="text-[10px] text-slate-500">Изменения применяются сразу</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-slate-400">Этажность</Label>
+              <Input
+                type="number" min={1} max={50}
+                value={schemaFloors}
+                onChange={e => setSchemaFloors(Math.max(1, parseInt(e.target.value) || 1))}
+                className="h-8 text-xs bg-slate-800 border-slate-600 text-slate-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-slate-400">Конструктивная система</Label>
+              <Select value={schemaStruct} onValueChange={setSchemaStruct}>
+                <SelectTrigger className="h-8 text-xs bg-slate-800 border-slate-600 text-slate-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {structOptions.map(o => (
+                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-slate-400">Ширина здания (усл. ед.)</Label>
+              <Input
+                type="number" min={2} max={12} step={0.5}
+                value={schemaBldgW}
+                onChange={e => setSchemaBldgW(Math.max(2, parseFloat(e.target.value) || 4))}
+                className="h-8 text-xs bg-slate-800 border-slate-600 text-slate-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-slate-400">Глубина здания (усл. ед.)</Label>
+              <Input
+                type="number" min={2} max={10} step={0.5}
+                value={schemaBldgD}
+                onChange={e => setSchemaBldgD(Math.max(2, parseFloat(e.target.value) || 3))}
+                className="h-8 text-xs bg-slate-800 border-slate-600 text-slate-100"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-slate-600 text-slate-300 bg-transparent hover:bg-slate-800"
+              onClick={() => {
+                setSchemaFloors(Math.max(object.floors ?? 5, 1));
+                setSchemaStruct(object.structuralSystem ?? 'monolithic');
+                setSchemaBldgW(4.0);
+                setSchemaBldgD(3.0);
+              }}
+            >
+              Сбросить
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleSaveSchema}
+            >
+              Сохранить в БД
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Sensor legend */}
       {sensors.length > 0 && (
@@ -496,7 +625,6 @@ const Building3DViewer: FC<Props> = ({ object, sensors }) => {
             })}
           </div>
 
-          {/* Axis legend */}
           <div className="flex items-center gap-4 mt-3 pt-2 border-t border-slate-700/50">
             {Object.entries(AXIS_COLORS).map(([ax, col]) => (
               <span key={ax} className="flex items-center gap-1 text-[10px]">

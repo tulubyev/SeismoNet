@@ -198,7 +198,9 @@ export const infrastructureObjects = pgTable("infrastructure_objects", {
   floors: integer("floors"),
   latitude: numeric("latitude").notNull(),
   longitude: numeric("longitude").notNull(),
-  structuralSystem: text("structural_system"), // reinforced_concrete, steel, masonry, wood, mixed
+  district: text("district"), // Октябрьский, Свердловский, Ленинский, Правобережный, Иркутский район
+  developer: text("developer"), // застройщик / подрядчик
+  structuralSystem: text("structural_system"), // monolithic, frame, brick, panel, reinforced_concrete, steel, masonry, wood, mixed
   foundationType: text("foundation_type"), // pile, strip, slab, combined
   seismicCategory: text("seismic_category"), // I, II, III, IV (per SP 14.13330.2018)
   designIntensity: integer("design_intensity"), // MSK-64 intensity (6, 7, 8, 9)
