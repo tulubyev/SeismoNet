@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Building2, Radio, FileText,
-  Layers, Settings, LogOut, UserCircle, Bell,
+  Settings, LogOut, UserCircle, Bell,
   ChevronDown, Wifi, WifiOff, Calculator, Activity
 } from 'lucide-react';
 import {
@@ -19,7 +19,6 @@ const NAV_LINKS = [
   { href: '/',               icon: <Home className="h-4 w-4" />,       label: 'Обзор'               },
   { href: '/infrastructure', icon: <Building2 className="h-4 w-4" />,  label: 'Объекты мониторинга' },
   { href: '/stations',       icon: <Radio className="h-4 w-4" />,      label: 'Датчики'             },
-  { href: '/soil-profiles',  icon: <Layers className="h-4 w-4" />,     label: 'Грунты'              },
   { href: '/seismograms',    icon: <FileText className="h-4 w-4" />,   label: 'Сигналы'             },
   { href: '/analysis',       icon: <Calculator className="h-4 w-4" />, label: 'Расчёты'             },
   { href: '/settings',       icon: <Settings className="h-4 w-4" />,   label: 'Настройки'           },

@@ -220,6 +220,10 @@ export const soilProfiles = pgTable("soil_profiles", {
   id: serial("id").primaryKey(),
   objectId: integer("object_id").references(() => infrastructureObjects.id),
   profileName: text("profile_name").notNull(),
+  // Relative position of the borehole within the building footprint (meters),
+  // origin = top-left corner of the foundation plan. Optional — used for visual placement.
+  positionX: real("position_x"),
+  positionY: real("position_y"),
   soilCategory: text("soil_category").notNull(), // I, II, III, IV per SP 14.13330.2018
   avgShearVelocity: real("avg_shear_velocity"), // Vs30 (m/s), average over 30m depth
   groundwaterDepth: real("groundwater_depth"), // meters

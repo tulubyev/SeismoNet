@@ -67,6 +67,15 @@ Preferred communication style: Simple, everyday language.
 - Dashboard widgets for system health monitoring
 - Mobile-optimized interface for field operations
 
+### Soil Profiles (per monitoring object)
+- Soil profile management is embedded inside the "Объекты мониторинга" (infrastructure
+  objects) detail panel as a "Грунты" tab — there is no top-level Soils page anymore.
+- Each infrastructure object can have multiple boreholes / survey points, each with
+  its own (positionX, positionY) within the foundation footprint, layered lithology,
+  category per SP 14.13330.2018, Vs30, groundwater depth, dominant frequency, and
+  amplification factor.
+- Component: `client/src/components/infrastructure/SoilProfilesTab.tsx`.
+
 ### External Integrations
 - USGS Earthquake API for global seismic data
 - Japan Meteorological Agency (JMA) API

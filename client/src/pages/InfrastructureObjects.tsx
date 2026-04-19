@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
+import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import { apiRequest } from '@/lib/queryClient';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
@@ -237,12 +238,15 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
       <CardContent className="pt-0">
         <Tabs defaultValue="info">
           <TabsList className="w-full mb-3 h-8">
-            <TabsTrigger value="info"   className="text-xs flex-1">Параметры</TabsTrigger>
-            <TabsTrigger value="3d"     className="text-xs flex-1 flex items-center gap-1">
+            <TabsTrigger value="info"    className="text-xs flex-1">Параметры</TabsTrigger>
+            <TabsTrigger value="3d"      className="text-xs flex-1 flex items-center gap-1">
               <Box className="h-3 w-3" />3D Схема
             </TabsTrigger>
             <TabsTrigger value="sensors" className="text-xs flex-1">
               Датчики ({sensors.length})
+            </TabsTrigger>
+            <TabsTrigger value="soils"   className="text-xs flex-1 flex items-center gap-1" data-testid="tab-soils">
+              <Layers className="h-3 w-3" />Грунты
             </TabsTrigger>
           </TabsList>
 
@@ -579,6 +583,11 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* ── Tab: Soils (boreholes + layered profile per foundation point) ── */}
+          <TabsContent value="soils" className="mt-0">
+            <SoilProfilesTab objectId={obj.id} />
           </TabsContent>
         </Tabs>
       </CardContent>
