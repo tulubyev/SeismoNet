@@ -511,22 +511,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/earthquakes/sync', requireRole("administrator"), async (req, res) => {
     try {
       const { magnitude, period } = req.body;
-      let mag: any = magnitude || 4.5;
-      let per: 'day' | 'week' | 'month' = period || 'week';
-      
-      // Validate magnitude
-      if (mag !== 'significant' && typeof mag === 'string') {
-        mag = parseFloat(mag);
-      }
-      
-      if (mag !== 'significant' && ![1.0, 2.5, 4.5].includes(mag)) {
+      let mag: number | 'significant';
+      if (magnitude === 'significant') {
+        mag = 'significant';
+      } else if (typeof magnitude === 'string') {
+        const parsed = parseFloat(magnitude);
+        mag = [1.0, 2.5, 4.5].includes(parsed) ? parsed : 4.5;
+      } else if (typeof magnitude === 'number' && [1.0, 2.5, 4.5].includes(magnitude)) {
+        mag = magnitude;
+      } else {
         mag = 4.5;
       }
-      
-      // Validate period
-      if (!['day', 'week', 'month'].includes(per)) {
-        per = 'week';
-      }
+      const per: 'day' | 'week' | 'month' = ['day','week','month'].includes(period) ? period : 'week';
       
       console.log(`Manually triggering USGS earthquake sync with magnitude ${mag} and period ${per}`);
       const newEventsCount = await syncEarthquakeData(mag, per);
@@ -654,6 +650,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: 'Error updating infrastructure object' });
+    }
+  });
+
+  app.delete('/api/infrastructure-objects/:id', requireRole(['administrator']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteInfrastructureObject(id);
+      if (!ok) return res.status(404).json({ message: 'Object not found' });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting infrastructure object' });
     }
   });
 
@@ -849,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!record) return res.status(404).json({ message: 'Seismogram not found' });
       const [updated] = await db
         .update(dbSchema.seismogramRecords)
-        .set({ usedForModelingCount: ((record as any).usedForModelingCount ?? 0) + 1 })
+        .set({ usedForModelingCount: (record.usedForModelingCount ?? 0) + 1 })
         .where(eq(dbSchema.seismogramRecords.id, id))
         .returning();
       res.json(updated ?? record);

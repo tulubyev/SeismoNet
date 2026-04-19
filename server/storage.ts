@@ -101,6 +101,7 @@ export interface IStorage {
   getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined>;
   createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject>;
   updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined>;
+  deleteInfrastructureObject(id: number): Promise<boolean>;
 
   // Soil profile operations
   getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
@@ -741,6 +742,10 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async deleteInfrastructureObject(id: number): Promise<boolean> {
+    return this.infrastructureObjects.delete(id);
+  }
+
   // ─── Soil profile operations ───────────────────────────────────────────────
   async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
     const all = Array.from(this.soilProfiles.values());
@@ -1008,7 +1013,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   async updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined> {
-    const { id: _id, stationId: _sid, ...safeUpdates } = updates as any;
+    const { id: _id, stationId: _sid, ...safeUpdates } = updates;
     const [updatedStation] = await db
       .update(schema.stations)
       .set({ ...safeUpdates, lastUpdate: new Date() })
@@ -1283,6 +1288,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.infrastructureObjects.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteInfrastructureObject(id: number): Promise<boolean> {
+    const result = await db
+      .delete(schema.infrastructureObjects)
+      .where(eq(schema.infrastructureObjects.id, id))
+      .returning({ id: schema.infrastructureObjects.id });
+    return result.length > 0;
   }
 
   // ─── Soil profile operations ──────────────────────────────────────────────────
@@ -2781,13 +2794,7 @@ const initializeDatabase = async () => {
   if (existingSeismograms.length === 0) {
     console.log('Seeding historical seismogram catalog...');
 
-    type SeismoInsert = Omit<InsertSeismogramRecord, never> & {
-      magnitude?: number; magnitudeType?: string; focalDepthKm?: number;
-      epicentralDistanceKm?: number; soilCategory?: string; locationName?: string;
-      dataSource?: string; isHistorical?: boolean; usedForModelingCount?: number;
-    };
-
-    const historicalRecords: SeismoInsert[] = [
+    const historicalRecords: InsertSeismogramRecord[] = [
       // ─── Major historical Baikal events ────────────────────────────────────
       {
         recordId: 'HIST-BAI-1999-001',
@@ -2953,7 +2960,7 @@ const initializeDatabase = async () => {
     ];
 
     for (const rec of historicalRecords) {
-      await dbStorage.createSeismogramRecord(rec as any);
+      await dbStorage.createSeismogramRecord(rec);
     }
     console.log(`Seeded ${historicalRecords.length} seismogram catalog records.`);
   }

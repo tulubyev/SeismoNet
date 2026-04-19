@@ -12,8 +12,6 @@ import HomePage from "@/pages/HomePage";
 import Dashboard from "@/pages/Dashboard";
 import Stations from "@/pages/Stations";
 import AddStation from "@/pages/AddStation";
-import EventMap from "@/pages/EventMap";
-import EventHistory from "@/pages/EventHistory";
 import Analysis from "@/pages/Analysis";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
@@ -39,8 +37,6 @@ function Router() {
       <ProtectedRoute path="/stations"        component={withLayout(Stations)}              />
       <ProtectedRoute path="/stations/new"    component={withLayout(AddStation)}
         requiredRole={["administrator", "user"]} />
-      <ProtectedRoute path="/event-map"       component={withLayout(EventMap)}              />
-      <ProtectedRoute path="/event-history"   component={withLayout(EventHistory)}          />
       <ProtectedRoute path="/analysis"        component={withLayout(Analysis)}              />
       <ProtectedRoute path="/infrastructure"  component={withLayout(InfrastructureObjects)} />
       <ProtectedRoute path="/seismograms"     component={withLayout(Seismograms)}           />
@@ -49,8 +45,6 @@ function Router() {
       <ProtectedRoute path="/settings"        component={withLayout(Settings)}
         requiredRole="administrator" />
 
-      <ProtectedRoute path="/events/intensity" component={withLayout(EventHistory)} />
-      <ProtectedRoute path="/events/major"     component={withLayout(EventHistory)} />
       <ProtectedRoute path="/network-status"   component={withLayout(Dashboard)}   />
       <ProtectedRoute path="/live-waveforms"   component={withLayout(Dashboard)}   />
       <ProtectedRoute path="/status-detail"    component={withLayout(Dashboard)}   />

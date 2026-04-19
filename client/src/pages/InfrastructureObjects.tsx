@@ -621,10 +621,10 @@ const InfrastructureObjects: FC = () => {
       (obj.objectId ?? '').toLowerCase().includes(q);
 
     const matchDistrict = districtFilter === 'all' ||
-      ((obj as any).district ?? '') === districtFilter;
+      (obj.district ?? '') === districtFilter;
 
     const matchDeveloper = developerSearch === '' ||
-      ((obj as any).developer ?? '').toLowerCase().includes(developerSearch.toLowerCase());
+      (obj.developer ?? '').toLowerCase().includes(developerSearch.toLowerCase());
 
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
@@ -815,15 +815,15 @@ const InfrastructureObjects: FC = () => {
                                       <MapPin className="h-3 w-3 flex-shrink-0" /> {obj.address}
                                     </p>
                                   )}
-                                  {(obj as any).district && (
+                                  {obj.district && (
                                     <p className="text-xs text-blue-600 font-medium">
-                                      {(obj as any).district} р-н
+                                      {obj.district} р-н
                                     </p>
                                   )}
                                 </div>
-                                {(obj as any).developer && (
+                                {obj.developer && (
                                   <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                                    <Shield className="h-3 w-3 flex-shrink-0" /> {(obj as any).developer}
+                                    <Shield className="h-3 w-3 flex-shrink-0" /> {obj.developer}
                                   </p>
                                 )}
                                 <div className="flex flex-wrap gap-1.5 mt-2">
