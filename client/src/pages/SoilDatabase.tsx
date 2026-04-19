@@ -514,6 +514,7 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
                       <TableHead className="text-[11px] py-1 px-2">До (м)</TableHead>
                       <TableHead className="text-[11px] py-1 px-2">Vs (м/с)</TableHead>
                       <TableHead className="text-[11px] py-1 px-2">Vp (м/с)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Плотность (кг/м³)</TableHead>
                       <TableHead className="text-[11px] py-1 px-2">Описание</TableHead>
                       <TableHead className="text-[11px] py-1 px-2 w-6"></TableHead>
                     </TableRow>
@@ -556,6 +557,10 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
                         <TableCell className="py-1 px-1">
                           <Input className="h-7 text-xs w-20" value={layer.compressionalVelocity}
                             onChange={e => updateLayer(idx, 'compressionalVelocity', e.target.value)} placeholder="м/с" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-24" value={layer.density}
+                            onChange={e => updateLayer(idx, 'density', e.target.value)} placeholder="кг/м³" />
                         </TableCell>
                         <TableCell className="py-1 px-1">
                           <Input className="h-7 text-xs w-36" value={layer.description}
