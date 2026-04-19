@@ -116,12 +116,11 @@ const TopNav: FC = () => {
 const AppFooter: FC = () => (
   <footer className="fixed bottom-0 left-0 right-0 z-40 h-10 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-6">
     <span className="text-slate-400 text-xs">
-      Сеть сейсмических наблюдений за объектами гражданской и промышленной инфраструктуры г. Иркутска
+      SeismoNet Irkutsk Сеть сейсмических станций
     </span>
     <div className="flex items-center gap-4 text-slate-500 text-xs">
-      <span>ИЗК СО РАН</span>
       <span>v2.0.0</span>
-      <span className="hidden sm:inline">© 2024</span>
+      <span className="hidden sm:inline">© 2026 Байкальская Инновационная Компания</span>
     </div>
   </footer>
 );

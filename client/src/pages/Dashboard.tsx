@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Building2, Radio, Activity, CheckCircle2,
-  XCircle, Wifi, WifiOff, ArrowRight, Gauge, Clock
+  XCircle, Wifi, WifiOff, ArrowRight, Gauge, Clock,
+  BatteryFull, BatteryLow, BatteryMedium, Signal, AlertTriangle
 } from 'lucide-react';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import IrkutskMap from '@/components/dashboard/IrkutskMap';
@@ -280,51 +281,109 @@ const Dashboard: FC = () => {
               </CardContent>
             </Card>
 
-            {/* System health */}
+            {/* Station health */}
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Gauge className="h-4 w-4 text-blue-600" />
-                  Состояние системы
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Gauge className="h-4 w-4 text-blue-600" />
+                    Здоровье станций
+                  </CardTitle>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {onlineStations} онлайн
+                    </span>
+                    {stations.filter(s => s.status === 'degraded').length > 0 && (
+                      <span className="flex items-center gap-1 text-amber-600 font-medium">
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {stations.filter(s => s.status === 'degraded').length} деград.
+                      </span>
+                    )}
+                    {stations.filter(s => s.status === 'offline').length > 0 && (
+                      <span className="flex items-center gap-1 text-red-600 font-medium">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500" /> {stations.filter(s => s.status === 'offline').length} офлайн
+                      </span>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="pt-0 space-y-3">
-                {[
-                  { label: 'Обработка данных', value: networkStatus?.dataProcessingHealth ?? 0 },
-                  { label: 'Сетевое подключение', value: networkStatus?.networkConnectivityHealth ?? 0 },
-                  { label: 'Хранилище', value: networkStatus?.storageCapacityHealth ?? 0 },
-                  { label: 'API-производительность', value: networkStatus?.apiPerformanceHealth ?? 0 }
-                ].map(item => (
-                  <div key={item.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs text-slate-600">{item.label}</span>
-                      <span className="text-xs font-medium text-slate-700">{item.value}%</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          item.value >= 90 ? 'bg-emerald-500' :
-                          item.value >= 70 ? 'bg-blue-500' :
-                          item.value >= 50 ? 'bg-amber-500' : 'bg-red-500'
+              <CardContent className="pt-0 space-y-2">
+                {stations.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-2">Нет данных о станциях</p>
+                ) : (
+                  stations.slice(0, 5).map(station => {
+                    const bat = station.batteryLevel ?? null;
+                    const sig = station.signalQuality ?? null;
+                    const BatIcon = bat == null ? BatteryMedium : bat >= 60 ? BatteryFull : bat >= 30 ? BatteryMedium : BatteryLow;
+                    const batColor = bat == null ? 'text-slate-400' : bat >= 60 ? 'text-emerald-600' : bat >= 30 ? 'text-amber-600' : 'text-red-600';
+                    const isOffline = station.status === 'offline';
+                    return (
+                      <div key={station.stationId}
+                        className={`p-2.5 rounded-lg border transition-colors ${
+                          isOffline ? 'border-red-100 bg-red-50' :
+                          station.status === 'degraded' ? 'border-amber-100 bg-amber-50' :
+                          'border-slate-100 bg-slate-50'
                         }`}
-                        style={{ width: `${item.value}%` }}
-                      />
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor(station.status)}`} />
+                            <span className="text-xs font-medium text-slate-700 truncate max-w-[110px]">{station.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isOffline && <AlertTriangle className="h-3 w-3 text-red-500" />}
+                            <BatIcon className={`h-3.5 w-3.5 ${batColor}`} />
+                            {bat != null && <span className={`text-[10px] font-medium ${batColor}`}>{bat}%</span>}
+                          </div>
+                        </div>
+                        {/* Signal quality bar */}
+                        <div className="flex items-center gap-2">
+                          <Signal className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                isOffline ? 'bg-red-400' :
+                                sig == null ? 'bg-slate-300' :
+                                sig >= 80 ? 'bg-emerald-500' :
+                                sig >= 50 ? 'bg-blue-500' :
+                                sig >= 30 ? 'bg-amber-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: isOffline ? '5%' : sig != null ? `${sig}%` : '50%' }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 w-6 text-right">
+                            {isOffline ? '—' : sig != null ? `${sig}%` : 'N/D'}
+                          </span>
+                        </div>
+                        {station.dataRate != null && (
+                          <p className="text-[10px] text-slate-400 mt-1 ml-5">{station.dataRate} sps · {station.stationId}</p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                {/* System-level metrics summary */}
+                <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-1.5">
+                  {[
+                    { label: 'Обработка', value: networkStatus?.dataProcessingHealth ?? 0 },
+                    { label: 'Сеть', value: networkStatus?.networkConnectivityHealth ?? 0 },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <div className="flex justify-between mb-0.5">
+                        <span className="text-[10px] text-slate-500">{item.label}</span>
+                        <span className="text-[10px] font-medium text-slate-600">{item.value}%</span>
+                      </div>
+                      <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${
+                            item.value >= 90 ? 'bg-emerald-500' :
+                            item.value >= 70 ? 'bg-blue-500' :
+                            item.value >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${item.value}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
-
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-4 text-xs text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" /> Онлайн: {onlineStations}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" /> Деград.: {stations.filter(s => s.status === 'degraded').length}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-red-500" /> Офлайн: {stations.filter(s => s.status === 'offline').length}
-                    </span>
-                  </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
