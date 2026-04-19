@@ -17,6 +17,7 @@ import {
   Globe,
   History,
   Archive as ArchiveIcon,
+  HardHat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -132,6 +133,7 @@ const Sidebar: FC = () => {
 
           <SectionLabel text="Объекты" />
           <NavItem href="/infrastructure" icon={<Building2 className="size-4" />} text="Инфраструктура" isActive={location === '/infrastructure'} />
+          <NavItem href="/developers"     icon={<HardHat className="size-4" />}    text="Застройщики"   isActive={location === '/developers'} />
           <NavItem href="/stations" icon={<SatelliteDish className="size-4" />} text="Станции" isActive={location === '/stations'} />
           <NavItem href="/stations/new" icon={<PlusCircle className="size-4" />} text="Добавить станцию" isActive={location === '/stations/new'} />
 

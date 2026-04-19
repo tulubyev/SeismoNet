@@ -43,7 +43,8 @@ export const schema = {
   buildingNorms,
   seismogramRecords,
   calibrationSessions,
-  calibrationAfc
+  calibrationAfc,
+  developers: schemaImport.developers
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

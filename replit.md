@@ -36,6 +36,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Key Components
 
+### Developer (Застройщик) Management
+- Carded reestr of building developers with full profile: legal form, ИНН/ОГРН, addresses, contacts, licenses (JSON), introduced and planned objects (JSON), connection status to the seismic monitoring program.
+- CRUD via `/api/developers` with Zod validation; page at `/developers` (Sidebar → Объекты).
+- Seeded 10 major Irkutsk developers (ГК «Новый город», Грандстрой, ПарапетСтрой, ДомСтрой, ГорСтрой, Родные берега, Профит, СЗ «Регион Сибири», Альфа, Монолитстрой-Иркутск).
+
 ### User Management
 - Role-based access control (Administrator, User, Viewer)
 - Session-based authentication with secure password hashing

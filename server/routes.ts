@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
-import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
+import { WebSocketMessageType, WebSocketMessage, insertDeveloperSchema } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 import { syncEarthquakeData, scheduleEarthquakeSyncJob } from "./services/earthquakeApi";
@@ -662,6 +662,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: 'Error deleting infrastructure object' });
+    }
+  });
+
+  // ─── Developers API ───────────────────────────────────────────────────────────
+
+  app.get('/api/developers', async (_req, res) => {
+    try {
+      const list = await storage.getDevelopers();
+      res.json(list);
+    } catch (e) {
+      console.error('GET /api/developers error:', e);
+      res.status(500).json({ message: 'Error fetching developers' });
+    }
+  });
+
+  app.get('/api/developers/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const dev = await storage.getDeveloper(id);
+      if (!dev) return res.status(404).json({ message: 'Developer not found' });
+      res.json(dev);
+    } catch (e) {
+      res.status(500).json({ message: 'Error fetching developer' });
+    }
+  });
+
+  app.post('/api/developers', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const parsed = insertDeveloperSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid developer payload', errors: parsed.error.flatten() });
+      }
+      const created = await storage.createDeveloper(parsed.data);
+      res.status(201).json(created);
+    } catch (e) {
+      console.error('POST /api/developers error:', e);
+      res.status(500).json({ message: 'Error creating developer' });
+    }
+  });
+
+  app.patch('/api/developers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const parsed = insertDeveloperSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid developer payload', errors: parsed.error.flatten() });
+      }
+      const updated = await storage.updateDeveloper(id, parsed.data);
+      if (!updated) return res.status(404).json({ message: 'Developer not found' });
+      res.json(updated);
+    } catch (e) {
+      console.error('PATCH /api/developers error:', e);
+      res.status(500).json({ message: 'Error updating developer' });
+    }
+  });
+
+  app.delete('/api/developers/:id', requireRole(['administrator']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const ok = await storage.deleteDeveloper(id);
+      if (!ok) return res.status(404).json({ message: 'Developer not found' });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Error deleting developer' });
     }
   });
 

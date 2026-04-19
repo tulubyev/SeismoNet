@@ -215,6 +215,39 @@ export const infrastructureObjects = pgTable("infrastructure_objects", {
   metadata: jsonb("metadata")
 });
 
+// ─── Developers (застройщики) ────────────────────────────────────────────────
+// Construction companies operating in Irkutsk. Tracks legal info, contacts,
+// licenses, completed/planned objects, and seismic-monitoring program status.
+export const developers = pgTable("developers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),                          // ГК «Новый город»
+  legalForm: text("legal_form"),                         // ООО / АО / ГК / СЗ / ОАО / ИП
+  inn: text("inn"),                                      // ИНН
+  ogrn: text("ogrn"),                                    // ОГРН
+  legalAddress: text("legal_address"),                   // юридический адрес
+  officeAddress: text("office_address"),                 // фактический офис
+  website: text("website"),
+  phone: text("phone"),
+  email: text("email"),
+  contactPerson: text("contact_person"),                 // ФИО руководителя/контактного лица
+  totalAreaThousandSqm: numeric("total_area_thousand_sqm"),  // суммарная площадь, тыс. м²
+  // Лицензии и допуски — массив объектов { number, type, issuedDate, expiryDate, issuer, scope }
+  licenses: jsonb("licenses"),
+  // Введённые объекты — массив { name, year, floors, district, address, area }
+  completedObjects: jsonb("completed_objects"),
+  // Планируемые объекты — массив { name, plannedYear, floors, district, address, area, status }
+  plannedObjects: jsonb("planned_objects"),
+  // Состояние подключения к программе сейсмического мониторинга
+  monitoringStatus: text("monitoring_status").notNull().default("not_connected"),
+  //   not_connected | invited | pending | connected | declined | suspended
+  monitoringConnectedDate: timestamp("monitoring_connected_date"),
+  monitoringNotes: text("monitoring_notes"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Object categories — used for grouping monitoring objects on map layers
 // and for the "тип объекта" lookup (replaces hard-coded list).
 // `slug` matches `infrastructure_objects.object_type` so existing data keeps working.
@@ -392,6 +425,7 @@ export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords
 export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true });
 export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
 export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
+export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -433,6 +467,28 @@ export type InsertInfrastructureObject = z.infer<typeof insertInfrastructureObje
 
 export type ObjectCategory = typeof objectCategories.$inferSelect;
 export type InsertObjectCategory = z.infer<typeof insertObjectCategorySchema>;
+
+export type Developer = typeof developers.$inferSelect;
+export type InsertDeveloper = z.infer<typeof insertDeveloperSchema>;
+
+// Helper sub-types for the developer JSON columns
+export interface DeveloperLicense {
+  number: string;
+  type: string;            // СРО / Минстрой / лицензия на проектирование / etc.
+  issuedDate?: string;     // YYYY-MM-DD
+  expiryDate?: string;     // YYYY-MM-DD
+  issuer?: string;
+  scope?: string;
+}
+export interface DeveloperObject {
+  name: string;
+  year?: number;
+  floors?: number;
+  district?: string;
+  address?: string;
+  area?: number;           // тыс. м²
+  status?: string;         // for planned: design / construction / approved
+}
 
 export type SoilProfile = typeof soilProfiles.$inferSelect;
 export type InsertSoilProfile = z.infer<typeof insertSoilProfileSchema>;

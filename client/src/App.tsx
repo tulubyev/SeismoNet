@@ -21,6 +21,7 @@ import BuildingNorms from "@/pages/BuildingNorms";
 import Seismograms from "@/pages/Seismograms";
 import SeismoLive from "@/pages/SeismoLive";
 import Archive from "@/pages/Archive";
+import DevelopersPage from "@/pages/Developers";
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
@@ -40,6 +41,7 @@ function Router() {
         requiredRole={["administrator", "user"]} />
       <ProtectedRoute path="/analysis"        component={withLayout(Analysis)}              />
       <ProtectedRoute path="/infrastructure"  component={withLayout(InfrastructureObjects)} />
+      <ProtectedRoute path="/developers"      component={withLayout(DevelopersPage)}        />
       <ProtectedRoute path="/seismograms"     component={withLayout(Seismograms)}           />
       <ProtectedRoute path="/seismo-live"     component={withLayout(SeismoLive)}            />
       <ProtectedRoute path="/building-norms"  component={withLayout(BuildingNorms)}         />

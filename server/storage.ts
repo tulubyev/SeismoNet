@@ -34,7 +34,9 @@ import {
   CalibrationSession,
   InsertCalibrationSession,
   CalibrationAfc,
-  InsertCalibrationAfc
+  InsertCalibrationAfc,
+  Developer,
+  InsertDeveloper
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -159,6 +161,14 @@ export interface IStorage {
   createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc>;
   deleteCalibrationAfcPoint(id: number): Promise<boolean>;
   replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]>;
+
+  // Developer operations
+  getDevelopers(): Promise<Developer[]>;
+  getDeveloper(id: number): Promise<Developer | undefined>;
+  getDeveloperByName(name: string): Promise<Developer | undefined>;
+  createDeveloper(dev: InsertDeveloper): Promise<Developer>;
+  updateDeveloper(id: number, data: Partial<InsertDeveloper>): Promise<Developer | undefined>;
+  deleteDeveloper(id: number): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -181,6 +191,7 @@ export class MemStorage implements IStorage {
   private seismogramRecords: Map<number, SeismogramRecord>;
   private calibrationSessions: Map<number, CalibrationSession>;
   private calibrationAfcPoints: Map<number, CalibrationAfc>;
+  private developers: Map<number, Developer>;
 
   private currentUserId: number;
   private currentStationId: number;
@@ -200,6 +211,7 @@ export class MemStorage implements IStorage {
   private currentSeismogramId: number;
   private currentCalibrationSessionId: number;
   private currentCalibrationAfcId: number;
+  private currentDeveloperId: number;
 
   constructor() {
     this.users = new Map();
@@ -220,6 +232,7 @@ export class MemStorage implements IStorage {
     this.seismogramRecords = new Map();
     this.calibrationSessions = new Map();
     this.calibrationAfcPoints = new Map();
+    this.developers = new Map();
 
     this.currentUserId = 1;
     this.currentStationId = 1;
@@ -239,6 +252,7 @@ export class MemStorage implements IStorage {
     this.currentSeismogramId = 1;
     this.currentCalibrationSessionId = 1;
     this.currentCalibrationAfcId = 1;
+    this.currentDeveloperId = 1;
     
     // Initialize with sample data
     this.initializeData();
@@ -783,6 +797,34 @@ export class MemStorage implements IStorage {
 
   async deleteInfrastructureObject(id: number): Promise<boolean> {
     return this.infrastructureObjects.delete(id);
+  }
+
+  // ─── Developer operations ─────────────────────────────────────────────────
+  async getDevelopers(): Promise<Developer[]> {
+    return Array.from(this.developers.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  async getDeveloper(id: number): Promise<Developer | undefined> {
+    return this.developers.get(id);
+  }
+  async getDeveloperByName(name: string): Promise<Developer | undefined> {
+    return Array.from(this.developers.values()).find(d => d.name === name);
+  }
+  async createDeveloper(dev: InsertDeveloper): Promise<Developer> {
+    const id = this.currentDeveloperId++;
+    const now = new Date();
+    const newDev: Developer = { ...dev, id, createdAt: now, updatedAt: now } as Developer;
+    this.developers.set(id, newDev);
+    return newDev;
+  }
+  async updateDeveloper(id: number, data: Partial<InsertDeveloper>): Promise<Developer | undefined> {
+    const dev = this.developers.get(id);
+    if (!dev) return undefined;
+    const updated: Developer = { ...dev, ...data, updatedAt: new Date() };
+    this.developers.set(id, updated);
+    return updated;
+  }
+  async deleteDeveloper(id: number): Promise<boolean> {
+    return this.developers.delete(id);
   }
 
   // ─── Object category operations ────────────────────────────────────────────
@@ -1418,6 +1460,48 @@ export class DatabaseStorage implements IStorage {
       .delete(schema.infrastructureObjects)
       .where(eq(schema.infrastructureObjects.id, id))
       .returning({ id: schema.infrastructureObjects.id });
+    return result.length > 0;
+  }
+
+  // ─── Developer operations ────────────────────────────────────────────────────
+
+  async getDevelopers(): Promise<Developer[]> {
+    return db.query.developers.findMany({
+      orderBy: (t, { asc }) => [asc(t.name)]
+    });
+  }
+
+  async getDeveloper(id: number): Promise<Developer | undefined> {
+    return db.query.developers.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async getDeveloperByName(name: string): Promise<Developer | undefined> {
+    return db.query.developers.findFirst({
+      where: (t, { eq }) => eq(t.name, name)
+    });
+  }
+
+  async createDeveloper(dev: InsertDeveloper): Promise<Developer> {
+    const [created] = await db.insert(schema.developers).values(dev).returning();
+    return created;
+  }
+
+  async updateDeveloper(id: number, data: Partial<InsertDeveloper>): Promise<Developer | undefined> {
+    const [updated] = await db
+      .update(schema.developers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.developers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDeveloper(id: number): Promise<boolean> {
+    const result = await db
+      .delete(schema.developers)
+      .where(eq(schema.developers.id, id))
+      .returning({ id: schema.developers.id });
     return result.length > 0;
   }
 
@@ -2638,6 +2722,180 @@ const initializeDatabase = async () => {
     }
   }
   console.log('Developer high-rise buildings seeded (skipped if already present).');
+
+  // ── Seed major Irkutsk developer companies (carded profiles) ─────────────────
+  const devSeeds: InsertDeveloper[] = [
+    {
+      name: "ГК «Новый город»",
+      legalForm: "ГК",
+      website: "https://gknovygorod.ru",
+      phone: "+7 (3952) 20-00-00",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "99.3",
+      licenses: [
+        { number: "СРО-С-022-22082009", type: "СРО строителей", issuer: "АСРО «Содружество строителей»" },
+      ],
+      completedObjects: [
+        { name: "ЖК «Авиатор»",          year: 2018, floors: 25, district: "Октябрьский" },
+        { name: "ЖК «Северное сияние»",  year: 2017, floors: 16, district: "Октябрьский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "connected",
+      monitoringConnectedDate: new Date("2024-03-01"),
+      notes: "Лидер по площади высотного жилья (99.3 тыс. м²)",
+    },
+    {
+      name: "ГК «Грандстрой»",
+      legalForm: "ГК",
+      website: "https://grandstroy38.ru",
+      phone: "+7 (3952) 50-50-50",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "54.7",
+      licenses: [{ number: "СРО-С-073-08122009", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Бродский»",            year: 2020, floors: 25, district: "Октябрьский" },
+        { name: "ЖК «Союз Priority MAX»",   year: 2021, floors: 16, district: "Октябрьский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "pending",
+      notes: "Согласование подключения к программе мониторинга",
+    },
+    {
+      name: "ПарапетСтрой",
+      legalForm: "ООО",
+      website: "https://parapet38.ru",
+      phone: "+7 (3952) 25-25-25",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "49.1",
+      licenses: [{ number: "СРО-С-101-12012010", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Парапет»", year: 2016, floors: 20, district: "Свердловский" },
+        { name: "ЖК «Сказка»",  year: 2018, floors: 16, district: "Свердловский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "invited",
+      notes: "Приглашение направлено, ожидается ответ",
+    },
+    {
+      name: "ГК «ДомСтрой»",
+      legalForm: "ГК",
+      website: "https://domstroy38.ru",
+      phone: "+7 (3952) 39-00-39",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "43.1",
+      licenses: [{ number: "СРО-С-200-15052012", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Домашний»",  year: 2019, floors: 16, district: "Октябрьский" },
+        { name: "ЖК «ДомСтрой-2»", year: 2021, floors: 18, district: "Октябрьский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "not_connected",
+    },
+    {
+      name: "ГорСтрой",
+      legalForm: "ООО",
+      website: "https://gorstroyrf.ru",
+      phone: "+7 (3952) 20-20-20",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "35.7",
+      licenses: [{ number: "СРО-С-150-10072011", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Клубный дом РиверАнг»", year: 2017, floors: 16, district: "Свердловский" },
+        { name: "ЖК «Сибиряков»",            year: 2019, floors: 20, district: "Свердловский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "connected",
+      monitoringConnectedDate: new Date("2024-06-15"),
+    },
+    {
+      name: "Родные берега",
+      legalForm: "ООО",
+      website: "https://rodnye-berega.ru",
+      phone: "+7 (3952) 66-00-66",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "34.6",
+      licenses: [{ number: "СРО-С-250-20082014", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Родные берега»", year: 2019, floors: 18, district: "Свердловский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "not_connected",
+    },
+    {
+      name: "Профит",
+      legalForm: "ООО",
+      website: "https://profit38.ru",
+      phone: "+7 (3952) 77-77-77",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "33.4",
+      licenses: [{ number: "СРО-С-280-15102015", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Профит»",  year: 2016, floors: 16, district: "Ленинский" },
+        { name: "ЖК «Элитный»", year: 2018, floors: 18, district: "Ленинский" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "declined",
+      notes: "Отказ от участия в первой очереди программы",
+    },
+    {
+      name: "СЗ «Регион Сибири»",
+      legalForm: "ООО СЗ",
+      website: "https://region-sibiri.ru",
+      phone: "+7 (3952) 98-00-98",
+      email: "info@region-sibiri.ru",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "25.0",
+      licenses: [
+        { number: "СРО-С-310-25032018", type: "СРО строителей" },
+        { number: "КРТ-2023-001",       type: "Договор КРТ", issuer: "Администрация г. Иркутска", scope: "Комплексное развитие территорий" },
+      ],
+      completedObjects: [
+        { name: "ЖК «Якоби-парк»", year: 2023, floors: 16, district: "Свердловский" },
+      ],
+      plannedObjects: [
+        { name: "КРТ Академгородок", plannedYear: 2031, floors: 18, district: "Свердловский", area: 197, status: "design" },
+      ],
+      monitoringStatus: "connected",
+      monitoringConnectedDate: new Date("2025-01-10"),
+      notes: "Активный участник КРТ. План: 197 тыс. м² к 2031 г.",
+    },
+    {
+      name: "Альфа",
+      legalForm: "ООО",
+      website: "https://alfa-irk.ru",
+      phone: "+7 (3952) 90-90-90",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "28.6",
+      licenses: [{ number: "СРО-С-260-12092014", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Альфа»", year: 2018, floors: 16, district: "Правобережный" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "pending",
+    },
+    {
+      name: "Монолитстрой-Иркутск",
+      legalForm: "ООО",
+      website: "https://mstroyirk.ru",
+      phone: "+7 (3952) 42-64-58",
+      legalAddress: "г. Иркутск",
+      totalAreaThousandSqm: "15.0",
+      licenses: [{ number: "СРО-С-090-05062009", type: "СРО строителей" }],
+      completedObjects: [
+        { name: "ЖК «Топкинский»", year: 2012, floors: 16, district: "Правобережный" },
+      ],
+      plannedObjects: [],
+      monitoringStatus: "suspended",
+      notes: "Пионер монолитных высоток (декларации 2007 г.), сейчас менее активен",
+    },
+  ];
+  for (const dev of devSeeds) {
+    const existing = await dbStorage.getDeveloperByName(dev.name);
+    if (!existing) {
+      await dbStorage.createDeveloper(dev);
+    }
+  }
+  console.log('Developers seeded (skipped if already present).');
 
   // ── Seed building norms ───────────────────────────────────────────────────────
   const existingNorms = await dbStorage.getBuildingNorms();
