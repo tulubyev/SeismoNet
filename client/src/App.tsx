@@ -23,6 +23,7 @@ import SeismoLive from "@/pages/SeismoLive";
 import Archive from "@/pages/Archive";
 import DevelopersPage from "@/pages/Developers";
 import SoilDatabase from "@/pages/SoilDatabase";
+import SystemManagement from "@/pages/SystemManagement";
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
@@ -50,6 +51,7 @@ function Router() {
       <ProtectedRoute path="/archive"         component={withLayout(Archive)}               />
       <ProtectedRoute path="/settings"        component={withLayout(Settings)}
         requiredRole="administrator" />
+      <ProtectedRoute path="/system-management" component={withLayout(SystemManagement)} />
 
       <ProtectedRoute path="/network-status"   component={withLayout(Dashboard)}   />
       <ProtectedRoute path="/live-waveforms"   component={withLayout(Dashboard)}   />
