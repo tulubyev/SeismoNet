@@ -1,7 +1,5 @@
 import { FC, useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -382,14 +380,7 @@ const OfflineTab: FC = () => {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const Seismograms: FC = () => {
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <Header
-          title="Сейсмограммы"
-          subtitle="Онлайн-просмотр и архив записей колебаний грунта и конструкций"
-        />
+  return (  <>
         <div className="p-6">
           <Tabs defaultValue="online">
             <TabsList className="mb-5">
@@ -412,8 +403,7 @@ const Seismograms: FC = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

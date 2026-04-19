@@ -1,8 +1,6 @@
 import { FC } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,15 +59,7 @@ const Dashboard: FC = () => {
     return Date.now() - ts < 24 * 60 * 60 * 1000;
   }).length;
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <Header
-          title="Центр мониторинга г. Иркутска"
-          subtitle="Сеть сейсмических наблюдений за объектами гражданской и промышленной инфраструктуры"
-        />
+  return (  <>
 
         <div className="p-6 space-y-6">
 
@@ -341,8 +331,7 @@ const Dashboard: FC = () => {
           </div>
 
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

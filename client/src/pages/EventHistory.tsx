@@ -1,7 +1,5 @@
 import { FC, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import { 
   Card, 
@@ -59,15 +57,7 @@ const EventHistory: FC = () => {
     setShowDetails(true);
   };
   
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <main className="flex-1 overflow-y-auto bg-slate-ultralight">
-        <Header 
-          title={isMajorEventsPage ? "Major Events" : "Event History"} 
-          subtitle={isMajorEventsPage ? "High magnitude seismic events" : "Historical seismic event data"} 
-        />
+  return (  <>
         
         <div className="p-6">
           <Card>
@@ -182,7 +172,6 @@ const EventHistory: FC = () => {
             </CardContent>
           </Card>
         </div>
-      </main>
       
       {/* Event Details Dialog */}
       {selectedEvent && (
@@ -295,7 +284,7 @@ const EventHistory: FC = () => {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+  </>
   );
 };
 

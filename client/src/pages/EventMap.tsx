@@ -1,21 +1,11 @@
 import { FC } from 'react';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import MapPanel from '@/components/dashboard/MapPanel';
 import { useSeismicData } from '@/hooks/useSeismicData';
 
 const EventMap: FC = () => {
   const { stations, events } = useSeismicData();
   
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <main className="flex-1 overflow-y-auto bg-slate-ultralight">
-        <Header 
-          title="Event Map" 
-          subtitle="Global seismic event visualization" 
-        />
+  return (  <>
         
         <div className="p-6">
           <div className="bg-white rounded-lg shadow-sm p-4">
@@ -40,8 +30,7 @@ const EventMap: FC = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

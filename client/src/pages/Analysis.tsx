@@ -1,6 +1,4 @@
 import { FC, useState } from 'react';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,15 +15,7 @@ const Analysis: FC = () => {
     selectEvent(eventId);
   };
   
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <main className="flex-1 overflow-y-auto bg-slate-ultralight">
-        <Header 
-          title="Seismic Analysis" 
-          subtitle="Analyze seismic events and waveform data" 
-        />
+  return (  <>
         
         <div className="p-6">
           <Card className="mb-6">
@@ -97,8 +87,7 @@ const Analysis: FC = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

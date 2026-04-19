@@ -1,7 +1,5 @@
 import { FC, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -12,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import {
   Building2, Search, MapPin, CheckCircle2, XCircle,
-  Calendar, Layers, Shield, AlertTriangle, Filter, Box
+  Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio
 } from 'lucide-react';
 import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
 import Building3DViewer from '@/components/infrastructure/Building3DViewer';
@@ -259,12 +257,6 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
   );
 };
 
-// Placeholder to fix unused import error
-const Radio = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="2" /><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
-  </svg>
-);
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -305,14 +297,7 @@ const InfrastructureObjects: FC = () => {
     critical:  objects.filter(o => o.technicalCondition === 'critical' || o.technicalCondition === 'poor').length,
   };
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <Header
-          title="Объекты инфраструктуры"
-          subtitle="Гражданские и промышленные объекты г. Иркутска под сейсмическим наблюдением"
-        />
+  return (  <>
 
         <div className="p-6 space-y-5">
 
@@ -469,8 +454,7 @@ const InfrastructureObjects: FC = () => {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

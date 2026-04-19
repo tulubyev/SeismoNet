@@ -1,7 +1,5 @@
 import { FC, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -218,14 +216,7 @@ const BuildingNorms: FC = () => {
 
   const countByCategory = (cat: string) => norms.filter(n => n.category === cat).length;
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <Header
-          title="Нормативная база"
-          subtitle="Строительные нормы и правила РФ для сейсмического мониторинга и проектирования"
-        />
+  return (  <>
 
         <div className="p-6 space-y-5">
 
@@ -298,8 +289,7 @@ const BuildingNorms: FC = () => {
             Все нормативные документы являются официально опубликованными актами РФ. Ссылки ведут на официальные базы документов.
           </p>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

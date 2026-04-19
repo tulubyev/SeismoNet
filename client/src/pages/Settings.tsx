@@ -1,6 +1,4 @@
 import { FC } from 'react';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
@@ -10,15 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
 const Settings: FC = () => {
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <main className="flex-1 overflow-y-auto bg-slate-ultralight">
-        <Header 
-          title="Settings" 
-          subtitle="Configure system preferences" 
-        />
+  return (  <>
         
         <div className="p-6">
           <Tabs defaultValue="general">
@@ -268,8 +258,7 @@ const Settings: FC = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

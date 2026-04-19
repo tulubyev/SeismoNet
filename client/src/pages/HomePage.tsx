@@ -1,0 +1,239 @@
+import { FC } from 'react';
+import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
+import { useSeismicData } from '@/hooks/useSeismicData';
+import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
+import {
+  Activity, Building2, Radio, Map, FileText,
+  BookOpen, Layers, History, ArrowRight, Wifi, WifiOff,
+  AlertTriangle, CheckCircle2
+} from 'lucide-react';
+
+interface BlockDef {
+  href: string;
+  title: string;
+  subtitle: string;
+  icon: FC<{ className?: string }>;
+  gradient: string;
+  shadow: string;
+  badge?: string | number | null;
+  badgeLabel?: string;
+  status?: 'ok' | 'warn' | 'error' | null;
+}
+
+const HomePage: FC = () => {
+  const [, navigate] = useLocation();
+  const { isConnected, stations, events } = useSeismicData();
+
+  const { data: objects = [] } = useQuery<InfrastructureObject[]>({
+    queryKey: ['/api/infrastructure-objects'],
+  });
+  const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
+    queryKey: ['/api/seismograms'],
+  });
+
+  const onlineStations  = stations.filter(s => s.status === 'online').length;
+  const monitoredObjs   = objects.filter(o => o.isMonitored).length;
+  const last24hEvents   = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
+  const offlineStations = stations.filter(s => s.status === 'offline').length;
+
+  const blocks: BlockDef[] = [
+    {
+      href:       '/monitoring',
+      title:      'Онлайн-мониторинг',
+      subtitle:   'Реальное время, WebSocket, состояние сети',
+      icon:       Activity,
+      gradient:   'from-blue-600 to-blue-800',
+      shadow:     'shadow-blue-900/40',
+      badge:      `${onlineStations} / ${stations.length}`,
+      badgeLabel: 'датчиков онлайн',
+      status:     isConnected ? 'ok' : 'error',
+    },
+    {
+      href:       '/infrastructure',
+      title:      'Объекты инфраструктуры',
+      subtitle:   'Здания, мосты, ГЭС, 3D-схемы, датчики',
+      icon:       Building2,
+      gradient:   'from-emerald-500 to-emerald-700',
+      shadow:     'shadow-emerald-900/40',
+      badge:      monitoredObjs,
+      badgeLabel: 'объектов под наблюдением',
+      status:     monitoredObjs > 0 ? 'ok' : 'warn',
+    },
+    {
+      href:       '/event-map',
+      title:      'Карта сейсмичности',
+      subtitle:   'Интерактивная карта событий и станций Иркутска',
+      icon:       Map,
+      gradient:   'from-teal-500 to-teal-700',
+      shadow:     'shadow-teal-900/40',
+      badge:      last24hEvents,
+      badgeLabel: 'событий за 24 ч',
+      status:     last24hEvents > 5 ? 'warn' : 'ok',
+    },
+    {
+      href:       '/event-history',
+      title:      'История событий',
+      subtitle:   'Каталог, фильтрация, USGS и JMA данные',
+      icon:       History,
+      gradient:   'from-orange-500 to-orange-700',
+      shadow:     'shadow-orange-900/40',
+      badge:      events.length,
+      badgeLabel: 'событий в базе',
+      status:     'ok',
+    },
+    {
+      href:       '/seismograms',
+      title:      'Сейсмограммы',
+      subtitle:   'Запись, просмотр волн, экспорт данных',
+      icon:       FileText,
+      gradient:   'from-violet-600 to-violet-800',
+      shadow:     'shadow-violet-900/40',
+      badge:      seismograms.length,
+      badgeLabel: 'записей в архиве',
+      status:     'ok',
+    },
+    {
+      href:       '/analysis',
+      title:      'Спектральный анализ',
+      subtitle:   'Фурье-анализ, АЧХ, калибровка датчиков',
+      icon:       Activity,
+      gradient:   'from-rose-500 to-rose-700',
+      shadow:     'shadow-rose-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/soil-profiles',
+      title:      'Профили грунтов',
+      subtitle:   'Геология, Vs30, категории по СП 14.13330',
+      icon:       Layers,
+      gradient:   'from-amber-500 to-amber-700',
+      shadow:     'shadow-amber-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/building-norms',
+      title:      'Нормативная база',
+      subtitle:   'СП, СНиП, ГОСТ — требования сейсмостойкости',
+      icon:       BookOpen,
+      gradient:   'from-indigo-600 to-indigo-800',
+      shadow:     'shadow-indigo-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/stations',
+      title:      'Станции сети',
+      subtitle:   'Управление, параметры, батарея, качество сигнала',
+      icon:       Radio,
+      gradient:   'from-cyan-600 to-cyan-800',
+      shadow:     'shadow-cyan-900/40',
+      badge:      offlineStations > 0 ? offlineStations : stations.length,
+      badgeLabel: offlineStations > 0 ? 'станций офлайн' : 'станций в сети',
+      status:     offlineStations > 0 ? 'warn' : 'ok',
+    },
+  ];
+
+  return (
+    <div className="min-h-full bg-slate-900">
+      <div className="px-6 pt-8 pb-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                Сеть сейсмических наблюдений
+              </h1>
+              <p className="text-slate-400 text-sm mt-1">
+                Объекты гражданской и промышленной инфраструктуры г. Иркутска
+              </p>
+            </div>
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+              isConnected
+                ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'
+                : 'bg-red-900/60 text-red-300 border border-red-700'
+            }`}>
+              {isConnected
+                ? <><Wifi className="h-4 w-4" /> Система активна</>
+                : <><WifiOff className="h-4 w-4" /> Нет связи</>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 mb-6">
+            {[
+              { label: 'Датчиков онлайн', value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
+              { label: 'Под наблюдением', value: monitoredObjs, color: 'text-blue-400' },
+              { label: 'События 24 ч', value: last24hEvents, color: 'text-orange-400' },
+              { label: 'Записей архива', value: seismograms.length, color: 'text-violet-400' },
+            ].map(s => (
+              <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
+                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 pb-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {blocks.map(block => {
+            const Icon = block.icon;
+            return (
+              <button
+                key={block.href}
+                onClick={() => navigate(block.href)}
+                className={`group relative bg-gradient-to-br ${block.gradient} rounded-2xl p-6 text-left
+                  shadow-xl ${block.shadow} hover:scale-[1.02] hover:shadow-2xl
+                  transition-all duration-200 cursor-pointer border border-white/10 overflow-hidden`}
+              >
+                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
+
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-white/15 backdrop-blur-sm">
+                    <Icon className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {block.status === 'ok' && (
+                      <CheckCircle2 className="h-4 w-4 text-white/70" />
+                    )}
+                    {block.status === 'warn' && (
+                      <AlertTriangle className="h-4 w-4 text-yellow-300" />
+                    )}
+                    {block.status === 'error' && (
+                      <AlertTriangle className="h-4 w-4 text-red-300" />
+                    )}
+                    <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
+                  </div>
+                </div>
+
+                <h2 className="text-white font-bold text-lg leading-tight mb-1">
+                  {block.title}
+                </h2>
+                <p className="text-white/65 text-sm leading-snug mb-4">
+                  {block.subtitle}
+                </p>
+
+                {block.badge !== null && block.badge !== undefined && (
+                  <div className="flex items-baseline gap-2 mt-auto">
+                    <span className="text-3xl font-bold text-white">{block.badge}</span>
+                    <span className="text-white/60 text-xs">{block.badgeLabel}</span>
+                  </div>
+                )}
+
+                <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-white/5 -mr-8 -mb-8" />
+                <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-2 -mb-2" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;

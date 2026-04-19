@@ -8,8 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { 
   Form, 
   FormControl, 
@@ -88,15 +86,7 @@ const AddStation: FC = () => {
     }
   };
   
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <main className="flex-1 overflow-y-auto bg-slate-ultralight">
-        <Header 
-          title="Add New Station" 
-          subtitle="Configure and deploy a new seismic station" 
-        />
+  return (  <>
         
         <div className="p-6">
           <Card className="max-w-3xl mx-auto">
@@ -409,8 +399,7 @@ const AddStation: FC = () => {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 

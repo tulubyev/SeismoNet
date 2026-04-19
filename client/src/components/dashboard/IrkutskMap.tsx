@@ -7,6 +7,9 @@ declare global {
   interface Window { L: any; }
 }
 
+const esc = (s: string | null | undefined): string =>
+  (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 interface IrkutskMapProps {
   objects: InfrastructureObject[];
   stations: Station[];
@@ -80,17 +83,17 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
       marker.bindPopup(`
         <div style="font-family: sans-serif; min-width: 180px;">
-          <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #1e293b;">${obj.name}</div>
-          <div style="font-size: 11px; color: #64748b; margin-bottom: 2px;">${obj.address || ''}</div>
+          <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #1e293b;">${esc(obj.name)}</div>
+          <div style="font-size: 11px; color: #64748b; margin-bottom: 2px;">${esc(obj.address)}</div>
           <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-            <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${objectTypeLabel(obj.objectType)}</span>
-            ${obj.seismicCategory ? `<span style="background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Кат. ${obj.seismicCategory}</span>` : ''}
-            ${obj.designIntensity ? `<span style="background: #ede9fe; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${obj.designIntensity} балл.</span>` : ''}
+            <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${esc(objectTypeLabel(obj.objectType))}</span>
+            ${obj.seismicCategory ? `<span style="background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Кат. ${esc(obj.seismicCategory)}</span>` : ''}
+            ${obj.designIntensity ? `<span style="background: #ede9fe; padding: 2px 6px; border-radius: 4px; font-size: 10px;">${esc(String(obj.designIntensity))} балл.</span>` : ''}
           </div>
           <div style="margin-top: 6px; font-size: 11px;">
             ${obj.isMonitored
-              ? '<span style="color: #10b981;">● Под мониторингом</span>'
-              : '<span style="color: #94a3b8;">○ Без мониторинга</span>'}
+              ? '<span style="color: #10b981;">&#9679; Под мониторингом</span>'
+              : '<span style="color: #94a3b8;">&#9675; Без мониторинга</span>'}
           </div>
         </div>
       `);
@@ -122,16 +125,16 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
       });
 
       const marker = window.L.marker([lat, lng], { icon });
+      const stStatus = st.status === 'online' ? 'Онлайн' : st.status === 'degraded' ? 'Деградация' : 'Офлайн';
       marker.bindPopup(`
         <div style="font-family: sans-serif; min-width: 160px;">
-          <div style="font-weight: 700; font-size: 13px; color: #1e293b; margin-bottom: 4px;">${st.name}</div>
-          <div style="font-size: 11px; color: #64748b;">${st.stationId}</div>
+          <div style="font-weight: 700; font-size: 13px; color: #1e293b; margin-bottom: 4px;">${esc(st.name)}</div>
+          <div style="font-size: 11px; color: #64748b;">${esc(st.stationId)}</div>
           <div style="margin-top: 6px; font-size: 11px;">
-            <span style="color: ${color};">●</span>
-            ${st.status === 'online' ? 'Онлайн' : st.status === 'degraded' ? 'Деградация' : 'Офлайн'}
-            ${st.dataRate ? ` · ${st.dataRate} sps` : ''}
+            <span style="color: ${color};">&#9679;</span>
+            ${esc(stStatus)}${st.dataRate ? ` &middot; ${esc(String(st.dataRate))} sps` : ''}
           </div>
-          ${st.batteryLevel != null ? `<div style="font-size: 11px; margin-top: 2px;">🔋 ${st.batteryLevel}%</div>` : ''}
+          ${st.batteryLevel != null ? `<div style="font-size: 11px; margin-top: 2px;">&#128267; ${esc(String(st.batteryLevel))}%</div>` : ''}
         </div>
       `);
 

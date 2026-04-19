@@ -5,9 +5,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
-import { useEffect, useState } from "react";
+import { useEffect, useState, FC } from "react";
+import AppLayout from "@/components/layout/AppLayout";
 
-// Desktop Pages
+import HomePage from "@/pages/HomePage";
 import Dashboard from "@/pages/Dashboard";
 import Stations from "@/pages/Stations";
 import AddStation from "@/pages/AddStation";
@@ -22,118 +23,66 @@ import BuildingNorms from "@/pages/BuildingNorms";
 import Seismograms from "@/pages/Seismograms";
 import SoilProfiles from "@/pages/SoilProfiles";
 
-// Mobile App
 import MobileApp from "@/mobile/MobileApp";
 
-// Device detection
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
-  
   useEffect(() => {
-    const checkDevice = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkDevice();
-    window.addEventListener('resize', checkDevice);
-    
-    return () => window.removeEventListener('resize', checkDevice);
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
-  
   return isMobile;
 }
 
-// Button to switch between mobile and desktop views
-function ViewSwitcher() {
-  const [, navigate] = useLocation();
-  const [currentLocation] = useLocation();
-  
-  const isMobileView = currentLocation.startsWith('/mobile');
-  
-  const handleSwitch = () => {
-    if (isMobileView) {
-      navigate('/');
-    } else {
-      navigate('/mobile');
-    }
-  };
-  
-  return (
-    <div className="fixed bottom-4 right-4 z-50">
-      <button 
-        onClick={handleSwitch}
-        className="bg-primary text-white px-3 py-2 rounded-full text-xs font-medium shadow-lg"
-      >
-        Switch to {isMobileView ? 'Desktop' : 'Mobile'} View
-      </button>
-    </div>
-  );
-}
+const withLayout = (Component: FC) => () => (
+  <AppLayout>
+    <Component />
+  </AppLayout>
+);
 
 function Router() {
   const isMobile = useIsMobile();
   const [location, navigate] = useLocation();
-  
-  // Auto-redirect to mobile view on small screens, except if already on mobile
+
   useEffect(() => {
-    console.log("App routing - current location:", location, "isMobile:", isMobile);
-    
     if (isMobile && !location.startsWith('/mobile') && location !== '/auth') {
-      console.log("Redirecting to mobile view");
-      // Using navigate instead of direct href assignment to ensure React router is used
       navigate('/mobile');
     }
   }, [isMobile, location, navigate]);
-  
+
   return (
-    <>
-      <Switch>
-        {/* Auth Page - Public */}
-        <Route path="/auth" component={AuthPage} />
-        
-        {/* Mobile App Routes */}
-        <Route path="/mobile" component={MobileApp} />
-        <Route path="/mobile/:rest*" component={MobileApp} />
-        
-        {/* Protected Main Pages */}
-        <ProtectedRoute path="/" component={Dashboard} />
-        <ProtectedRoute path="/stations" component={Stations} />
-        <ProtectedRoute 
-          path="/stations/new" 
-          component={AddStation} 
-          requiredRole={["administrator", "user"]} 
-        />
-        <ProtectedRoute path="/event-map" component={EventMap} />
-        <ProtectedRoute path="/event-history" component={EventHistory} />
-        <ProtectedRoute path="/analysis" component={Analysis} />
-        <ProtectedRoute path="/infrastructure" component={InfrastructureObjects} />
-        <ProtectedRoute path="/seismograms" component={Seismograms} />
-        <ProtectedRoute path="/building-norms" component={BuildingNorms} />
-        <ProtectedRoute path="/soil-profiles" component={SoilProfiles} />
-        <ProtectedRoute 
-          path="/settings" 
-          component={Settings} 
-          requiredRole="administrator" 
-        />
-        
-        {/* Protected Event Intensity Pages */}
-        <ProtectedRoute path="/events/intensity" component={EventHistory} />
-        <ProtectedRoute path="/events/major" component={EventHistory} />
-        
-        {/* Protected Dashboard Component Pages */}
-        <ProtectedRoute path="/network-status" component={Dashboard} />
-        <ProtectedRoute path="/live-waveforms" component={Dashboard} />
-        <ProtectedRoute path="/status-detail" component={Dashboard} />
-        <ProtectedRoute path="/data-exchange" component={Dashboard} />
-        <ProtectedRoute path="/alerts" component={Dashboard} />
-        
-        {/* Fallback to 404 */}
-        <Route component={NotFound} />
-      </Switch>
-      
-      {/* View Switcher */}
-      <ViewSwitcher />
-    </>
+    <Switch>
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/mobile" component={MobileApp} />
+      <Route path="/mobile/:rest*" component={MobileApp} />
+
+      <ProtectedRoute path="/"                component={withLayout(HomePage)}              />
+      <ProtectedRoute path="/monitoring"      component={withLayout(Dashboard)}             />
+      <ProtectedRoute path="/stations"        component={withLayout(Stations)}              />
+      <ProtectedRoute path="/stations/new"    component={withLayout(AddStation)}
+        requiredRole={["administrator", "user"]} />
+      <ProtectedRoute path="/event-map"       component={withLayout(EventMap)}              />
+      <ProtectedRoute path="/event-history"   component={withLayout(EventHistory)}          />
+      <ProtectedRoute path="/analysis"        component={withLayout(Analysis)}              />
+      <ProtectedRoute path="/infrastructure"  component={withLayout(InfrastructureObjects)} />
+      <ProtectedRoute path="/seismograms"     component={withLayout(Seismograms)}           />
+      <ProtectedRoute path="/building-norms"  component={withLayout(BuildingNorms)}         />
+      <ProtectedRoute path="/soil-profiles"   component={withLayout(SoilProfiles)}          />
+      <ProtectedRoute path="/settings"        component={withLayout(Settings)}
+        requiredRole="administrator" />
+
+      <ProtectedRoute path="/events/intensity" component={withLayout(EventHistory)} />
+      <ProtectedRoute path="/events/major"     component={withLayout(EventHistory)} />
+      <ProtectedRoute path="/network-status"   component={withLayout(Dashboard)}   />
+      <ProtectedRoute path="/live-waveforms"   component={withLayout(Dashboard)}   />
+      <ProtectedRoute path="/status-detail"    component={withLayout(Dashboard)}   />
+      <ProtectedRoute path="/data-exchange"    component={withLayout(Dashboard)}   />
+      <ProtectedRoute path="/alerts"           component={withLayout(Dashboard)}   />
+
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 

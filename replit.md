@@ -17,6 +17,9 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **Build Tool**: Vite with custom configuration
 - **Mobile Support**: Dedicated mobile app interface with responsive design
+- **Layout**: `AppLayout` (TopNav fixed + footer fixed) wraps all protected pages
+- **Home page**: `HomePage` — portal with 9 large color-coded functional blocks (blue, emerald, teal, orange, violet, rose, amber, indigo, cyan)
+- **Navigation**: `/` = Home portal; `/monitoring` = Dashboard; all routes in top nav bar
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js

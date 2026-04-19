@@ -1,7 +1,5 @@
 import { FC, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -60,9 +58,7 @@ const ProfileCard: FC<{ profile: SoilProfile; objectName?: string }> = ({ profil
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                {/* profileName is the correct field from shared/schema */}
-                <p className="text-sm font-semibold text-slate-800">{profile.profileName}</p>
-                {/* soilCategory is the correct field from shared/schema */}
+                  <p className="text-sm font-semibold text-slate-800">{profile.profileName}</p>
                 {categoryBadge(profile.soilCategory)}
                 <Badge variant="outline" className="text-[10px]">СП 14</Badge>
               </div>
@@ -155,10 +151,8 @@ const ProfileCard: FC<{ profile: SoilProfile; objectName?: string }> = ({ profil
                         <tr key={l.id} className="border-b border-slate-100 text-slate-600 hover:bg-slate-50">
                           <td className="py-1.5 pr-3">{l.layerNumber}</td>
                           <td className="py-1.5 pr-3">{soilTypeLabel(l.soilType)}</td>
-                          {/* depthFrom / depthTo are correct schema field names */}
                           <td className="py-1.5 pr-3 text-right font-mono">{l.depthFrom.toFixed(1)}</td>
                           <td className="py-1.5 pr-3 text-right font-mono">{l.depthTo.toFixed(1)}</td>
-                          {/* shearVelocity is the correct schema field (not shearWaveVelocity) */}
                           <td className="py-1.5 pr-3 text-right font-mono text-blue-600">{l.shearVelocity}</td>
                           <td className="py-1.5 pr-3 text-right font-mono">
                             {l.compressionalVelocity != null ? l.compressionalVelocity : '—'}
@@ -193,7 +187,6 @@ const SoilProfiles: FC = () => {
 
   const objectMap = new Map(objects.map(o => [o.id, o]));
 
-  // Use correct schema field names for stats
   const stats = {
     total:     profiles.length,
     withVs30:  profiles.filter(p => p.avgShearVelocity != null).length,
@@ -201,14 +194,7 @@ const SoilProfiles: FC = () => {
     catII:     profiles.filter(p => p.soilCategory === 'II').length,
   };
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
-        <Header
-          title="База данных грунтов"
-          subtitle="Инженерно-геологические разрезы и характеристики грунтов объектов г. Иркутска (СП 14, СП 22, СП 47)"
-        />
+  return (  <>
 
         <div className="p-6 space-y-5">
 
@@ -272,8 +258,7 @@ const SoilProfiles: FC = () => {
             )}
           </div>
         </div>
-      </main>
-    </div>
+  </>
   );
 };
 
