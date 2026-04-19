@@ -1265,9 +1265,10 @@ const ResponseTab: FC<RespTabProps> = ({
 };
 
 // ─── Resonance Analysis Tab ───────────────────────────────────────────────────
-// Compares building eigenperiod (T≈0.1·N) with soil resonant period from the
-// selected soil profile's dominant frequency and the МТСМ peak frequency.
-// Colour-coded risk: green / yellow / red as per typical SP 14.13330 guidance.
+// Compares building eigenperiod T≈0.1·N with:
+//   1. H/V peak period — from profile.dominantFrequency (H/V Nakamura method)
+//   2. МТСМ peak period — from actual saved МТСМ calculation results in DB
+// Colour-coded risk per source independently; worst case drives overall verdict.
 
 interface ResonanceTabProps {
   objects: InfrastructureObject[];
@@ -1275,72 +1276,77 @@ interface ResonanceTabProps {
   toast: ReturnType<typeof useToast>['toast'];
 }
 
+type RiskLevel = 'green' | 'yellow' | 'red';
+
+function calcRisk(T_building: number, T_soil: number): { risk: RiskLevel; ratio: number; label: string; rec: string } {
+  const ratio = Math.abs(T_soil - T_building) / Math.max(T_soil, T_building);
+  if (ratio < 0.15) return { risk: 'red', ratio,
+    label: `ВЫСОКИЙ РИСК (|ΔT|/T=${(ratio*100).toFixed(1)}% < 15%)`,
+    rec: 'Детальное обследование; рассмотреть усиление или сейсмоизоляцию. Обязательна инструментальная проверка динамических параметров здания.' };
+  if (ratio < 0.30) return { risk: 'yellow', ratio,
+    label: `УМЕРЕННЫЙ РИСК (|ΔT|/T=${(ratio*100).toFixed(1)}%, 15–30%)`,
+    rec: 'Рекомендуется инструментальный мониторинг и расчёт МКЭ. При проектировании — рассмотреть изменение этажности.' };
+  return { risk: 'green', ratio,
+    label: `РИСК НИЗКИЙ (|ΔT|/T=${(ratio*100).toFixed(1)}% > 30%)`,
+    rec: 'Резонанс грунт–здание маловероятен при данных условиях.' };
+}
+
+const RISK_STYLE: Record<RiskLevel, { border: string; badge: string; icon: string }> = {
+  red:    { border: 'border-red-400 bg-red-50',     badge: 'bg-red-600 text-white',     icon: '🔴' },
+  yellow: { border: 'border-amber-400 bg-amber-50', badge: 'bg-amber-500 text-white',   icon: '🟡' },
+  green:  { border: 'border-emerald-400 bg-emerald-50', badge: 'bg-emerald-600 text-white', icon: '🟢' },
+};
+
 const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) => {
   const [selectedObjId,  setSelectedObjId]  = useState<number | null>(null);
   const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
+  const [mtsmCalcs, setMtsmCalcs] = useState<SeismicCalculation[]>([]);
+  const [selectedMtsmCalcId, setSelectedMtsmCalcId] = useState<number | null>(null);
   const [savedCalcs, setSavedCalcs] = useState<SeismicCalculation[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const obj     = objects.find(o => o.id === selectedObjId) ?? null;
   const profile = soilProfiles.find(p => p.id === selectedProfId) ?? null;
 
-  const { data: layers = [] } = useQuery<SoilLayer[]>({
-    queryKey: ['/api/soil-profiles', selectedProfId, 'layers'],
-    queryFn: async () => {
-      if (!selectedProfId) return [];
-      const r = await fetch(`/api/soil-profiles/${selectedProfId}/layers`);
-      return r.json();
-    },
-    enabled: !!selectedProfId,
-  });
-
-  const sortedLayers = [...layers].sort((a, b) => a.layerNumber - b.layerNumber);
-
   const floors = obj?.floors ?? null;
   const T_building = floors != null ? 0.1 * floors : null;
 
-  // Soil resonant period from profile dominant frequency (Hz → s)
-  const f0_profile = profile?.dominantFrequency ?? null;
-  const T_soil_profile = f0_profile != null ? 1 / f0_profile : null;
+  // H/V peak: sourced from profile.dominantFrequency (set from Nakamura H/V analysis)
+  const f_hv = profile?.dominantFrequency ?? null;
+  const T_hv = f_hv != null && f_hv > 0 ? 1 / f_hv : null;
 
-  // Estimate from МТСМ (quarter-wave formula): T ≈ 4H / Vs_mean
-  const totalH   = sortedLayers.reduce((s, l) => s + l.thickness, 0);
-  const meanVs   = sortedLayers.length > 0
-    ? sortedLayers.reduce((s, l) => s + l.shearVelocity * l.thickness, 0) / Math.max(totalH, 1)
-    : null;
-  const T_soil_mtsm = (meanVs != null && totalH > 0) ? (4 * totalH) / meanVs : null;
-
-  // Primary soil period: prefer МТСМ estimate, fallback to profile field
-  const T_soil = T_soil_mtsm ?? T_soil_profile;
-
-  type RiskLevel = 'green' | 'yellow' | 'red' | null;
-  let risk: RiskLevel = null;
-  let riskLabel = '';
-  let riskDesc  = '';
-  let recommendation = '';
-
-  if (T_building != null && T_soil != null) {
-    const ratio = Math.abs(T_soil - T_building) / Math.max(T_soil, T_building);
-    if (ratio < 0.15) {
-      risk = 'red'; riskLabel = 'ВЫСОКИЙ РИСК РЕЗОНАНСА';
-      riskDesc = `Периоды практически совпадают (|ΔT|/T = ${(ratio*100).toFixed(1)}% < 15%)`;
-      recommendation = 'Рекомендуется детальное обследование, возможно усиление конструкций или изоляционные мероприятия. Обязательна инструментальная проверка режимов колебаний здания.';
-    } else if (ratio < 0.30) {
-      risk = 'yellow'; riskLabel = 'УМЕРЕННЫЙ РИСК РЕЗОНАНСА';
-      riskDesc = `Периоды близки (|ΔT|/T = ${(ratio*100).toFixed(1)}%, 15–30%)`;
-      recommendation = 'Рекомендуется мониторинг динамических параметров здания и более подробный расчёт откликов (МКЭ). При проектировании нового здания — рассмотреть изменение этажности.';
-    } else {
-      risk = 'green'; riskLabel = 'РИСК РЕЗОНАНСА НИЗКИЙ';
-      riskDesc = `Достаточное расхождение периодов (|ΔT|/T = ${(ratio*100).toFixed(1)}% > 30%)`;
-      recommendation = 'Резонанс грунт–здание маловероятен при данных условиях.';
-    }
-  }
-
-  const riskColors = {
-    red:    { card: 'bg-red-50 border-red-400',    badge: 'bg-red-600 text-white', icon: '🔴' },
-    yellow: { card: 'bg-amber-50 border-amber-400', badge: 'bg-amber-500 text-white', icon: '🟡' },
-    green:  { card: 'bg-emerald-50 border-emerald-400', badge: 'bg-emerald-600 text-white', icon: '🟢' },
+  // Load МТСМ saved calculations when profile changes
+  const loadMtsmCalcs = async (profId: number) => {
+    try {
+      const r = await fetch(`/api/calculations?type=mtsm&limit=50`);
+      const all: SeismicCalculation[] = await r.json();
+      const filtered = all.filter(c => c.soilProfileId === profId);
+      setMtsmCalcs(filtered);
+      setSelectedMtsmCalcId(filtered.length > 0 ? filtered[0].id : null);
+    } catch { setMtsmCalcs([]); }
   };
+
+  const handleProfileChange = (v: string) => {
+    const id = parseInt(v);
+    setSelectedProfId(id);
+    loadMtsmCalcs(id);
+  };
+
+  // Selected МТСМ calculation: get peak frequency from results
+  const mtsmCalc = mtsmCalcs.find(c => c.id === selectedMtsmCalcId) ?? (mtsmCalcs[0] ?? null);
+  const mtsmResults = mtsmCalc?.results as { peakFreq?: number } | null;
+  const f_mtsm = mtsmResults?.peakFreq ?? null;
+  const T_mtsm = f_mtsm != null && f_mtsm > 0 ? 1 / f_mtsm : null;
+
+  // Per-source risk
+  const hvRisk   = (T_building != null && T_hv  != null) ? calcRisk(T_building, T_hv)  : null;
+  const mtsmRisk = (T_building != null && T_mtsm != null) ? calcRisk(T_building, T_mtsm) : null;
+
+  // Overall risk = worst case
+  const rankRisk = (r: RiskLevel | undefined) => r === 'red' ? 2 : r === 'yellow' ? 1 : 0;
+  const overallRisk: RiskLevel | null = hvRisk || mtsmRisk
+    ? (rankRisk(hvRisk?.risk) >= rankRisk(mtsmRisk?.risk) ? hvRisk?.risk : mtsmRisk?.risk) ?? null
+    : null;
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -1352,15 +1358,39 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
   };
 
   const saveResult = async () => {
-    if (!risk) return;
+    if (!overallRisk) return;
     try {
       await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ calcType: 'resonance', soilProfileId: selectedProfId, objectId: selectedObjId,
-          inputParams: { floors, T_building, T_soil, T_soil_mtsm, T_soil_profile },
-          results: { risk, riskLabel, riskDesc, recommendation } }) });
+          inputParams: { floors, T_building, f_hv, T_hv, f_mtsm, T_mtsm },
+          results: { overallRisk, hvRisk: hvRisk?.risk ?? null, mtsmRisk: mtsmRisk?.risk ?? null,
+            hvLabel: hvRisk?.label, mtsmLabel: mtsmRisk?.label } }) });
       toast({ title: 'Анализ резонанса сохранён' });
       loadHistory();
     } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
+  };
+
+  const exportCsv = () => {
+    const csv = [
+      'parameter,value',
+      `object,"${obj?.name ?? ''}"`,
+      `floors,${floors ?? ''}`,
+      `T_building_s,${T_building?.toFixed(3) ?? ''}`,
+      `soil_profile,"${profile?.profileName ?? ''}"`,
+      `soil_category,${profile?.soilCategory ?? ''}`,
+      `f_hv_hz,${f_hv ?? ''}`,
+      `T_hv_s,${T_hv?.toFixed(3) ?? ''}`,
+      `hv_risk,${hvRisk?.risk ?? ''}`,
+      `hv_delta_ratio_pct,${hvRisk != null ? (hvRisk.ratio * 100).toFixed(1) : ''}`,
+      `f_mtsm_hz,${f_mtsm?.toFixed(3) ?? ''}`,
+      `T_mtsm_s,${T_mtsm?.toFixed(3) ?? ''}`,
+      `mtsm_risk,${mtsmRisk?.risk ?? ''}`,
+      `mtsm_delta_ratio_pct,${mtsmRisk != null ? (mtsmRisk.ratio * 100).toFixed(1) : ''}`,
+      `overall_risk,${overallRisk ?? ''}`,
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `resonance_${obj?.objectId ?? 'result'}.csv`; a.click();
   };
 
   return (
@@ -1368,7 +1398,7 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm text-slate-600">Выбор объекта и профиля грунта</CardTitle>
+            <CardTitle className="text-sm text-slate-600">Здание и профиль грунта</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-3">
             <div className="space-y-1">
@@ -1386,7 +1416,7 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Профиль грунта</Label>
-              <Select value={selectedProfId?.toString() ?? ''} onValueChange={v => setSelectedProfId(parseInt(v))}>
+              <Select value={selectedProfId?.toString() ?? ''} onValueChange={handleProfileChange}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Выбрать профиль..." /></SelectTrigger>
                 <SelectContent>
                   {soilProfiles.map(p => (
@@ -1397,105 +1427,118 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
                 </SelectContent>
               </Select>
             </div>
+            {mtsmCalcs.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Результат МТСМ (для пика частоты)</Label>
+                <Select value={selectedMtsmCalcId?.toString() ?? ''} onValueChange={v => setSelectedMtsmCalcId(parseInt(v))}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Выбрать расчёт..." /></SelectTrigger>
+                  <SelectContent>
+                    {mtsmCalcs.map(c => {
+                      const r = c.results as { peakFreq?: number } | null;
+                      return (
+                        <SelectItem key={c.id} value={c.id.toString()} className="text-xs">
+                          {new Date(c.createdAt).toLocaleDateString('ru-RU')} · f₀={r?.peakFreq?.toFixed(2) ?? '?'} Гц
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {selectedProfId != null && mtsmCalcs.length === 0 && (
+              <p className="text-xs text-amber-600">Нет сохранённых результатов МТСМ для этого профиля. Сначала рассчитайте и сохраните МТСМ на вкладке «Усиление».</p>
+            )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm text-slate-600">Параметры расчёта</CardTitle>
+            <CardTitle className="text-sm text-slate-600">Параметры колебаний</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="space-y-2 text-xs text-slate-600">
-              {obj && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  <div>Объект: <strong className="text-slate-800">{obj.name}</strong></div>
-                  <div>Этажность: <strong className="text-slate-800">{floors ?? '—'}</strong></div>
-                  <div className="col-span-2">
-                    Период здания T = 0.1 × N: <strong className="text-blue-600">
-                      {T_building != null ? `${T_building.toFixed(2)} с` : 'нет данных об этажности'}
-                    </strong>
-                  </div>
+          <CardContent className="px-4 pb-4 space-y-3 text-xs text-slate-600">
+            {obj && (
+              <div className="bg-blue-50 rounded p-3 space-y-1">
+                <div className="font-semibold text-blue-700">Здание</div>
+                <div>{obj.name} · {floors != null ? `${floors} эт.` : 'этажность не указана'}</div>
+                <div>T = 0.1 × N = <strong className="text-blue-700">{T_building?.toFixed(2) ?? '—'} с</strong></div>
+              </div>
+            )}
+            {profile && (
+              <>
+                <div className="bg-purple-50 rounded p-3 space-y-1">
+                  <div className="font-semibold text-purple-700">H/V (метод Накамуры)</div>
+                  <div>{profile.profileName}</div>
+                  <div>f₀(H/V) = <strong>{f_hv != null ? `${f_hv} Гц` : 'не задано в профиле'}</strong></div>
+                  <div>T(H/V) = <strong className="text-purple-700">{T_hv?.toFixed(2) ?? '—'} с</strong></div>
+                  {f_hv == null && <div className="text-amber-600 text-xs">Задайте доминирующую частоту в карточке профиля грунта</div>}
                 </div>
-              )}
-              {profile && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t border-slate-100">
-                  <div>Профиль: <strong className="text-slate-800">{profile.profileName}</strong></div>
-                  <div>Категория: <strong className="text-slate-800">{profile.soilCategory}</strong></div>
-                  {T_soil_mtsm != null && (
-                    <div className="col-span-2">
-                      T грунта (МТСМ, Vs={meanVs?.toFixed(0)} м/с, H={totalH.toFixed(1)} м):
-                      <strong className="text-purple-600 ml-1">{T_soil_mtsm.toFixed(2)} с</strong>
-                    </div>
-                  )}
-                  {f0_profile != null && (
-                    <div className="col-span-2">
-                      T грунта (профиль f₀={f0_profile} Гц):
-                      <strong className="text-purple-600 ml-1">{T_soil_profile!.toFixed(2)} с</strong>
-                    </div>
-                  )}
+                <div className="bg-cyan-50 rounded p-3 space-y-1">
+                  <div className="font-semibold text-cyan-700">МТСМ (Томсон–Хаскелл)</div>
+                  <div>f₀(МТСМ) = <strong>{f_mtsm != null ? `${f_mtsm.toFixed(3)} Гц` : 'нет сохранённых данных'}</strong></div>
+                  <div>T(МТСМ) = <strong className="text-cyan-700">{T_mtsm?.toFixed(2) ?? '—'} с</strong></div>
                 </div>
-              )}
-              {!obj && !profile && (
-                <p className="text-slate-400 py-4 text-center">Выберите объект и профиль грунта</p>
-              )}
-            </div>
+              </>
+            )}
+            {!obj && !profile && (
+              <p className="text-slate-400 py-4 text-center">Выберите объект и профиль грунта</p>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {risk && riskColors[risk] && (
-        <Card className={`border-2 shadow-sm ${riskColors[risk].card}`}>
-          <CardContent className="py-5 px-5">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">{riskColors[risk].icon}</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold ${riskColors[risk].badge}`}>
-                {riskLabel}
+      {overallRisk && (
+        <Card className={`border-2 shadow-sm ${RISK_STYLE[overallRisk].border}`}>
+          <CardContent className="py-5 px-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{RISK_STYLE[overallRisk].icon}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold ${RISK_STYLE[overallRisk].badge}`}>
+                ОБЩАЯ ОЦЕНКА: {overallRisk === 'red' ? 'ВЫСОКИЙ РИСК' : overallRisk === 'yellow' ? 'УМЕРЕННЫЙ РИСК' : 'НИЗКИЙ РИСК'}
               </span>
             </div>
-            <p className="text-sm text-slate-700 font-medium mb-1">{riskDesc}</p>
-            <div className="grid grid-cols-3 gap-3 my-3 text-xs">
-              <div className="bg-white/60 rounded p-2 text-center">
-                <div className="font-bold text-slate-800 text-base">{T_building?.toFixed(2)} с</div>
-                <div className="text-slate-500">Период здания Tₒ</div>
-              </div>
-              <div className="bg-white/60 rounded p-2 text-center">
-                <div className="font-bold text-slate-800 text-base">{T_soil?.toFixed(2)} с</div>
-                <div className="text-slate-500">Период грунта Tₛ</div>
-              </div>
-              <div className="bg-white/60 rounded p-2 text-center">
-                <div className="font-bold text-slate-800 text-base">
-                  {T_building != null && T_soil != null
-                    ? `${(Math.abs(T_soil - T_building) / Math.max(T_soil, T_building) * 100).toFixed(1)}%`
-                    : '—'}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {hvRisk && (
+                <div className={`rounded p-3 border ${RISK_STYLE[hvRisk.risk].border} bg-white/60`}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span>{RISK_STYLE[hvRisk.risk].icon}</span>
+                    <span className="font-semibold text-xs">Сравнение с H/V</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs mb-1">
+                    <div className="text-center"><div className="font-bold">{T_building?.toFixed(2)} с</div><div className="text-slate-400">Tздания</div></div>
+                    <div className="text-center"><div className="font-bold">{T_hv?.toFixed(2)} с</div><div className="text-slate-400">T(H/V)</div></div>
+                    <div className="text-center"><div className="font-bold">{(hvRisk.ratio*100).toFixed(1)}%</div><div className="text-slate-400">|ΔT|/T</div></div>
+                  </div>
+                  <div className="text-xs text-slate-600">{hvRisk.label}</div>
                 </div>
-                <div className="text-slate-500">|ΔT|/T</div>
-              </div>
+              )}
+              {mtsmRisk && (
+                <div className={`rounded p-3 border ${RISK_STYLE[mtsmRisk.risk].border} bg-white/60`}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span>{RISK_STYLE[mtsmRisk.risk].icon}</span>
+                    <span className="font-semibold text-xs">Сравнение с МТСМ</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs mb-1">
+                    <div className="text-center"><div className="font-bold">{T_building?.toFixed(2)} с</div><div className="text-slate-400">Tздания</div></div>
+                    <div className="text-center"><div className="font-bold">{T_mtsm?.toFixed(2)} с</div><div className="text-slate-400">T(МТСМ)</div></div>
+                    <div className="text-center"><div className="font-bold">{(mtsmRisk.ratio*100).toFixed(1)}%</div><div className="text-slate-400">|ΔT|/T</div></div>
+                  </div>
+                  <div className="text-xs text-slate-600">{mtsmRisk.label}</div>
+                </div>
+              )}
             </div>
+
             <div className="bg-white/60 rounded p-3 text-xs text-slate-700 leading-relaxed">
               <BookOpen className="h-3 w-3 inline mr-1 text-slate-500" />
-              <strong>Рекомендация:</strong> {recommendation}
+              <strong>Рекомендация:</strong>{' '}
+              {overallRisk === 'red' ? 'Детальное обследование; рассмотреть усиление или сейсмоизоляцию. Обязательна инструментальная проверка динамических параметров здания.'
+                : overallRisk === 'yellow' ? 'Рекомендуется инструментальный мониторинг и расчёт МКЭ. При проектировании — рассмотреть изменение этажности.'
+                : 'Резонанс грунт–здание маловероятен при данных условиях.'}
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-white" onClick={saveResult}>
-                <Save className="h-3 w-3" /> Сохранить анализ
+                <Save className="h-3 w-3" /> Сохранить
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-white" onClick={() => {
-                const csv = [
-                  'parameter,value',
-                  `object,"${obj?.name ?? ''}"`,
-                  `floors,${floors ?? ''}`,
-                  `T_building_s,${T_building?.toFixed(3) ?? ''}`,
-                  `soil_profile,"${profile?.profileName ?? ''}"`,
-                  `soil_category,${profile?.soilCategory ?? ''}`,
-                  `T_soil_mtsm_s,${T_soil_mtsm?.toFixed(3) ?? ''}`,
-                  `T_soil_profile_s,${T_soil_profile?.toFixed(3) ?? ''}`,
-                  `risk_level,${risk}`,
-                  `delta_ratio_pct,${T_building != null && T_soil != null ? (Math.abs(T_soil - T_building) / Math.max(T_soil, T_building) * 100).toFixed(1) : ''}`,
-                ].join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-                a.download = `resonance_${obj?.objectId ?? 'result'}.csv`; a.click();
-              }}>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-white" onClick={exportCsv}>
                 <Download className="h-3 w-3" /> CSV
               </Button>
             </div>
@@ -1503,19 +1546,19 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
         </Card>
       )}
 
-      {(!obj || !profile) && !risk && (
+      {(!obj || !profile) && !overallRisk && (
         <Card className="border-0 shadow-sm">
           <CardContent className="py-10 text-center text-slate-400">
             <TriangleAlert className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Выберите здание и профиль грунта для анализа резонанса</p>
-            <p className="text-xs mt-1 opacity-60">Расчёт выполняется автоматически при выборе обоих параметров</p>
+            <p className="text-xs mt-1 opacity-60">Требуются: объект с этажностью, профиль грунта с доминирующей частотой (H/V) и/или сохранённый расчёт МТСМ</p>
           </CardContent>
         </Card>
       )}
 
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-2 pt-4 px-4 flex-row items-center justify-between">
-          <CardTitle className="text-sm text-slate-600">История расчётов резонанса</CardTitle>
+          <CardTitle className="text-sm text-slate-600">История сохранённых анализов</CardTitle>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={loadHistory} disabled={loadingHistory}>
             Обновить
           </Button>
@@ -1525,17 +1568,21 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
             ? <p className="text-sm text-slate-400 text-center py-4">Нажмите «Обновить» для загрузки истории</p>
             : <div className="space-y-2">
                 {savedCalcs.map(c => {
-                  const r = (c.results as { risk?: string; riskLabel?: string; riskDesc?: string }) || {};
-                  const inp = (c.inputParams as { floors?: number; T_building?: number; T_soil?: number }) || {};
-                  const riskCol = r.risk === 'red' ? 'text-red-600' : r.risk === 'yellow' ? 'text-amber-600' : 'text-emerald-600';
+                  const r = (c.results as { overallRisk?: string; hvLabel?: string; mtsmLabel?: string }) || {};
+                  const inp = (c.inputParams as { floors?: number; T_building?: number; T_hv?: number; T_mtsm?: number }) || {};
+                  const risk = r.overallRisk as RiskLevel | undefined;
+                  const style = risk ? RISK_STYLE[risk] : null;
                   return (
-                    <div key={c.id} className="flex items-start justify-between gap-2 rounded border border-slate-200 p-3 text-xs">
-                      <div>
-                        <span className={`font-semibold ${riskCol}`}>{r.riskLabel ?? r.risk}</span>
-                        <span className="text-slate-500 ml-2">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</span>
-                        <div className="text-slate-500 mt-0.5">
-                          Tз={inp.T_building?.toFixed(2) ?? '—'} с · Tгр={inp.T_soil?.toFixed(2) ?? '—'} с
-                        </div>
+                    <div key={c.id} className={`rounded border p-3 text-xs ${style ? style.border : 'border-slate-200'}`}>
+                      <div className="flex items-center gap-2">
+                        {style && <span>{style.icon}</span>}
+                        <span className="font-semibold">{risk === 'red' ? 'Высокий риск' : risk === 'yellow' ? 'Умеренный риск' : 'Низкий риск'}</span>
+                        <span className="text-slate-500 ml-auto">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</span>
+                      </div>
+                      <div className="text-slate-500 mt-1 space-y-0.5">
+                        <div>Tз={inp.T_building?.toFixed(2) ?? '—'} с · T(H/V)={inp.T_hv?.toFixed(2) ?? '—'} с · T(МТСМ)={inp.T_mtsm?.toFixed(2) ?? '—'} с</div>
+                        {r.hvLabel && <div>H/V: {r.hvLabel}</div>}
+                        {r.mtsmLabel && <div>МТСМ: {r.mtsmLabel}</div>}
                       </div>
                     </div>
                   );

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
-import { WebSocketMessageType, WebSocketMessage, insertDeveloperSchema } from "@shared/schema";
+import { WebSocketMessageType, WebSocketMessage, insertDeveloperSchema, insertSeismicCalculationSchema } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 import { syncEarthquakeData, scheduleEarthquakeSyncJob } from "./services/earthquakeApi";
@@ -757,9 +757,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/calculations', async (req, res) => {
+  app.post('/api/calculations', requireRole(['administrator', 'user']), async (req, res) => {
     try {
-      const row = await storage.createSeismicCalculation(req.body);
+      const parsed = insertSeismicCalculationSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: 'Invalid calculation data', errors: parsed.error.flatten() });
+      const row = await storage.createSeismicCalculation(parsed.data);
       res.status(201).json(row);
     } catch (e) {
       res.status(500).json({ message: 'Error saving calculation' });
