@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
+import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
@@ -78,11 +78,6 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username or password" });
         }
         
-        // Update last login time
-        await storage.updateUser(user.id, { 
-          updatedAt: new Date()
-        });
-        
         return done(null, user);
       } catch (error) {
         return done(error);
@@ -134,19 +129,12 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: unknown, user: SelectUser | false, info: { message?: string }) => {
       if (err) return next(err);
-      if (!user) return res.status(401).json({ error: info.message || "Authentication failed" });
+      if (!user) return res.status(401).json({ error: info?.message || "Authentication failed" });
       
-      req.login(user, async (loginErr) => {
+      req.login(user, (loginErr) => {
         if (loginErr) return next(loginErr);
-        
-        // Update last login time
-        await storage.updateUser(user.id, { 
-          lastLogin: new Date()
-        });
-        
-        // Don't send the password back to the client
         const { password, ...userWithoutPassword } = user;
         return res.status(200).json(userWithoutPassword);
       });
@@ -160,16 +148,19 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // DEV MODE — авторизация отключена для разработки
-  const DEV_MODE = true;
+  // Development auto-login: when not in production and no session exists,
+  // return a superadmin dev user so login screen is skipped.
+  const isDev = process.env.NODE_ENV !== "production";
   const DEV_USER = {
     id: 1, username: "dev_superadmin", fullName: "Dev SuperAdmin",
     email: "dev@seismonet.local", role: "administrator", active: true,
-    organization: "ИЗК СО РАН", lastLogin: new Date(), createdAt: new Date()
+    organization: "ИЗК СО РАН", lastLogin: null as Date | null, createdAt: new Date(),
+    updatedAt: new Date(), profileImage: null as string | null,
+    phone: null as string | null, preferences: null as unknown
   };
 
   app.get("/api/user", (req, res) => {
-    if (DEV_MODE) return res.json(DEV_USER);
+    if (isDev && !req.isAuthenticated()) return res.json(DEV_USER);
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
@@ -184,47 +175,6 @@ export function setupAuth(app: Express) {
     res.json({ message: "User access granted", user: req.user });
   });
   
-  // Debug endpoint to get all users (for troubleshooting)
-  app.get("/api/debug/users", async (req, res) => {
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const users = await storage.getUsers();
-        res.json({ 
-          message: "Debug information - ALL USER DATA INCLUDING PASSWORDS", 
-          users: users 
-        });
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        res.status(500).json({ message: 'Error fetching users' });
-      }
-    } else {
-      res.status(403).json({ message: 'Debug endpoints disabled in production' });
-    }
-  });
-  
-  // Debug endpoint to promote Alexander Tulubyev to administrator (temporary)
-  app.get("/api/debug/promote-tulubyev", async (req, res) => {
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        // ID 5 is the administrator account
-        const updatedUser = await storage.updateUserRole(5, "administrator");
-        
-        // ID 4 is the tulubyev account
-        const updatedUser2 = await storage.updateUserRole(4, "administrator");
-        
-        res.json({ 
-          message: "Alexander Tulubyev promoted to administrator", 
-          user1: updatedUser,
-          user2: updatedUser2
-        });
-      } catch (error) {
-        console.error("Error updating user role:", error);
-        res.status(500).json({ message: 'Error updating user role' });
-      }
-    } else {
-      res.status(403).json({ message: 'Debug endpoints disabled in production' });
-    }
-  });
   
   // Update user role (admin only)
   app.patch("/api/users/:id/role", requireRole("administrator"), async (req, res) => {
@@ -253,8 +203,7 @@ export function setupAuth(app: Express) {
 
 // Middleware to require a specific role or array of roles
 export function requireRole(role: string | string[]) {
-  return (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
-    // DEV MODE — пропускаем проверку ролей
+  return (req: Request, res: Response, next: NextFunction) => {
     if (process.env.NODE_ENV !== 'production') return next();
 
     if (!req.isAuthenticated()) {

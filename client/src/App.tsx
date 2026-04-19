@@ -1,11 +1,11 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
-import { useEffect, useState, FC } from "react";
+import { FC } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 
 import HomePage from "@/pages/HomePage";
@@ -23,19 +23,6 @@ import BuildingNorms from "@/pages/BuildingNorms";
 import Seismograms from "@/pages/Seismograms";
 import SoilProfiles from "@/pages/SoilProfiles";
 
-import MobileApp from "@/mobile/MobileApp";
-
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-  return isMobile;
-}
-
 const withLayout = (Component: FC) => () => (
   <AppLayout>
     <Component />
@@ -43,20 +30,9 @@ const withLayout = (Component: FC) => () => (
 );
 
 function Router() {
-  const isMobile = useIsMobile();
-  const [location, navigate] = useLocation();
-
-  useEffect(() => {
-    if (isMobile && !location.startsWith('/mobile') && location !== '/auth') {
-      navigate('/mobile');
-    }
-  }, [isMobile, location, navigate]);
-
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
-      <Route path="/mobile" component={MobileApp} />
-      <Route path="/mobile/:rest*" component={MobileApp} />
 
       <ProtectedRoute path="/"                component={withLayout(HomePage)}              />
       <ProtectedRoute path="/monitoring"      component={withLayout(Dashboard)}             />

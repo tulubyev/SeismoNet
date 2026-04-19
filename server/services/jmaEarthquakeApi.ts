@@ -113,7 +113,7 @@ async function convertJMAEventToEvent(event: JMAEarthquakeEvent): Promise<Insert
     }
     
     // If we couldn't get details or the details are incomplete, use basic info
-    if (useBasicInfo || !details || !details.earthquake || !details.earthquake.hypocenters || details.earthquake.hypocenters.length === 0) {
+    if (useBasicInfo || !details || !details.earthquake || !details.earthquake.hypocenters || details.earthquake.hypocenters.length < 1) {
       console.log(`Using basic info for JMA event ${event.eid}`);
       
       // Parse date from JMA format (trying to handle their date format)

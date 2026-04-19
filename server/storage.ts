@@ -473,12 +473,13 @@ export class MemStorage implements IStorage {
   async createUser(user: InsertUser): Promise<User> {
     const id = this.currentUserId++;
     const now = new Date();
-    const newUser: User = {
+    const newUser = {
       ...user,
       id,
+      lastLogin: null,
       createdAt: now,
       updatedAt: now
-    };
+    } as User;
     this.users.set(id, newUser);
     return newUser;
   }
@@ -522,7 +523,7 @@ export class MemStorage implements IStorage {
   
   async createStation(station: InsertStation): Promise<Station> {
     const id = this.currentStationId++;
-    const newStation: Station = { ...station, id };
+    const newStation = { ...station, id } as Station;
     this.stations.set(id, newStation);
     return newStation;
   }
@@ -564,7 +565,7 @@ export class MemStorage implements IStorage {
   
   async createEvent(event: InsertEvent): Promise<Event> {
     const id = this.currentEventId++;
-    const newEvent: Event = { ...event, id };
+    const newEvent = { ...event, id } as Event;
     this.events.set(id, newEvent);
     return newEvent;
   }
@@ -592,7 +593,7 @@ export class MemStorage implements IStorage {
   
   async createWaveformData(waveformData: InsertWaveformData): Promise<WaveformData> {
     const id = this.currentWaveformDataId++;
-    const newWaveformData: WaveformData = { ...waveformData, id };
+    const newWaveformData = { ...waveformData, id } as WaveformData;
     this.waveformData.set(id, newWaveformData);
     return newWaveformData;
   }
@@ -614,7 +615,7 @@ export class MemStorage implements IStorage {
   
   async createResearchNetwork(network: InsertResearchNetwork): Promise<ResearchNetwork> {
     const id = this.currentNetworkId++;
-    const newNetwork: ResearchNetwork = { ...network, id };
+    const newNetwork = { ...network, id } as ResearchNetwork;
     this.researchNetworks.set(id, newNetwork);
     return newNetwork;
   }
@@ -645,7 +646,7 @@ export class MemStorage implements IStorage {
   
   async createSystemStatus(status: InsertSystemStatus): Promise<SystemStatus> {
     const id = this.currentStatusId++;
-    const newStatus: SystemStatus = { ...status, id };
+    const newStatus = { ...status, id } as SystemStatus;
     this.systemStatuses.set(id, newStatus);
     return newStatus;
   }
@@ -659,7 +660,7 @@ export class MemStorage implements IStorage {
   
   async createAlert(alert: InsertAlert): Promise<Alert> {
     const id = this.currentAlertId++;
-    const newAlert: Alert = { ...alert, id };
+    const newAlert = { ...alert, id } as Alert;
     this.alerts.set(id, newAlert);
     return newAlert;
   }
@@ -714,6 +715,25 @@ export class MemStorage implements IStorage {
     return { ...record, id: 1, createdAt: new Date() } as unknown as SeismogramRecord;
   }
   async updateSeismogramProcessingStatus(_id: number, _status: string): Promise<SeismogramRecord | undefined> { return undefined; }
+
+  async getRegions(): Promise<Region[]> { return []; }
+  async getRegion(_id: number): Promise<Region | undefined> { return undefined; }
+  async getRegionByName(_name: string): Promise<Region | undefined> { return undefined; }
+  async createRegion(region: InsertRegion): Promise<Region> {
+    return { ...region, id: 1 } as unknown as Region;
+  }
+
+  async getMaintenanceRecords(_stationId?: string): Promise<MaintenanceRecord[]> { return []; }
+  async getMaintenanceRecord(_id: number): Promise<MaintenanceRecord | undefined> { return undefined; }
+  async createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord> {
+    return { ...record, id: 1 } as unknown as MaintenanceRecord;
+  }
+  async updateMaintenanceStatus(_id: number, _status: string): Promise<MaintenanceRecord | undefined> { return undefined; }
+  async getUpcomingMaintenanceRecords(_days?: number): Promise<MaintenanceRecord[]> { return []; }
+
+  async getStationsByRegionId(_regionId: number): Promise<Station[]> { return []; }
+  async updateStationBatteryInfo(_stationId: string, _batteryLevel: number, _batteryVoltage: number): Promise<Station | undefined> { return undefined; }
+  async updateStationStorageInfo(_stationId: string, _storageRemaining: number): Promise<Station | undefined> { return undefined; }
 }
 
 import { db } from './db';
@@ -1778,6 +1798,7 @@ const initializeDatabase = async () => {
         stationId: "ALASKA-07",
         maintenanceType: "calibration",
         performedBy: "Sarah Williams",
+        performedAt: new Date(2023, 11, 15),
         scheduledAt: new Date(2023, 11, 15), // December 15, 2023
         status: "scheduled",
         description: "Urgent calibration and system check",
@@ -1802,6 +1823,7 @@ const initializeDatabase = async () => {
         stationId: "PNWST-03", 
         maintenanceType: "inspection",
         performedBy: "Michelle Thompson",
+        performedAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
         scheduledAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days in the future
         status: "scheduled",
         description: "Routine quarterly inspection",

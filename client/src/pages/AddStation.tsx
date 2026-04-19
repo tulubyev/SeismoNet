@@ -51,7 +51,6 @@ const AddStation: FC = () => {
       batteryLevel: 100,
       batteryVoltage: 12.0,
       powerConsumption: 0.5,
-      storageCapacity: 1000,
       storageRemaining: 1000,
       sensorType: 'broadband',
       firmwareVersion: '1.0.0',
@@ -61,10 +60,7 @@ const AddStation: FC = () => {
   
   const onSubmit = async (data: AddStationFormValues) => {
     try {
-      await apiRequest('/api/stations', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
+      await apiRequest('POST', '/api/stations', data);
       
       // Invalidate stations query to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/stations'] });
@@ -347,16 +343,16 @@ const AddStation: FC = () => {
                     {/* Storage Information */}
                     <FormField
                       control={form.control}
-                      name="storageCapacity"
+                      name="storageRemaining"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Storage Capacity (GB)</FormLabel>
+                          <FormLabel>Хранилище (ГБ)</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
-                              placeholder="e.g., 1000" 
+                              placeholder="например, 1000" 
                               onChange={e => field.onChange(parseFloat(e.target.value))}
-                              value={field.value}
+                              value={field.value ?? ''}
                             />
                           </FormControl>
                           <FormMessage />
@@ -364,24 +360,6 @@ const AddStation: FC = () => {
                       )}
                     />
                     
-                    <FormField
-                      control={form.control}
-                      name="storageRemaining"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Storage Remaining (GB)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g., 1000" 
-                              onChange={e => field.onChange(parseFloat(e.target.value))}
-                              value={field.value}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                   
                   <div className="flex justify-end space-x-4 pt-4">

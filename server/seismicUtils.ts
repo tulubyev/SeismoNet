@@ -1,4 +1,4 @@
-import { Station, SeismicEvent, InsertSeismicEvent } from "@shared/schema";
+import { Station, Event as SeismicEvent, InsertEvent as InsertSeismicEvent } from "@shared/schema";
 
 // Speed of P-waves and S-waves in kilometers per second (approximate values)
 const P_WAVE_SPEED = 6.1; // km/s 
@@ -212,16 +212,17 @@ export function prepareSeismicEvent(
   region: string
 ): InsertSeismicEvent {
   return {
-    eventTime: calculation.eventTime,
+    timestamp: calculation.eventTime,
     magnitude: calculation.magnitude,
     depth: calculation.depth,
-    latitude: calculation.latitude,
-    longitude: calculation.longitude,
+    latitude: String(calculation.latitude),
+    longitude: String(calculation.longitude),
     region,
-    confidence: calculation.confidence,
+    calculationConfidence: calculation.confidence,
     status: 'verified',
-    calculationMethod: 'triangulation',
-    description: `${region} (M${calculation.magnitude.toFixed(1)})`
+    type: 'earthquake',
+    eventId: `EQ-${Date.now()}`,
+    location: region
   };
 }
 

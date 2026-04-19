@@ -889,7 +889,7 @@ function startSimulation(ws: WebSocket) {
         const randomNetwork = networks[Math.floor(Math.random() * networks.length)];
         if (randomNetwork) {
           // Small increase in synced data volume
-          const newVolume = randomNetwork.syncedDataVolume + (Math.random() * 0.5);
+          const newVolume = (randomNetwork.syncedDataVolume ?? 0) + (Math.random() * 0.5);
           storage.updateResearchNetworkStatus(
             randomNetwork.networkId, 
             randomNetwork.connectionStatus,
