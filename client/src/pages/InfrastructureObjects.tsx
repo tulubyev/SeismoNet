@@ -884,7 +884,7 @@ const InfrastructureObjects: FC = () => {
             <div className="lg:col-span-1">
               {selectedObj ? (
                 <div className="sticky top-4">
-                  <DetailPanel obj={selectedObj} sensors={sensorInstallations} />
+                  <DetailPanel obj={selectedObj} sensors={sensorInstallations} categories={categories} />
                 </div>
               ) : (
                 <Card className="border-0 shadow-sm bg-slate-50 border-dashed border border-slate-200">
