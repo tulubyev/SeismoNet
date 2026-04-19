@@ -3691,6 +3691,200 @@ const initializeDatabase = async () => {
     console.log(`Seeded ${historicalRecords.length} seismogram catalog records.`);
   }
 
+  // ── Seed soil profiles (real Irkutsk borehole points) ───────────────────────
+  {
+    const existingSoilProfiles = await dbStorage.getSoilProfiles();
+    const existingNames = new Set(existingSoilProfiles.map(p => p.profileName));
+    console.log('Seeding soil profiles and layers (skipping existing)...');
+
+    type SoilSeed = {
+      profile: Parameters<typeof dbStorage.createSoilProfile>[0];
+      layers: Array<Omit<Parameters<typeof dbStorage.createSoilLayer>[0], 'profileId'>>;
+    };
+
+    const soilSeeds: SoilSeed[] = [
+      {
+        profile: {
+          profileName: 'Центр — ул. Ленина',
+          latitude: '52.2901', longitude: '104.2964',
+          soilCategory: 'II',
+          avgShearVelocity: 380,
+          groundwaterDepth: 4.5,
+          dominantFrequency: 4.2,
+          amplificationFactor: 1.35,
+          boreholeDepth: 20.0,
+          surveyDate: new Date('2019-06-15'),
+          surveyOrganization: 'ОАО «ИркутскГипроТранс»',
+          description: 'Бурение у здания администрации. Средние плотные суглинки, перекрытые насыпью. Категория II по СП 14.13330.2018.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'fill',  thickness:1.5, depthFrom:0,    depthTo:1.5,  shearVelocity:150, compressionalVelocity:350,  density:1650, dampingRatio:5.0, description:'Насыпной грунт' },
+          { layerNumber:2, soilType:'loam',  thickness:4.5, depthFrom:1.5,  depthTo:6.0,  shearVelocity:290, compressionalVelocity:700,  density:1870, dampingRatio:4.0, description:'Суглинок твёрдый' },
+          { layerNumber:3, soilType:'gravel',thickness:7.0, depthFrom:6.0,  depthTo:13.0, shearVelocity:420, compressionalVelocity:1100, density:2050, dampingRatio:2.5, description:'Галечник с песчаным заполнителем' },
+          { layerNumber:4, soilType:'rock',  thickness:7.0, depthFrom:13.0, depthTo:20.0, shearVelocity:780, compressionalVelocity:2300, density:2500, dampingRatio:1.0, description:'Траппы (базальт), трещиноватые' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Иркутская ГЭС — скала',
+          latitude: '52.3127', longitude: '104.2218',
+          soilCategory: 'I',
+          avgShearVelocity: 1100,
+          groundwaterDepth: 0.5,
+          dominantFrequency: 12.0,
+          amplificationFactor: 1.0,
+          boreholeDepth: 15.0,
+          surveyDate: new Date('2015-09-20'),
+          surveyOrganization: 'ФГБУ «Иркутский региональный центр»',
+          description: 'Скальное основание ГЭС. Практически монолитный сиенит. Категория I — усиления нет.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'rock', thickness:15.0, depthFrom:0, depthTo:15.0, shearVelocity:1100, compressionalVelocity:3200, density:2700, dampingRatio:0.5, description:'Сиенит-порфиры (монолитные)' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Набережная Ангары — аллювий',
+          latitude: '52.2840', longitude: '104.2847',
+          soilCategory: 'IV',
+          avgShearVelocity: 110,
+          groundwaterDepth: 1.0,
+          dominantFrequency: 1.8,
+          amplificationFactor: 2.2,
+          boreholeDepth: 18.0,
+          surveyDate: new Date('2021-05-10'),
+          surveyOrganization: 'ООО «ГеоЦентр-Иркутск»',
+          description: 'Пойменные отложения Ангары. Слабый аллювий с высоким уровнем грунтовых вод. Категория IV — максимальное усиление.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'fill',  thickness:0.8, depthFrom:0,    depthTo:0.8,  shearVelocity:80,  compressionalVelocity:200,  density:1500, dampingRatio:7.0, description:'Намывной песок' },
+          { layerNumber:2, soilType:'sand',  thickness:4.2, depthFrom:0.8,  depthTo:5.0,  shearVelocity:100, compressionalVelocity:280,  density:1700, dampingRatio:5.5, description:'Пески мелкозернистые, насыщенные водой' },
+          { layerNumber:3, soilType:'clay',  thickness:5.0, depthFrom:5.0,  depthTo:10.0, shearVelocity:120, compressionalVelocity:320,  density:1780, dampingRatio:6.0, description:'Ил глинистый, текучий' },
+          { layerNumber:4, soilType:'gravel',thickness:5.0, depthFrom:10.0, depthTo:15.0, shearVelocity:300, compressionalVelocity:900,  density:2000, dampingRatio:3.0, description:'Галечник аллювиальный' },
+          { layerNumber:5, soilType:'rock',  thickness:3.0, depthFrom:15.0, depthTo:18.0, shearVelocity:750, compressionalVelocity:2100, density:2500, dampingRatio:1.0, description:'Базальт (траппы)' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Свердловский р-н — мкр. Синюшина Гора',
+          latitude: '52.2620', longitude: '104.3180',
+          soilCategory: 'III',
+          avgShearVelocity: 190,
+          groundwaterDepth: 6.0,
+          dominantFrequency: 2.5,
+          amplificationFactor: 1.65,
+          boreholeDepth: 22.0,
+          surveyDate: new Date('2020-08-05'),
+          surveyOrganization: 'ООО «ГеоЦентр-Иркутск»',
+          description: 'Типичный разрез Свердловского района — лёссовые суглинки с прослоями песка. Категория III.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'loam',  thickness:2.0, depthFrom:0,    depthTo:2.0,  shearVelocity:130, compressionalVelocity:320,  density:1750, dampingRatio:5.0, description:'Почвенно-растительный слой + суглинок' },
+          { layerNumber:2, soilType:'loam',  thickness:6.0, depthFrom:2.0,  depthTo:8.0,  shearVelocity:180, compressionalVelocity:480,  density:1800, dampingRatio:4.5, description:'Лёссовидный суглинок, просадочный' },
+          { layerNumber:3, soilType:'sand',  thickness:4.0, depthFrom:8.0,  depthTo:12.0, shearVelocity:220, compressionalVelocity:600,  density:1870, dampingRatio:4.0, description:'Пески средние, средней плотности' },
+          { layerNumber:4, soilType:'gravel',thickness:6.0, depthFrom:12.0, depthTo:18.0, shearVelocity:350, compressionalVelocity:950,  density:2020, dampingRatio:2.5, description:'Гравий с галькой' },
+          { layerNumber:5, soilType:'rock',  thickness:4.0, depthFrom:18.0, depthTo:22.0, shearVelocity:800, compressionalVelocity:2400, density:2600, dampingRatio:0.8, description:'Скала (траппы)' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Академгородок — мкр. Юбилейный',
+          latitude: '52.2604', longitude: '104.2481',
+          soilCategory: 'II',
+          avgShearVelocity: 320,
+          groundwaterDepth: 8.0,
+          dominantFrequency: 3.8,
+          amplificationFactor: 1.25,
+          boreholeDepth: 18.0,
+          surveyDate: new Date('2022-04-20'),
+          surveyOrganization: 'ИрГТУ — кафедра геологии',
+          description: 'Правобережная терраса р. Ангара. Плотные супеси и пески. Категория II.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'loam',  thickness:1.5, depthFrom:0,    depthTo:1.5,  shearVelocity:160, compressionalVelocity:400,  density:1720, dampingRatio:5.0, description:'Суглинок лёгкий' },
+          { layerNumber:2, soilType:'sand',  thickness:4.5, depthFrom:1.5,  depthTo:6.0,  shearVelocity:280, compressionalVelocity:700,  density:1850, dampingRatio:3.5, description:'Пески крупные, плотные' },
+          { layerNumber:3, soilType:'gravel',thickness:6.0, depthFrom:6.0,  depthTo:12.0, shearVelocity:400, compressionalVelocity:1050, density:2050, dampingRatio:2.0, description:'Галечник плотный' },
+          { layerNumber:4, soilType:'rock',  thickness:6.0, depthFrom:12.0, depthTo:18.0, shearVelocity:820, compressionalVelocity:2400, density:2600, dampingRatio:0.8, description:'Базальт (траппы монолитные)' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Ленинский р-н — пром. зона',
+          latitude: '52.2340', longitude: '104.2130',
+          soilCategory: 'III',
+          avgShearVelocity: 175,
+          groundwaterDepth: 3.5,
+          dominantFrequency: 2.2,
+          amplificationFactor: 1.70,
+          boreholeDepth: 16.0,
+          surveyDate: new Date('2018-10-15'),
+          surveyOrganization: 'ООО «СибГео»',
+          description: 'Промышленная зона. Насыпные грунты + слабые аллювиальные отложения. Категория III.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'fill',  thickness:3.0, depthFrom:0,   depthTo:3.0,  shearVelocity:100, compressionalVelocity:260, density:1600, dampingRatio:6.0, description:'Техногенный насыпной грунт с включениями' },
+          { layerNumber:2, soilType:'clay',  thickness:3.5, depthFrom:3.0, depthTo:6.5,  shearVelocity:160, compressionalVelocity:420, density:1790, dampingRatio:5.0, description:'Глина полутвёрдая' },
+          { layerNumber:3, soilType:'sand',  thickness:4.5, depthFrom:6.5, depthTo:11.0, shearVelocity:210, compressionalVelocity:580, density:1850, dampingRatio:4.0, description:'Пески средние, рыхлые' },
+          { layerNumber:4, soilType:'gravel',thickness:5.0, depthFrom:11.0,depthTo:16.0, shearVelocity:370, compressionalVelocity:980, density:2030, dampingRatio:2.5, description:'Гравийно-галечниковые отложения' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Листвянка — береговая зона',
+          latitude: '51.8599', longitude: '104.8736',
+          soilCategory: 'IV',
+          avgShearVelocity: 95,
+          groundwaterDepth: 0.3,
+          dominantFrequency: 1.4,
+          amplificationFactor: 2.4,
+          boreholeDepth: 14.0,
+          surveyDate: new Date('2023-07-08'),
+          surveyOrganization: 'Байкальский институт природопользования',
+          description: 'Прибрежная зона оз. Байкал. Слабые озёрные и делювиальные отложения с высоким УГВ. Макс. усиление кат. IV.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'sand',  thickness:1.5, depthFrom:0,    depthTo:1.5,  shearVelocity:70,  compressionalVelocity:180, density:1550, dampingRatio:7.0, description:'Пески мелкие, насыщенные' },
+          { layerNumber:2, soilType:'clay',  thickness:4.5, depthFrom:1.5,  depthTo:6.0,  shearVelocity:90,  compressionalVelocity:240, density:1700, dampingRatio:6.5, description:'Озёрные илы, текуче-пластичные' },
+          { layerNumber:3, soilType:'loam',  thickness:4.0, depthFrom:6.0,  depthTo:10.0, shearVelocity:130, compressionalVelocity:340, density:1790, dampingRatio:5.0, description:'Суглинок мягкопластичный' },
+          { layerNumber:4, soilType:'gravel',thickness:4.0, depthFrom:10.0, depthTo:14.0, shearVelocity:320, compressionalVelocity:900, density:2000, dampingRatio:2.8, description:'Байкальская галька' },
+        ],
+      },
+      {
+        profile: {
+          profileName: 'Правобережный р-н — Топкинский жилой массив',
+          latitude: '52.3200', longitude: '104.2650',
+          soilCategory: 'II',
+          avgShearVelocity: 340,
+          groundwaterDepth: 9.0,
+          dominantFrequency: 4.5,
+          amplificationFactor: 1.20,
+          boreholeDepth: 20.0,
+          surveyDate: new Date('2016-05-25'),
+          surveyOrganization: 'ОАО «ИркутскГипроТранс»',
+          description: 'Верхняя терраса Ангары. Пески плотные с гравием. Условия средние — категория II.',
+        },
+        layers: [
+          { layerNumber:1, soilType:'loam',  thickness:2.0, depthFrom:0,    depthTo:2.0,  shearVelocity:170, compressionalVelocity:440,  density:1760, dampingRatio:4.5, description:'Почвенный слой + суглинок' },
+          { layerNumber:2, soilType:'sand',  thickness:5.0, depthFrom:2.0,  depthTo:7.0,  shearVelocity:310, compressionalVelocity:800,  density:1880, dampingRatio:3.0, description:'Пески гравелистые, плотные' },
+          { layerNumber:3, soilType:'gravel',thickness:6.0, depthFrom:7.0,  depthTo:13.0, shearVelocity:430, compressionalVelocity:1150, density:2080, dampingRatio:2.0, description:'Галечник с гравийным заполнителем' },
+          { layerNumber:4, soilType:'rock',  thickness:7.0, depthFrom:13.0, depthTo:20.0, shearVelocity:850, compressionalVelocity:2450, density:2600, dampingRatio:0.7, description:'Траппы (базальт), слабо трещиноватые' },
+        ],
+      },
+    ];
+
+    let seededCount = 0;
+    for (const seed of soilSeeds) {
+      if (!existingNames.has(seed.profile.profileName)) {
+        const profile = await dbStorage.createSoilProfile(seed.profile);
+        for (const layer of seed.layers) {
+          await dbStorage.createSoilLayer({ ...layer, profileId: profile.id });
+        }
+        seededCount++;
+      }
+    }
+    console.log(`Soil profiles: seeded ${seededCount} new, skipped ${soilSeeds.length - seededCount} existing.`);
+  }
+
   console.log('Database initialization complete.');
   
   return dbStorage;

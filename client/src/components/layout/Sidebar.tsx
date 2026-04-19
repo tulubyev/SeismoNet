@@ -18,6 +18,7 @@ import {
   History,
   Archive as ArchiveIcon,
   HardHat,
+  Mountain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -144,6 +145,9 @@ const Sidebar: FC = () => {
 
           <SectionLabel text="Архив" />
           <NavItem href="/archive" icon={<ArchiveIcon className="size-4" />} text="Архив данных" isActive={location === '/archive'} />
+
+          <SectionLabel text="Геология" />
+          <NavItem href="/soil-database" icon={<Mountain className="size-4" />} text="Грунты" isActive={location === '/soil-database'} />
 
           <SectionLabel text="Анализ" />
           <NavItem href="/analysis" icon={<Layers className="size-4" />} text="Анализ данных" isActive={location === '/analysis'} />

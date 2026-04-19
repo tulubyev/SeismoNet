@@ -266,6 +266,9 @@ export const soilProfiles = pgTable("soil_profiles", {
   id: serial("id").primaryKey(),
   objectId: integer("object_id").references(() => infrastructureObjects.id),
   profileName: text("profile_name").notNull(),
+  // Geographic coordinates of the borehole / observation point
+  latitude: numeric("latitude"),
+  longitude: numeric("longitude"),
   // Relative position of the borehole within the building footprint (meters),
   // origin = top-left corner of the foundation plan. Optional — used for visual placement.
   positionX: real("position_x"),
