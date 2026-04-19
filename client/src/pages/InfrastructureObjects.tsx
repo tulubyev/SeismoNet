@@ -13,7 +13,7 @@ import {
   Building2, Search, MapPin, CheckCircle2, XCircle,
   Calendar, Layers, Shield, AlertTriangle, Filter
 } from 'lucide-react';
-import type { InfrastructureObject } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
 
 const objectTypeOptions = [
   { value: 'all', label: 'Все типы' },
@@ -71,6 +71,17 @@ const InfrastructureObjects: FC = () => {
 
   const { data: objects = [], isLoading } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects']
+  });
+
+  const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
+    queryKey: ['/api/sensor-installations', selectedObj?.id],
+    queryFn: async () => {
+      if (!selectedObj) return [];
+      const res = await fetch(`/api/sensor-installations?objectId=${selectedObj.id}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+    enabled: !!selectedObj
   });
 
   const filtered = objects.filter(obj => {
@@ -315,6 +326,41 @@ const InfrastructureObjects: FC = () => {
                       <span className="text-xs text-slate-500">
                         Коорд.: {Number(selectedObj.latitude).toFixed(4)}°N, {Number(selectedObj.longitude).toFixed(4)}°E
                       </span>
+                    </div>
+
+                    {/* Linked sensor installations */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">
+                        Датчики / Установки ({sensorInstallations.length})
+                      </p>
+                      {sensorInstallations.length === 0 ? (
+                        <p className="text-xs text-slate-400">Датчики не привязаны</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {sensorInstallations.map(inst => (
+                            <div key={inst.id} className="flex items-center justify-between bg-slate-50 rounded-md p-2">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-medium text-slate-700 truncate">
+                                  {inst.sensorModel || inst.sensorType}
+                                </p>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                  {inst.location}
+                                  {inst.floorLevel != null ? ` · эт. ${inst.floorLevel}` : ''}
+                                </p>
+                              </div>
+                              <Badge
+                                className={`text-[9px] h-4 flex-shrink-0 ml-2 hover:bg-opacity-80 ${
+                                  inst.isActive
+                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {inst.isActive ? 'Актив.' : 'Откл.'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

@@ -20,6 +20,7 @@ import AuthPage from "@/pages/auth-page";
 import InfrastructureObjects from "@/pages/InfrastructureObjects";
 import BuildingNorms from "@/pages/BuildingNorms";
 import Seismograms from "@/pages/Seismograms";
+import SoilProfiles from "@/pages/SoilProfiles";
 
 // Mobile App
 import MobileApp from "@/mobile/MobileApp";
@@ -108,6 +109,7 @@ function Router() {
         <ProtectedRoute path="/infrastructure" component={InfrastructureObjects} />
         <ProtectedRoute path="/seismograms" component={Seismograms} />
         <ProtectedRoute path="/building-norms" component={BuildingNorms} />
+        <ProtectedRoute path="/soil-profiles" component={SoilProfiles} />
         <ProtectedRoute 
           path="/settings" 
           component={Settings} 

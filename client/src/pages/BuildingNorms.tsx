@@ -63,8 +63,12 @@ const statusBadge = (status: string) => {
 
 const NormCard: FC<{ norm: BuildingNorm }> = ({ norm }) => {
   const [expanded, setExpanded] = useState(false);
-  const params = norm.keyParameters as Record<string, any> | null;
-  const sections = norm.sections as string[] | null;
+  const params = (norm.keyParameters && typeof norm.keyParameters === 'object')
+    ? (norm.keyParameters as Record<string, unknown>)
+    : null;
+  const sections = Array.isArray(norm.sections)
+    ? (norm.sections as string[])
+    : null;
 
   return (
     <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
@@ -137,17 +141,17 @@ const NormCard: FC<{ norm: BuildingNorm }> = ({ norm }) => {
                       <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1">
                         {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
                       </p>
-                      {typeof val === 'object' && val !== null ? (
+                      {Array.isArray(val) ? (
+                        <p className="text-xs text-slate-600">{(val as unknown[]).map(String).join(', ')}</p>
+                      ) : val !== null && typeof val === 'object' ? (
                         <div className="space-y-1">
-                          {Object.entries(val as Record<string, any>).map(([k, v]) => (
+                          {Object.entries(val as Record<string, unknown>).map(([k, v]) => (
                             <div key={k} className="flex items-start gap-2">
                               <span className="text-[10px] font-mono text-blue-600 min-w-[80px] flex-shrink-0">{k}</span>
                               <span className="text-[10px] text-slate-600">{String(v)}</span>
                             </div>
                           ))}
                         </div>
-                      ) : Array.isArray(val) ? (
-                        <p className="text-xs text-slate-600">{(val as any[]).join(', ')}</p>
                       ) : (
                         <p className="text-xs text-slate-700 font-medium">{String(val)}</p>
                       )}

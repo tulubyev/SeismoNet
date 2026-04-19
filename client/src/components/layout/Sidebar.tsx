@@ -139,6 +139,9 @@ const Sidebar: FC = () => {
           <NavItem href="/event-map" icon={<Globe className="size-4" />} text="Карта событий" isActive={location === '/event-map'} />
           <NavItem href="/event-history" icon={<History className="size-4" />} text="История событий" isActive={location === '/event-history'} />
 
+          <SectionLabel text="Грунты и геология" />
+          <NavItem href="/soil-profiles" icon={<Layers className="size-4" />} text="База грунтов" isActive={location === '/soil-profiles'} />
+
           <SectionLabel text="Анализ" />
           <NavItem href="/analysis" icon={<Layers className="size-4" />} text="Анализ данных" isActive={location === '/analysis'} />
 

@@ -12,6 +12,7 @@ import {
   XCircle, Wifi, WifiOff, ArrowRight, Gauge, Clock
 } from 'lucide-react';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
+import IrkutskMap from '@/components/dashboard/IrkutskMap';
 
 const statusColor = (status: string) => {
   switch (status) {
@@ -136,6 +137,9 @@ const Dashboard: FC = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Irkutsk map */}
+          <IrkutskMap objects={objects} stations={stations} />
 
           {/* Main grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
