@@ -358,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // General station update (calibration, communication, location, etc.)
-  app.patch('/api/stations/:stationId', async (req, res) => {
+  app.patch('/api/stations/:stationId', requireRole(['administrator', 'user']), async (req, res) => {
     try {
       const stationId = req.params.stationId;
       const updates = req.body;

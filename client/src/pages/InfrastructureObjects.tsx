@@ -21,10 +21,10 @@ import { apiRequest } from '@/lib/queryClient';
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
 
 const objectTypeOptions = [
-  { value: 'all',         label: 'Все типы' },
   { value: 'residential', label: 'Жилое' },
   { value: 'industrial',  label: 'Промышленное' },
   { value: 'bridge',      label: 'Мост / Путепровод' },
+  { value: 'pipeline',    label: 'Трубопровод' },
   { value: 'dam',         label: 'Плотина / ГТС' },
   { value: 'hospital',    label: 'Больница' },
   { value: 'school',      label: 'Школа / ВУЗ' },
