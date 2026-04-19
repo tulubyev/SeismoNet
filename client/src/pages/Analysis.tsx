@@ -12,8 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap } from 'lucide-react';
-import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc } from '@shared/schema';
+import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2 } from 'lucide-react';
+import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, SoilLayer, InfrastructureObject } from '@shared/schema';
 
 // Cooley-Tukey FFT, radix-2 DIT, in-place on Float64Arrays
 function fftInPlace(re: Float64Array, im: Float64Array): void {
