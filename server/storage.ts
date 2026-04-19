@@ -1554,12 +1554,11 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Seismic calculation operations ──────────────────────────────────────────
   async getSeismicCalculations(calcType?: string, limit = 50): Promise<SeismicCalculation[]> {
-    const rows = await db.query.seismicCalculations.findMany({
+    return db.query.seismicCalculations.findMany({
+      where: calcType ? (t, { eq }) => eq(t.calcType, calcType) : undefined,
       orderBy: (t, { desc }) => [desc(t.createdAt)],
       limit,
     });
-    if (calcType) return rows.filter(r => r.calcType === calcType);
-    return rows;
   }
   async getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined> {
     return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });

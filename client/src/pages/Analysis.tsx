@@ -1066,10 +1066,11 @@ const AmplificationTab: FC<AmpTabProps> = ({
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                 onClick={async () => {
                   try {
-                    await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'mtsm', soilProfileId: selectedSoilProfileId,
                         inputParams: { bedrockVs: parseFloat(bedrockVs), bedrockDensity: parseFloat(bedrockDensity), bedrockDamping: parseFloat(bedrockDamping) },
                         results: { points: ampResult, peakFreq: peakAmp?.freq, peakAmp: peakAmp?.amp } }) });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Результат сохранён в БД' });
                   } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
                 }}>
@@ -1238,10 +1239,11 @@ const ResponseTab: FC<RespTabProps> = ({
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                 onClick={async () => {
                   try {
-                    await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'response_spectrum',
                         inputParams: { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa } }) });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
                   } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
                 }}>
@@ -1360,11 +1362,12 @@ const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) =
   const saveResult = async () => {
     if (!overallRisk) return;
     try {
-      await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ calcType: 'resonance', soilProfileId: selectedProfId, objectId: selectedObjId,
           inputParams: { floors, T_building, f_hv, T_hv, f_mtsm, T_mtsm },
           results: { overallRisk, hvRisk: hvRisk?.risk ?? null, mtsmRisk: mtsmRisk?.risk ?? null,
             hvLabel: hvRisk?.label, mtsmLabel: mtsmRisk?.label } }) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       toast({ title: 'Анализ резонанса сохранён' });
       loadHistory();
     } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
