@@ -244,6 +244,41 @@ function computeAmplification(layers: AmpLayer[], freqs: number[]): AmpPoint[] {
 
 interface SpecPoint { T: number; Sa: number; Sv: number; Sd: number; }
 
+type RespComponent = 'Z' | 'NS' | 'EW' | 'AVG3' | 'GMH';
+
+const RESP_COMPONENT_LABEL: Record<RespComponent, string> = {
+  Z:    'Z (вертикальная)',
+  NS:   'NS (С–Ю)',
+  EW:   'EW (В–З)',
+  GMH:  'NS⊕EW — геом. среднее горизонталей (СП 14)',
+  AVG3: 'Все 3 — геом. среднее Z+NS+EW',
+};
+
+// Geometric mean of N spectra (point-by-point on Sa, Sv, Sd).
+// Per SP 14.13330, the geomean of horizontal pair gives a single
+// orientation-independent curve directly comparable to the design spectrum.
+function combineSpectraGeomean(spectra: SpecPoint[][]): SpecPoint[] {
+  if (spectra.length === 0) return [];
+  const n = spectra[0].length;
+  const k = spectra.length;
+  const out: SpecPoint[] = [];
+  for (let i = 0; i < n; i++) {
+    let sumLogSa = 0, sumLogSv = 0, sumLogSd = 0;
+    for (const s of spectra) {
+      sumLogSa += Math.log(Math.max(s[i].Sa, 1e-30));
+      sumLogSv += Math.log(Math.max(s[i].Sv, 1e-30));
+      sumLogSd += Math.log(Math.max(s[i].Sd, 1e-30));
+    }
+    out.push({
+      T:  spectra[0][i].T,
+      Sa: Math.exp(sumLogSa / k),
+      Sv: Math.exp(sumLogSv / k),
+      Sd: Math.exp(sumLogSd / k),
+    });
+  }
+  return out;
+}
+
 function responseSpectrum(ag: number[], dt: number, periods: number[], zeta = 0.05): SpecPoint[] {
   const out: SpecPoint[] = [];
   const beta = 0.25, gamma = 0.5;
@@ -299,7 +334,7 @@ const Analysis: FC = () => {
   const [bedrockDamping, setBedrockDamping] = useState<string>('0.005');
   const [ampResult,      setAmpResult]      = useState<AmpPoint[] | null>(null);
   const [respDamping,    setRespDamping]    = useState<string>('5');
-  const [respComponent,  setRespComponent]  = useState<'Z'|'NS'|'EW'>('NS');
+  const [respComponent,  setRespComponent]  = useState<RespComponent>('NS');
   const [respResult,     setRespResult]     = useState<SpecPoint[] | null>(null);
   const [afcRows,   setAfcRows]   = useState(DEFAULT_AFC);
   const [thresholdZMmS,  setThresholdZMmS]  = useState<number | null>(null);
@@ -1180,7 +1215,7 @@ interface RespTabProps {
   selectedSeismogramId: number | null;
   setSelectedSeismogramId: (id: number | null) => void;
   respDamping: string;   setRespDamping: (v: string) => void;
-  respComponent: 'Z'|'NS'|'EW'; setRespComponent: (v: 'Z'|'NS'|'EW') => void;
+  respComponent: RespComponent; setRespComponent: (v: RespComponent) => void;
   respResult: SpecPoint[] | null; setRespResult: (v: SpecPoint[] | null) => void;
   toast: ReturnType<typeof useToast>['toast'];
 }
@@ -1225,10 +1260,20 @@ const ResponseTab: FC<RespTabProps> = ({
       } else {
         if (!rec || !real) return;
         const arrs = getRealArrays(rec);
-        const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
         const dt = 1 / (rec.sampleRate || 100);
-        setRespResult(responseSpectrum(sig, dt, periods, zeta));
-        toast({ title: 'Спектр отклика рассчитан', description: `${NP} периодов, ζ=${(zeta*100).toFixed(1)}%` });
+        if (respComponent === 'AVG3') {
+          const specs = [arrs.z, arrs.ns, arrs.ew].map(s => responseSpectrum(s, dt, periods, zeta));
+          setRespResult(combineSpectraGeomean(specs));
+          toast({ title: 'Спектр отклика рассчитан', description: `Геом. среднее Z+NS+EW · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
+        } else if (respComponent === 'GMH') {
+          const specs = [arrs.ns, arrs.ew].map(s => responseSpectrum(s, dt, periods, zeta));
+          setRespResult(combineSpectraGeomean(specs));
+          toast({ title: 'Спектр отклика рассчитан', description: `Геом. среднее NS+EW (СП 14) · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
+        } else {
+          const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
+          setRespResult(responseSpectrum(sig, dt, periods, zeta));
+          toast({ title: 'Спектр отклика рассчитан', description: `Компонента ${respComponent} · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
+        }
       }
     } catch (e) {
       toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
@@ -1364,12 +1409,14 @@ const ResponseTab: FC<RespTabProps> = ({
               </div>
               <div>
                 <Label className="text-xs">Компонента</Label>
-                <Select value={respComponent} onValueChange={v => { setRespComponent(v as 'Z'|'NS'|'EW'); setRespResult(null); }}>
-                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                <Select value={respComponent} onValueChange={v => { setRespComponent(v as RespComponent); setRespResult(null); }}>
+                  <SelectTrigger className="h-8 w-72 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Z">Z</SelectItem>
-                    <SelectItem value="NS">NS</SelectItem>
-                    <SelectItem value="EW">EW</SelectItem>
+                    <SelectItem value="Z" className="text-xs">Z (вертикальная)</SelectItem>
+                    <SelectItem value="NS" className="text-xs">NS (С–Ю)</SelectItem>
+                    <SelectItem value="EW" className="text-xs">EW (В–З)</SelectItem>
+                    <SelectItem value="GMH" className="text-xs">NS⊕EW — геом. среднее горизонталей (СП 14)</SelectItem>
+                    <SelectItem value="AVG3" className="text-xs">Все 3 — геом. среднее Z+NS+EW</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1454,7 +1501,10 @@ const ResponseTab: FC<RespTabProps> = ({
                 <p>СП 14.13330: <strong>{sp14Record.label}</strong> · прототип: {sp14Record.source} · грунт {sp14SoilCategory} (K={SP14_SOIL_K_TABLE4[sp14SoilCategory]}) · PGA={(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²</p>
               )}
               {inputMode === 'seismogram' && (
-                <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
+                <p>Расчёт: <strong>{RESP_COMPONENT_LABEL[respComponent]}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.
+                {(respComponent === 'GMH' || respComponent === 'AVG3') && (
+                  <span> Sa(T) = exp(⟨ln Sa<sub>i</sub>(T)⟩) — поточечное геом. среднее SDOF-спектров отдельных компонент.</span>
+                )}</p>
               )}
             </div>
             <div className="px-4 flex gap-2 pt-2">

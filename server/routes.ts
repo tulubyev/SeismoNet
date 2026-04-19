@@ -1021,10 +1021,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/seismograms', requireRole(['administrator', 'user']), async (req, res) => {
     try {
-      const record = await storage.createSeismogramRecord(req.body);
+      const body = { ...req.body };
+      if (typeof body.startTime === 'string') body.startTime = new Date(body.startTime);
+      if (typeof body.endTime === 'string') body.endTime = new Date(body.endTime);
+      const record = await storage.createSeismogramRecord(body);
       res.status(201).json(record);
     } catch (error) {
-      res.status(500).json({ message: 'Error creating seismogram record' });
+      console.error('createSeismogramRecord error:', error);
+      const payload: { message: string; detail?: string } = { message: 'Error creating seismogram record' };
+      if (process.env.NODE_ENV !== 'production') payload.detail = String(error);
+      res.status(500).json(payload);
     }
   });
 
