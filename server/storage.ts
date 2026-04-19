@@ -36,7 +36,9 @@ import {
   CalibrationAfc,
   InsertCalibrationAfc,
   Developer,
-  InsertDeveloper
+  InsertDeveloper,
+  SeismicCalculation,
+  InsertSeismicCalculation
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -170,6 +172,12 @@ export interface IStorage {
   createDeveloper(dev: InsertDeveloper): Promise<Developer>;
   updateDeveloper(id: number, data: Partial<InsertDeveloper>): Promise<Developer | undefined>;
   deleteDeveloper(id: number): Promise<boolean>;
+
+  // Seismic calculation operations
+  getSeismicCalculations(calcType?: string, limit?: number): Promise<SeismicCalculation[]>;
+  getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined>;
+  createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
+  deleteSeismicCalculation(id: number): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -193,6 +201,7 @@ export class MemStorage implements IStorage {
   private calibrationSessions: Map<number, CalibrationSession>;
   private calibrationAfcPoints: Map<number, CalibrationAfc>;
   private developers: Map<number, Developer>;
+  private seismicCalculationsMap: Map<number, SeismicCalculation>;
 
   private currentUserId: number;
   private currentStationId: number;
@@ -213,6 +222,7 @@ export class MemStorage implements IStorage {
   private currentCalibrationSessionId: number;
   private currentCalibrationAfcId: number;
   private currentDeveloperId: number;
+  private currentSeismicCalcId: number;
 
   constructor() {
     this.users = new Map();
@@ -234,6 +244,7 @@ export class MemStorage implements IStorage {
     this.calibrationSessions = new Map();
     this.calibrationAfcPoints = new Map();
     this.developers = new Map();
+    this.seismicCalculationsMap = new Map();
 
     this.currentUserId = 1;
     this.currentStationId = 1;
@@ -254,6 +265,7 @@ export class MemStorage implements IStorage {
     this.currentCalibrationSessionId = 1;
     this.currentCalibrationAfcId = 1;
     this.currentDeveloperId = 1;
+    this.currentSeismicCalcId = 1;
     
     // Initialize with sample data
     this.initializeData();
@@ -826,6 +838,28 @@ export class MemStorage implements IStorage {
   }
   async deleteDeveloper(id: number): Promise<boolean> {
     return this.developers.delete(id);
+  }
+
+  // ─── Seismic calculation operations ────────────────────────────────────────
+  async getSeismicCalculations(calcType?: string, limit = 50): Promise<SeismicCalculation[]> {
+    let all = Array.from(this.seismicCalculationsMap.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (calcType) all = all.filter(c => c.calcType === calcType);
+    return all.slice(0, limit);
+  }
+  async getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined> {
+    return this.seismicCalculationsMap.get(id);
+  }
+  async createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation> {
+    const id = this.currentSeismicCalcId++;
+    const record: SeismicCalculation = { ...calc, id, createdAt: new Date(),
+      soilProfileId: calc.soilProfileId ?? null, objectId: calc.objectId ?? null,
+      createdBy: calc.createdBy ?? null, notes: calc.notes ?? null };
+    this.seismicCalculationsMap.set(id, record);
+    return record;
+  }
+  async deleteSeismicCalculation(id: number): Promise<boolean> {
+    return this.seismicCalculationsMap.delete(id);
   }
 
   // ─── Object category operations ────────────────────────────────────────────
@@ -1516,6 +1550,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.developers.id, id))
       .returning({ id: schema.developers.id });
     return result.length > 0;
+  }
+
+  // ─── Seismic calculation operations ──────────────────────────────────────────
+  async getSeismicCalculations(calcType?: string, limit = 50): Promise<SeismicCalculation[]> {
+    const rows = await db.query.seismicCalculations.findMany({
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      limit,
+    });
+    if (calcType) return rows.filter(r => r.calcType === calcType);
+    return rows;
+  }
+  async getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined> {
+    return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  }
+  async createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation> {
+    const [row] = await db.insert(schema.seismicCalculations).values(calc).returning();
+    return row;
+  }
+  async deleteSeismicCalculation(id: number): Promise<boolean> {
+    const res = await db.delete(schema.seismicCalculations)
+      .where(eq(schema.seismicCalculations.id, id))
+      .returning({ id: schema.seismicCalculations.id });
+    return res.length > 0;
   }
 
   // ─── Object category operations ──────────────────────────────────────────────

@@ -731,6 +731,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Seismic Calculations API ─────────────────────────────────────────────────
+
+  app.get('/api/calculations', async (req, res) => {
+    try {
+      const { type, limit } = req.query;
+      const rows = await storage.getSeismicCalculations(
+        type as string | undefined,
+        limit ? parseInt(limit as string) : 50
+      );
+      res.json(rows);
+    } catch (e) {
+      res.status(500).json({ message: 'Error fetching calculations' });
+    }
+  });
+
+  app.get('/api/calculations/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const row = await storage.getSeismicCalculation(id);
+      if (!row) return res.status(404).json({ message: 'Calculation not found' });
+      res.json(row);
+    } catch (e) {
+      res.status(500).json({ message: 'Error fetching calculation' });
+    }
+  });
+
+  app.post('/api/calculations', async (req, res) => {
+    try {
+      const row = await storage.createSeismicCalculation(req.body);
+      res.status(201).json(row);
+    } catch (e) {
+      res.status(500).json({ message: 'Error saving calculation' });
+    }
+  });
+
+  app.delete('/api/calculations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteSeismicCalculation(id);
+      if (!ok) return res.status(404).json({ message: 'Calculation not found' });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Error deleting calculation' });
+    }
+  });
+
   // ─── Object Categories API ────────────────────────────────────────────────────
 
   app.get('/api/object-categories', async (_req, res) => {

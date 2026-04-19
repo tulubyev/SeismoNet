@@ -404,6 +404,19 @@ export const seismogramRecords = pgTable("seismogram_records", {
   usedForModelingCount: integer("used_for_modeling_count").notNull().default(0)
 });
 
+// ─── Seismic calculation results (МТСМ / response spectrum / resonance) ──────
+export const seismicCalculations = pgTable("seismic_calculations", {
+  id: serial("id").primaryKey(),
+  calcType: text("calc_type").notNull(), // 'mtsm' | 'response_spectrum' | 'resonance'
+  soilProfileId: integer("soil_profile_id").references(() => soilProfiles.id),
+  objectId: integer("object_id").references(() => infrastructureObjects.id),
+  inputParams: jsonb("input_params").notNull(),  // bedrock params, damping, etc.
+  results: jsonb("results").notNull(),            // frequency arrays, amplitudes, risk level…
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: text("created_by"),
+  notes: text("notes")
+});
+
 // ─── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
@@ -429,6 +442,7 @@ export const insertCalibrationSessionSchema = createInsertSchema(calibrationSess
 export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
 export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
 export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -513,6 +527,9 @@ export type InsertCalibrationSession = z.infer<typeof insertCalibrationSessionSc
 
 export type CalibrationAfc = typeof calibrationAfc.$inferSelect;
 export type InsertCalibrationAfc = z.infer<typeof insertCalibrationAfcSchema>;
+
+export type SeismicCalculation = typeof seismicCalculations.$inferSelect;
+export type InsertSeismicCalculation = z.infer<typeof insertSeismicCalculationSchema>;
 
 // ─── WebSocket / API types ─────────────────────────────────────────────────────
 

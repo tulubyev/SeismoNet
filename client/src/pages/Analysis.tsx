@@ -12,8 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2 } from 'lucide-react';
-import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, SoilLayer, InfrastructureObject } from '@shared/schema';
+import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2, Download, BookOpen, TriangleAlert } from 'lucide-react';
+import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, SoilLayer, InfrastructureObject, SeismicCalculation } from '@shared/schema';
 
 // Cooley-Tukey FFT, radix-2 DIT, in-place on Float64Arrays
 function fftInPlace(re: Float64Array, im: Float64Array): void {
@@ -409,13 +409,14 @@ const Analysis: FC = () => {
       </div>
 
       <Tabs defaultValue="calibration" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
           <TabsTrigger value="calibration"   className="text-xs gap-1"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
           <TabsTrigger value="afc"           className="text-xs gap-1"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
           <TabsTrigger value="waveforms"     className="text-xs gap-1"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
           <TabsTrigger value="spectrum"      className="text-xs gap-1"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
           <TabsTrigger value="amplification" className="text-xs gap-1"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
           <TabsTrigger value="response"      className="text-xs gap-1"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
+          <TabsTrigger value="resonance"     className="text-xs gap-1"><TriangleAlert className="h-3.5 w-3.5" />Резонанс</TabsTrigger>
         </TabsList>
 
         <TabsContent value="calibration" className="space-y-4">
@@ -835,6 +836,14 @@ const Analysis: FC = () => {
             toast={toast}
           />
         </TabsContent>
+
+        <TabsContent value="resonance" className="space-y-4">
+          <ResonanceTab
+            objects={objects}
+            soilProfiles={soilProfiles}
+            toast={toast}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -1044,6 +1053,29 @@ const AmplificationTab: FC<AmpTabProps> = ({
                 </p>
               )}
             </div>
+            <div className="px-4 flex gap-2 pt-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                onClick={() => {
+                  const rows = ['freq_hz,amplitude'].concat(ampResult!.map(p => `${p.freq.toFixed(4)},${p.amp.toFixed(6)}`));
+                  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+                  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                  a.download = `mtsm_${profile?.profileName ?? 'result'}.csv`; a.click();
+                }}>
+                <Download className="h-3 w-3" /> CSV
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                onClick={async () => {
+                  try {
+                    await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ calcType: 'mtsm', soilProfileId: selectedSoilProfileId,
+                        inputParams: { bedrockVs: parseFloat(bedrockVs), bedrockDensity: parseFloat(bedrockDensity), bedrockDamping: parseFloat(bedrockDamping) },
+                        results: { points: ampResult, peakFreq: peakAmp?.freq, peakAmp: peakAmp?.amp } }) });
+                    toast({ title: 'Результат сохранён в БД' });
+                  } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
+                }}>
+                <Save className="h-3 w-3" /> Сохранить
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1191,6 +1223,31 @@ const ResponseTab: FC<RespTabProps> = ({
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
               <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
             </div>
+            <div className="px-4 flex gap-2 pt-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                onClick={() => {
+                  const rows = ['period_s,Sa_m_s2,Sv_m_s,Sd_m'].concat(
+                    respResult!.map(p => `${p.T.toFixed(4)},${p.Sa.toFixed(6)},${p.Sv.toFixed(6)},${p.Sd.toFixed(6)}`)
+                  );
+                  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+                  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                  a.download = `response_spectrum_${rec?.recordId ?? 'result'}.csv`; a.click();
+                }}>
+                <Download className="h-3 w-3" /> CSV
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                onClick={async () => {
+                  try {
+                    await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ calcType: 'response_spectrum',
+                        inputParams: { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
+                        results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa } }) });
+                    toast({ title: 'Спектр отклика сохранён в БД' });
+                  } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
+                }}>
+                <Save className="h-3 w-3" /> Сохранить
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1204,6 +1261,289 @@ const ResponseTab: FC<RespTabProps> = ({
         </Card>
       )}
     </>
+  );
+};
+
+// ─── Resonance Analysis Tab ───────────────────────────────────────────────────
+// Compares building eigenperiod (T≈0.1·N) with soil resonant period from the
+// selected soil profile's dominant frequency and the МТСМ peak frequency.
+// Colour-coded risk: green / yellow / red as per typical SP 14.13330 guidance.
+
+interface ResonanceTabProps {
+  objects: InfrastructureObject[];
+  soilProfiles: SoilProfile[];
+  toast: ReturnType<typeof useToast>['toast'];
+}
+
+const ResonanceTab: FC<ResonanceTabProps> = ({ objects, soilProfiles, toast }) => {
+  const [selectedObjId,  setSelectedObjId]  = useState<number | null>(null);
+  const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
+  const [savedCalcs, setSavedCalcs] = useState<SeismicCalculation[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const obj     = objects.find(o => o.id === selectedObjId) ?? null;
+  const profile = soilProfiles.find(p => p.id === selectedProfId) ?? null;
+
+  const { data: layers = [] } = useQuery<SoilLayer[]>({
+    queryKey: ['/api/soil-profiles', selectedProfId, 'layers'],
+    queryFn: async () => {
+      if (!selectedProfId) return [];
+      const r = await fetch(`/api/soil-profiles/${selectedProfId}/layers`);
+      return r.json();
+    },
+    enabled: !!selectedProfId,
+  });
+
+  const sortedLayers = [...layers].sort((a, b) => a.layerNumber - b.layerNumber);
+
+  const floors = obj?.floors ?? null;
+  const T_building = floors != null ? 0.1 * floors : null;
+
+  // Soil resonant period from profile dominant frequency (Hz → s)
+  const f0_profile = profile?.dominantFrequency ?? null;
+  const T_soil_profile = f0_profile != null ? 1 / f0_profile : null;
+
+  // Estimate from МТСМ (quarter-wave formula): T ≈ 4H / Vs_mean
+  const totalH   = sortedLayers.reduce((s, l) => s + l.thickness, 0);
+  const meanVs   = sortedLayers.length > 0
+    ? sortedLayers.reduce((s, l) => s + l.shearVelocity * l.thickness, 0) / Math.max(totalH, 1)
+    : null;
+  const T_soil_mtsm = (meanVs != null && totalH > 0) ? (4 * totalH) / meanVs : null;
+
+  // Primary soil period: prefer МТСМ estimate, fallback to profile field
+  const T_soil = T_soil_mtsm ?? T_soil_profile;
+
+  type RiskLevel = 'green' | 'yellow' | 'red' | null;
+  let risk: RiskLevel = null;
+  let riskLabel = '';
+  let riskDesc  = '';
+  let recommendation = '';
+
+  if (T_building != null && T_soil != null) {
+    const ratio = Math.abs(T_soil - T_building) / Math.max(T_soil, T_building);
+    if (ratio < 0.15) {
+      risk = 'red'; riskLabel = 'ВЫСОКИЙ РИСК РЕЗОНАНСА';
+      riskDesc = `Периоды практически совпадают (|ΔT|/T = ${(ratio*100).toFixed(1)}% < 15%)`;
+      recommendation = 'Рекомендуется детальное обследование, возможно усиление конструкций или изоляционные мероприятия. Обязательна инструментальная проверка режимов колебаний здания.';
+    } else if (ratio < 0.30) {
+      risk = 'yellow'; riskLabel = 'УМЕРЕННЫЙ РИСК РЕЗОНАНСА';
+      riskDesc = `Периоды близки (|ΔT|/T = ${(ratio*100).toFixed(1)}%, 15–30%)`;
+      recommendation = 'Рекомендуется мониторинг динамических параметров здания и более подробный расчёт откликов (МКЭ). При проектировании нового здания — рассмотреть изменение этажности.';
+    } else {
+      risk = 'green'; riskLabel = 'РИСК РЕЗОНАНСА НИЗКИЙ';
+      riskDesc = `Достаточное расхождение периодов (|ΔT|/T = ${(ratio*100).toFixed(1)}% > 30%)`;
+      recommendation = 'Резонанс грунт–здание маловероятен при данных условиях.';
+    }
+  }
+
+  const riskColors = {
+    red:    { card: 'bg-red-50 border-red-400',    badge: 'bg-red-600 text-white', icon: '🔴' },
+    yellow: { card: 'bg-amber-50 border-amber-400', badge: 'bg-amber-500 text-white', icon: '🟡' },
+    green:  { card: 'bg-emerald-50 border-emerald-400', badge: 'bg-emerald-600 text-white', icon: '🟢' },
+  };
+
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const r = await fetch('/api/calculations?type=resonance&limit=20');
+      setSavedCalcs(await r.json());
+    } catch { /* ignore */ }
+    setLoadingHistory(false);
+  };
+
+  const saveResult = async () => {
+    if (!risk) return;
+    try {
+      await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calcType: 'resonance', soilProfileId: selectedProfId, objectId: selectedObjId,
+          inputParams: { floors, T_building, T_soil, T_soil_mtsm, T_soil_profile },
+          results: { risk, riskLabel, riskDesc, recommendation } }) });
+      toast({ title: 'Анализ резонанса сохранён' });
+      loadHistory();
+    } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm text-slate-600">Выбор объекта и профиля грунта</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Здание / сооружение</Label>
+              <Select value={selectedObjId?.toString() ?? ''} onValueChange={v => setSelectedObjId(parseInt(v))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Выбрать объект..." /></SelectTrigger>
+                <SelectContent>
+                  {objects.map(o => (
+                    <SelectItem key={o.id} value={o.id.toString()} className="text-xs">
+                      {o.name} {o.floors ? `· ${o.floors} эт.` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Профиль грунта</Label>
+              <Select value={selectedProfId?.toString() ?? ''} onValueChange={v => setSelectedProfId(parseInt(v))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Выбрать профиль..." /></SelectTrigger>
+                <SelectContent>
+                  {soilProfiles.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()} className="text-xs">
+                      {p.profileName} · кат. {p.soilCategory}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm text-slate-600">Параметры расчёта</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="space-y-2 text-xs text-slate-600">
+              {obj && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div>Объект: <strong className="text-slate-800">{obj.name}</strong></div>
+                  <div>Этажность: <strong className="text-slate-800">{floors ?? '—'}</strong></div>
+                  <div className="col-span-2">
+                    Период здания T = 0.1 × N: <strong className="text-blue-600">
+                      {T_building != null ? `${T_building.toFixed(2)} с` : 'нет данных об этажности'}
+                    </strong>
+                  </div>
+                </div>
+              )}
+              {profile && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t border-slate-100">
+                  <div>Профиль: <strong className="text-slate-800">{profile.profileName}</strong></div>
+                  <div>Категория: <strong className="text-slate-800">{profile.soilCategory}</strong></div>
+                  {T_soil_mtsm != null && (
+                    <div className="col-span-2">
+                      T грунта (МТСМ, Vs={meanVs?.toFixed(0)} м/с, H={totalH.toFixed(1)} м):
+                      <strong className="text-purple-600 ml-1">{T_soil_mtsm.toFixed(2)} с</strong>
+                    </div>
+                  )}
+                  {f0_profile != null && (
+                    <div className="col-span-2">
+                      T грунта (профиль f₀={f0_profile} Гц):
+                      <strong className="text-purple-600 ml-1">{T_soil_profile!.toFixed(2)} с</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!obj && !profile && (
+                <p className="text-slate-400 py-4 text-center">Выберите объект и профиль грунта</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {risk && riskColors[risk] && (
+        <Card className={`border-2 shadow-sm ${riskColors[risk].card}`}>
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">{riskColors[risk].icon}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold ${riskColors[risk].badge}`}>
+                {riskLabel}
+              </span>
+            </div>
+            <p className="text-sm text-slate-700 font-medium mb-1">{riskDesc}</p>
+            <div className="grid grid-cols-3 gap-3 my-3 text-xs">
+              <div className="bg-white/60 rounded p-2 text-center">
+                <div className="font-bold text-slate-800 text-base">{T_building?.toFixed(2)} с</div>
+                <div className="text-slate-500">Период здания Tₒ</div>
+              </div>
+              <div className="bg-white/60 rounded p-2 text-center">
+                <div className="font-bold text-slate-800 text-base">{T_soil?.toFixed(2)} с</div>
+                <div className="text-slate-500">Период грунта Tₛ</div>
+              </div>
+              <div className="bg-white/60 rounded p-2 text-center">
+                <div className="font-bold text-slate-800 text-base">
+                  {T_building != null && T_soil != null
+                    ? `${(Math.abs(T_soil - T_building) / Math.max(T_soil, T_building) * 100).toFixed(1)}%`
+                    : '—'}
+                </div>
+                <div className="text-slate-500">|ΔT|/T</div>
+              </div>
+            </div>
+            <div className="bg-white/60 rounded p-3 text-xs text-slate-700 leading-relaxed">
+              <BookOpen className="h-3 w-3 inline mr-1 text-slate-500" />
+              <strong>Рекомендация:</strong> {recommendation}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-white" onClick={saveResult}>
+                <Save className="h-3 w-3" /> Сохранить анализ
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-white" onClick={() => {
+                const csv = [
+                  'parameter,value',
+                  `object,"${obj?.name ?? ''}"`,
+                  `floors,${floors ?? ''}`,
+                  `T_building_s,${T_building?.toFixed(3) ?? ''}`,
+                  `soil_profile,"${profile?.profileName ?? ''}"`,
+                  `soil_category,${profile?.soilCategory ?? ''}`,
+                  `T_soil_mtsm_s,${T_soil_mtsm?.toFixed(3) ?? ''}`,
+                  `T_soil_profile_s,${T_soil_profile?.toFixed(3) ?? ''}`,
+                  `risk_level,${risk}`,
+                  `delta_ratio_pct,${T_building != null && T_soil != null ? (Math.abs(T_soil - T_building) / Math.max(T_soil, T_building) * 100).toFixed(1) : ''}`,
+                ].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = `resonance_${obj?.objectId ?? 'result'}.csv`; a.click();
+              }}>
+                <Download className="h-3 w-3" /> CSV
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(!obj || !profile) && !risk && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-10 text-center text-slate-400">
+            <TriangleAlert className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Выберите здание и профиль грунта для анализа резонанса</p>
+            <p className="text-xs mt-1 opacity-60">Расчёт выполняется автоматически при выборе обоих параметров</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2 pt-4 px-4 flex-row items-center justify-between">
+          <CardTitle className="text-sm text-slate-600">История расчётов резонанса</CardTitle>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={loadHistory} disabled={loadingHistory}>
+            Обновить
+          </Button>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {savedCalcs.length === 0
+            ? <p className="text-sm text-slate-400 text-center py-4">Нажмите «Обновить» для загрузки истории</p>
+            : <div className="space-y-2">
+                {savedCalcs.map(c => {
+                  const r = (c.results as { risk?: string; riskLabel?: string; riskDesc?: string }) || {};
+                  const inp = (c.inputParams as { floors?: number; T_building?: number; T_soil?: number }) || {};
+                  const riskCol = r.risk === 'red' ? 'text-red-600' : r.risk === 'yellow' ? 'text-amber-600' : 'text-emerald-600';
+                  return (
+                    <div key={c.id} className="flex items-start justify-between gap-2 rounded border border-slate-200 p-3 text-xs">
+                      <div>
+                        <span className={`font-semibold ${riskCol}`}>{r.riskLabel ?? r.risk}</span>
+                        <span className="text-slate-500 ml-2">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</span>
+                        <div className="text-slate-500 mt-0.5">
+                          Tз={inp.T_building?.toFixed(2) ?? '—'} с · Tгр={inp.T_soil?.toFixed(2) ?? '—'} с
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
