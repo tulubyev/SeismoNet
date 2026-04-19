@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -22,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download,
   Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
+  StickyNote, Save, Loader2,
 } from 'lucide-react';
 import type { SeismicCalculation, SoilProfile, InfrastructureObject } from '@shared/schema';
 
@@ -483,9 +485,76 @@ const CalcDetailDialog: FC<DetailDialogProps> = ({ calc, profile, object, onClos
         {calc.calcType === 'response_spectrum' && <RespDetail  calc={calc} />}
         {calc.calcType === 'resonance'         && <ResoDetail  calc={calc} />}
 
+        <NotesEditor calc={calc} />
         <ParamsTable inputParams={calc.inputParams} />
       </DialogContent>
     </Dialog>
+  );
+};
+
+const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
+  const { toast } = useToast();
+  const [savedNotes, setSavedNotes] = useState<string>(calc.notes ?? '');
+  const [value, setValue] = useState<string>(calc.notes ?? '');
+
+  useEffect(() => {
+    setSavedNotes(calc.notes ?? '');
+    setValue(calc.notes ?? '');
+  }, [calc.id, calc.notes]);
+
+  const saveMut = useMutation({
+    mutationFn: async (notes: string) => {
+      const r = await apiRequest('PATCH', `/api/calculations/${calc.id}`, { notes: notes.trim() ? notes : null });
+      return r.json() as Promise<SeismicCalculation>;
+    },
+    onSuccess: (row) => {
+      const next = row?.notes ?? '';
+      setSavedNotes(next);
+      setValue(next);
+      queryClient.invalidateQueries({ queryKey: ['/api/calculations', { limit: 500 }] });
+      toast({ title: 'Заметка сохранена' });
+    },
+    onError: () => toast({ title: 'Не удалось сохранить заметку', variant: 'destructive' }),
+  });
+
+  const dirty = (value ?? '') !== (savedNotes ?? '');
+
+  return (
+    <div className="border rounded p-3 bg-amber-50/40 space-y-2" data-testid={`notes-editor-${calc.id}`}>
+      <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+        <StickyNote className="h-3.5 w-3.5" />
+        Заметки инженера
+        {savedNotes && !dirty && <span className="text-[10px] text-amber-600 font-normal">· сохранено</span>}
+      </div>
+      <Textarea
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        placeholder='Например: «прототип для отчёта №12», «проверка резонанса блок-секции А»'
+        className="text-xs min-h-[72px] bg-white"
+        data-testid={`textarea-notes-${calc.id}`}
+      />
+      <div className="flex justify-end gap-2">
+        {dirty && (
+          <Button
+            size="sm" variant="ghost" className="h-7 text-xs"
+            disabled={saveMut.isPending}
+            onClick={() => setValue(savedNotes)}
+            data-testid={`btn-notes-cancel-${calc.id}`}>
+            Отмена
+          </Button>
+        )}
+        <Button
+          size="sm" className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700"
+          disabled={!dirty || saveMut.isPending}
+          onClick={() => saveMut.mutate(value)}
+          data-testid={`btn-notes-save-${calc.id}`}>
+          {saveMut.isPending
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <Save className="h-3 w-3" />}
+          Сохранить
+        </Button>
+      </div>
+    </div>
   );
 };
 

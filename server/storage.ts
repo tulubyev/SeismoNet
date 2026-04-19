@@ -177,6 +177,7 @@ export interface IStorage {
   getSeismicCalculations(calcType?: string, limit?: number): Promise<SeismicCalculation[]>;
   getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined>;
   createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
+  updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined>;
   deleteSeismicCalculation(id: number): Promise<boolean>;
 }
 
@@ -857,6 +858,16 @@ export class MemStorage implements IStorage {
       createdBy: calc.createdBy ?? null, notes: calc.notes ?? null };
     this.seismicCalculationsMap.set(id, record);
     return record;
+  }
+  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined> {
+    const existing = this.seismicCalculationsMap.get(id);
+    if (!existing) return undefined;
+    const updated: SeismicCalculation = {
+      ...existing,
+      notes: data.notes !== undefined ? (data.notes ?? null) : existing.notes,
+    };
+    this.seismicCalculationsMap.set(id, updated);
+    return updated;
   }
   async deleteSeismicCalculation(id: number): Promise<boolean> {
     return this.seismicCalculationsMap.delete(id);
@@ -1565,6 +1576,18 @@ export class DatabaseStorage implements IStorage {
   }
   async createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation> {
     const [row] = await db.insert(schema.seismicCalculations).values(calc).returning();
+    return row;
+  }
+  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined> {
+    const patch: Record<string, unknown> = {};
+    if (data.notes !== undefined) patch.notes = data.notes ?? null;
+    if (Object.keys(patch).length === 0) {
+      return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+    }
+    const [row] = await db.update(schema.seismicCalculations)
+      .set(patch)
+      .where(eq(schema.seismicCalculations.id, id))
+      .returning();
     return row;
   }
   async deleteSeismicCalculation(id: number): Promise<boolean> {

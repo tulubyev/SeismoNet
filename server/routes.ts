@@ -772,6 +772,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/calculations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const patchSchema = insertSeismicCalculationSchema.pick({ notes: true }).partial();
+      const parsed = patchSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: 'Invalid patch data', errors: parsed.error.flatten() });
+      const row = await storage.updateSeismicCalculation(id, parsed.data);
+      if (!row) return res.status(404).json({ message: 'Calculation not found' });
+      res.json(row);
+    } catch (e) {
+      console.error('PATCH /api/calculations/:id failed:', e);
+      res.status(500).json({ message: 'Error updating calculation' });
+    }
+  });
+
   app.delete('/api/calculations/:id', requireRole(['administrator']), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
