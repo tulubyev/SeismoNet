@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
@@ -899,9 +900,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const calibrationSessionSchema = z.object({
+    installationId: z.number().int().positive(),
+    sessionDate:    z.string().min(1),
+    operator:       z.string().min(1).max(200),
+    sensitivityZ:   z.number().finite().optional(),
+    sensitivityNS:  z.number().finite().optional(),
+    sensitivityEW:  z.number().finite().optional(),
+    dampingRatio:   z.number().finite().min(0).max(100).optional(),
+    naturalFrequency: z.number().finite().positive().optional(),
+    status:         z.enum(['complete', 'pending']).default('complete'),
+    notes:          z.string().max(1000).optional()
+  });
+
   app.post('/api/calibration-sessions', requireRole(['administrator', 'user']), async (req, res) => {
+    const parsed = calibrationSessionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
     try {
-      const session = await storage.createCalibrationSession(req.body);
+      const session = await storage.createCalibrationSession(parsed.data);
       res.status(201).json(session);
     } catch (error) {
       res.status(500).json({ message: 'Error creating calibration session' });
@@ -909,8 +925,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch('/api/calibration-sessions/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    const parsed = calibrationSessionSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
     try {
-      const updated = await storage.updateCalibrationSession(parseInt(req.params.id), req.body);
+      const updated = await storage.updateCalibrationSession(parseInt(req.params.id), parsed.data);
       if (!updated) return res.status(404).json({ message: 'Session not found' });
       res.json(updated);
     } catch (error) {
@@ -941,11 +959,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const afcPointSchema = z.object({
+    frequency: z.number().finite().positive({ message: 'frequency must be > 0' }),
+    amplitude: z.number().finite(),
+    phase:     z.number().finite().optional()
+  });
+
+  const afcPayloadSchema = z.object({
+    sessionId: z.number().int().positive(),
+    points:    z.array(afcPointSchema).min(1).max(500)
+  });
+
   app.put('/api/calibration-afc', requireRole(['administrator', 'user']), async (req, res) => {
+    const parsed = afcPayloadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: 'Invalid AFC data', errors: parsed.error.flatten() });
     try {
-      const { sessionId, points } = req.body;
-      if (!sessionId || !Array.isArray(points)) return res.status(400).json({ message: 'sessionId and points[] required' });
-      const result = await storage.replaceCalibrationAfc(sessionId, points.map((p: { frequency: number; amplitude: number; phase?: number }) => ({ ...p, sessionId })));
+      const { sessionId, points } = parsed.data;
+      const result = await storage.replaceCalibrationAfc(sessionId, points.map(p => ({ ...p, sessionId })));
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: 'Error saving AFC data' });

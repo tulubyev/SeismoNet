@@ -671,7 +671,14 @@ const Analysis: FC = () => {
                           <Plus className="h-3 w-3" /> Точка
                         </Button>
                         <Button size="sm" variant="default" className="h-7 text-xs gap-1"
-                          onClick={() => saveAfc.mutate({ sessionId: selectedSessionId, points: afcRows })}
+                          onClick={() => {
+                            const invalid = afcRows.filter(r => !isFinite(r.frequency) || r.frequency <= 0 || !isFinite(r.amplitude));
+                            if (invalid.length > 0) {
+                              toast({ title: 'Ошибка АЧХ', description: 'Частота должна быть > 0 и конечным числом для всех строк', variant: 'destructive' });
+                              return;
+                            }
+                            saveAfc.mutate({ sessionId: selectedSessionId, points: afcRows });
+                          }}
                           disabled={saveAfc.isPending}>
                           <Save className="h-3 w-3" /> Сохранить
                         </Button>
