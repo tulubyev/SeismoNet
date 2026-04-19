@@ -847,8 +847,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/soil-profiles/:id', requireRole(['administrator', 'user']), async (req, res) => {
     try {
-      const ok = await storage.deleteSoilProfile(parseInt(req.params.id));
-      if (!ok) return res.status(404).json({ message: 'Profile not found' });
+      const id = parseInt(req.params.id);
+      const profile = await storage.getSoilProfile(id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const layers = await storage.getSoilLayers(id);
+      for (const layer of layers) await storage.deleteSoilLayer(layer.id);
+      const ok = await storage.deleteSoilProfile(id);
+      if (!ok) return res.status(500).json({ message: 'Failed to delete profile' });
       res.json({ success: true });
     } catch (error) { res.status(500).json({ message: 'Error deleting soil profile' }); }
   });

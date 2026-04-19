@@ -882,7 +882,7 @@ export class MemStorage implements IStorage {
       const dist = Math.sqrt(dlat * dlat + dlng * dlng);
       if (dist < minDist) { minDist = dist; nearest = p; }
     }
-    return minDist < 0.5 ? nearest : undefined;
+    return minDist < 0.1 ? nearest : undefined;
   }
   async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
     const id = this.currentSoilProfileId++;
@@ -1571,7 +1571,7 @@ export class DatabaseStorage implements IStorage {
       const dist = Math.sqrt(dlat * dlat + dlng * dlng);
       if (dist < minDist) { minDist = dist; nearest = p; }
     }
-    return minDist < 0.5 ? nearest : undefined;
+    return minDist < 0.1 ? nearest : undefined;
   }
 
   async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
