@@ -1,13 +1,17 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map as MapIcon, Search, MapPin, Layers, Shield, Calendar, Radio } from 'lucide-react';
+import { Map as MapIcon, Search, MapPin, Layers, Calendar, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import type { InfrastructureObject, Station, ObjectCategory, Developer } from '@shared/schema';
+import DeveloperObjectFilter, {
+  type DeveloperObjectFilterValue,
+  DEVELOPER_FILTER_DEFAULT,
+} from '@/components/DeveloperObjectFilter';
 
 declare global {
   interface Window { L: any; }
@@ -67,7 +71,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   // Filter state — mirrors the filter on the InfrastructureObjects page
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
-  const [developerFilter,    setDeveloperFilter]    = useState('all');
+  const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [yearFrom,           setYearFrom]           = useState('');
   const [yearTo,             setYearTo]             = useState('');
@@ -82,13 +86,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     return m;
   }, [categories]);
 
-  const developerOptions = useMemo(() => {
-    const names = new Set<string>();
-    developers.forEach(d => names.add(d.name));
-    objects.forEach(o => { if (o.developer) names.add(o.developer); });
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ru'));
-  }, [developers, objects]);
-
   const filteredObjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     return objects.filter(obj => {
@@ -96,19 +93,30 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         obj.name.toLowerCase().includes(q) ||
         (obj.address ?? '').toLowerCase().includes(q) ||
         (obj.objectId ?? '').toLowerCase().includes(q);
-      const matchDistrict     = districtFilter     === 'all' || (obj.district          ?? '') === districtFilter;
-      const matchDeveloper    = developerFilter    === 'all' || (obj.developer         ?? '') === developerFilter;
-      const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem  ?? '') === constructionFilter;
+      const matchDistrict     = districtFilter     === 'all' || (obj.district         ?? '') === districtFilter;
+      const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
       const yr = obj.constructionYear ?? 0;
       const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
       const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
-      return matchSearch && matchDistrict && matchDeveloper && matchConstruction && matchYearFrom && matchYearTo;
+
+      // Hierarchical developer filter
+      const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
+      const matchObject    = devFilter.objectId      === 'all' || String(obj.id)         === devFilter.objectId;
+      const matchComplex   = devFilter.complexName   === 'all' || (() => {
+        const needle = devFilter.complexName.toLowerCase();
+        return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
+      })();
+
+      return matchSearch && matchDistrict && matchConstruction && matchYearFrom && matchYearTo &&
+             matchDeveloper && matchComplex && matchObject;
     });
-  }, [objects, search, districtFilter, developerFilter, constructionFilter, yearFrom, yearTo]);
+  }, [objects, search, districtFilter, devFilter, constructionFilter, yearFrom, yearTo]);
 
   const activeFilterCount = [
     districtFilter !== 'all',
-    developerFilter !== 'all',
+    devFilter.developerName !== 'all',
+    devFilter.complexName !== 'all',
+    devFilter.objectId !== 'all',
     constructionFilter !== 'all',
     yearFrom !== '',
     yearTo !== '',
@@ -116,7 +124,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setSearch(''); setDistrictFilter('all'); setDeveloperFilter('all');
+    setSearch(''); setDistrictFilter('all'); setDevFilter(DEVELOPER_FILTER_DEFAULT);
     setConstructionFilter('all'); setYearFrom(''); setYearTo('');
   };
 
@@ -324,13 +332,13 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
           </div>
 
           {/* Row 2: district + construction */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Select value={districtFilter} onValueChange={setDistrictFilter}>
               <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
                 <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
                 <SelectValue placeholder="Район города" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent style={{ zIndex: 1001 }}>
                 <SelectItem value="all">Все районы</SelectItem>
                 {IRKUTSK_DISTRICTS.map(d => (
                   <SelectItem key={d} value={d}>{d}</SelectItem>
@@ -343,53 +351,45 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
                 <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
                 <SelectValue placeholder="Тип конструкции" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent style={{ zIndex: 1001 }}>
                 {constructionTypeOptions.map(o => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+          </div>
 
-            <div className="relative">
-              <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 z-10 pointer-events-none" />
-              <Select value={developerFilter} onValueChange={setDeveloperFilter}>
-                <SelectTrigger className="pl-8 h-9 text-sm" data-testid="map-select-developer">
-                  <SelectValue placeholder="Застройщик / подрядчик" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="all">Все застройщики</SelectItem>
-                  {developerOptions.length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-slate-400">Нет данных</div>
-                  )}
-                  {developerOptions.map(name => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Row 3: hierarchical developer filter */}
+          <DeveloperObjectFilter
+            developers={developers}
+            objects={objects}
+            value={devFilter}
+            onChange={setDevFilter}
+            popoverZIndex={1001}
+          />
+
+          {/* Row 4: year range */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="с года"
+                value={yearFrom}
+                onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
+                maxLength={4}
+                className="pl-8 h-9 text-sm"
+                data-testid="map-input-year-from"
+              />
             </div>
-
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <Input
-                  placeholder="с года"
-                  value={yearFrom}
-                  onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
-                  maxLength={4}
-                  className="pl-8 h-9 text-sm"
-                  data-testid="map-input-year-from"
-                />
-              </div>
-              <div className="relative flex-1">
-                <Input
-                  placeholder="по год"
-                  value={yearTo}
-                  onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
-                  maxLength={4}
-                  className="pl-2 h-9 text-sm"
-                  data-testid="map-input-year-to"
-                />
-              </div>
+            <div className="relative flex-1">
+              <Input
+                placeholder="по год"
+                value={yearTo}
+                onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
+                maxLength={4}
+                className="pl-2 h-9 text-sm"
+                data-testid="map-input-year-to"
+              />
             </div>
           </div>
         </div>

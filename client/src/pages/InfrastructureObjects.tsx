@@ -17,6 +17,10 @@ import {
 import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
+import DeveloperObjectFilter, {
+  type DeveloperObjectFilterValue,
+  DEVELOPER_FILTER_DEFAULT,
+} from '@/components/DeveloperObjectFilter';
 import { apiRequest } from '@/lib/queryClient';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
@@ -604,7 +608,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
 const InfrastructureObjects: FC = () => {
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
-  const [developerFilter,    setDeveloperFilter]    = useState('all');
+  const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [yearFrom,           setYearFrom]           = useState('');
   const [yearTo,             setYearTo]             = useState('');
@@ -621,15 +625,6 @@ const InfrastructureObjects: FC = () => {
   const { data: developers = [] } = useQuery<Developer[]>({
     queryKey: ['/api/developers'],
   });
-
-  // Combined list of developer names for the dropdown:
-  // registered (reestr) + any legacy/free-text values present on objects.
-  const developerOptions = useMemo(() => {
-    const names = new Set<string>();
-    developers.forEach(d => names.add(d.name));
-    objects.forEach(o => { if (o.developer) names.add(o.developer); });
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ru'));
-  }, [developers, objects]);
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations', selectedObj?.id],
@@ -652,9 +647,6 @@ const InfrastructureObjects: FC = () => {
     const matchDistrict = districtFilter === 'all' ||
       (obj.district ?? '') === districtFilter;
 
-    const matchDeveloper = developerFilter === 'all' ||
-      (obj.developer ?? '') === developerFilter;
-
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
 
@@ -662,12 +654,22 @@ const InfrastructureObjects: FC = () => {
     const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
     const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
 
-    return matchSearch && matchDistrict && matchDeveloper && matchConstruction && matchYearFrom && matchYearTo;
+    const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
+    const matchObject    = devFilter.objectId      === 'all' || String(obj.id) === devFilter.objectId;
+    const matchComplex   = devFilter.complexName   === 'all' || (() => {
+      const needle = devFilter.complexName.toLowerCase();
+      return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
+    })();
+
+    return matchSearch && matchDistrict && matchConstruction && matchYearFrom && matchYearTo &&
+           matchDeveloper && matchComplex && matchObject;
   });
 
   const activeFilterCount = [
     districtFilter !== 'all',
-    developerFilter !== 'all',
+    devFilter.developerName !== 'all',
+    devFilter.complexName !== 'all',
+    devFilter.objectId !== 'all',
     constructionFilter !== 'all',
     yearFrom !== '',
     yearTo !== '',
@@ -675,7 +677,7 @@ const InfrastructureObjects: FC = () => {
 
   const resetFilters = () => {
     setDistrictFilter('all');
-    setDeveloperSearch('');
+    setDevFilter(DEVELOPER_FILTER_DEFAULT);
     setConstructionFilter('all');
     setYearFrom('');
     setYearTo('');
@@ -764,45 +766,34 @@ const InfrastructureObjects: FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Row 3: developer + year range */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="relative">
-                      <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 z-10 pointer-events-none" />
-                      <Select value={developerFilter} onValueChange={setDeveloperFilter}>
-                        <SelectTrigger className="pl-8 h-9 text-sm" data-testid="select-developer-filter">
-                          <SelectValue placeholder="Застройщик / подрядчик" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          <SelectItem value="all">Все застройщики</SelectItem>
-                          {developerOptions.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-slate-400">Нет данных</div>
-                          )}
-                          {developerOptions.map(name => (
-                            <SelectItem key={name} value={name}>{name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {/* Row 3: hierarchical developer filter */}
+                  <DeveloperObjectFilter
+                    developers={developers}
+                    objects={objects}
+                    value={devFilter}
+                    onChange={setDevFilter}
+                  />
+
+                  {/* Row 4: year range */}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      <Input
+                        placeholder="с года"
+                        value={yearFrom}
+                        onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
+                        maxLength={4}
+                        className="pl-8 h-9 text-sm"
+                      />
                     </div>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                        <Input
-                          placeholder="с года"
-                          value={yearFrom}
-                          onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
-                          maxLength={4}
-                          className="pl-8 h-9 text-sm"
-                        />
-                      </div>
-                      <div className="relative flex-1">
-                        <Input
-                          placeholder="по год"
-                          value={yearTo}
-                          onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
-                          maxLength={4}
-                          className="pl-2 h-9 text-sm"
-                        />
-                      </div>
+                    <div className="relative flex-1">
+                      <Input
+                        placeholder="по год"
+                        value={yearTo}
+                        onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
+                        maxLength={4}
+                        className="pl-2 h-9 text-sm"
+                      />
                     </div>
                   </div>
                   {filtered.length !== objects.length && (
