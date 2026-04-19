@@ -355,6 +355,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // General station update (calibration, communication, location, etc.)
+  app.patch('/api/stations/:stationId', async (req, res) => {
+    try {
+      const stationId = req.params.stationId;
+      const updates = req.body;
+      const updatedStation = await storage.updateStation(stationId, updates);
+      if (!updatedStation) {
+        return res.status(404).json({ message: 'Station not found' });
+      }
+      res.json(updatedStation);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating station' });
+    }
+  });
+
   // Update station battery info
   app.patch('/api/stations/:stationId/battery', async (req, res) => {
     try {

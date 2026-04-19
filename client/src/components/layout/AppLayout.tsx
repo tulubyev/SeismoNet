@@ -42,7 +42,7 @@ const TopNav: FC = () => {
             <Activity className="h-4 w-4 text-white" />
           </div>
           <span className="text-white font-bold text-sm leading-tight hidden lg:block">
-            СейсмоСеть<br />
+            Seismo Net<br />
             <span className="text-blue-400 font-normal text-[10px]">г. Иркутск</span>
           </span>
         </div>

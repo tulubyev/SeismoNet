@@ -55,6 +55,7 @@ export interface IStorage {
   getStation(id: number): Promise<Station | undefined>;
   getStationByStationId(stationId: string): Promise<Station | undefined>;
   createStation(station: InsertStation): Promise<Station>;
+  updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined>;
   updateStationStatus(stationId: string, status: string): Promise<Station | undefined>;
   updateStationBatteryInfo(stationId: string, batteryLevel: number, batteryVoltage: number, powerConsumption: number): Promise<Station | undefined>;
   updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined>;
@@ -512,6 +513,16 @@ export class MemStorage implements IStorage {
     return newStation;
   }
   
+  async updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined> {
+    const station = await this.getStationByStationId(stationId);
+    if (station) {
+      const updatedStation: Station = { ...station, ...updates, id: station.id, stationId: station.stationId, lastUpdate: new Date() };
+      this.stations.set(station.id, updatedStation);
+      return updatedStation;
+    }
+    return undefined;
+  }
+
   async updateStationStatus(stationId: string, status: string): Promise<Station | undefined> {
     const station = await this.getStationByStationId(stationId);
     if (station) {
@@ -968,6 +979,16 @@ export class DatabaseStorage implements IStorage {
     return newStation;
   }
   
+  async updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined> {
+    const { id: _id, stationId: _sid, ...safeUpdates } = updates as any;
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ ...safeUpdates, lastUpdate: new Date() })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  }
+
   async updateStationStatus(stationId: string, status: string): Promise<Station | undefined> {
     const [updatedStation] = await db
       .update(schema.stations)
