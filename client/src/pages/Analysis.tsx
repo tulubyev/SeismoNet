@@ -148,8 +148,9 @@ function isExpired(d: string | Date): boolean {
   return new Date(d) < ago;
 }
 
-type ThresholdUnit = 'mm_s' | 'g';
-const G_MM_S = 9806.65;
+// Thresholds are stored and displayed in mm/s (velocity). Ground acceleration (g)
+// requires separate fields and integration steps — not convertible to velocity without
+// knowing frequency, so no unit toggle is offered here.
 
 const Analysis: FC = () => {
   const { toast } = useToast();
@@ -166,7 +167,6 @@ const Analysis: FC = () => {
   const [afcRows,   setAfcRows]   = useState(DEFAULT_AFC);
   const [thresholdZMmS, setThresholdZMmS] = useState<number | null>(null);
   const [thresholdHMmS, setThresholdHMmS] = useState<number | null>(null);
-  const [thresholdUnit, setThresholdUnit] = useState<ThresholdUnit>('mm_s');
   const [form, setForm] = useState({
     sessionDate: new Date().toISOString().slice(0, 10), operator: '',
     sensitivityZ: '10.0', sensitivityNS: '10.0', sensitivityEW: '10.0',
@@ -196,8 +196,14 @@ const Analysis: FC = () => {
   });
 
   useEffect(() => {
-    if (afcData.length > 0) setAfcRows(afcData.map(p => ({ frequency: p.frequency, amplitude: p.amplitude, phase: p.phase ?? 0 })));
-  }, [afcData]);
+    // Always sync AFC table with fetched data. If session has no points, reset to default preset
+    // to avoid carryover from a previously selected session.
+    if (afcData.length > 0) {
+      setAfcRows(afcData.map(p => ({ frequency: p.frequency, amplitude: p.amplitude, phase: p.phase ?? 0 })));
+    } else if (selectedSessionId != null) {
+      setAfcRows(DEFAULT_AFC);
+    }
+  }, [afcData, selectedSessionId]);
 
   const createSession = useMutation({
     mutationFn: (data: object) => apiRequest('POST', '/api/calibration-sessions', data),
@@ -229,15 +235,8 @@ const Analysis: FC = () => {
     }
   }, [selectedInst]);
 
-  const mmSToDisplay = (v: number | null): string => {
-    if (v == null) return '';
-    return thresholdUnit === 'g' ? (v / G_MM_S).toExponential(3) : v.toFixed(4);
-  };
-  const displayToMmS = (s: string): number | null => {
-    const v = parseFloat(s);
-    if (isNaN(v)) return null;
-    return thresholdUnit === 'g' ? v * G_MM_S : v;
-  };
+  const mmSToDisplay = (v: number | null): string => v == null ? '' : v.toFixed(4);
+  const displayToMmS = (s: string): number | null => { const v = parseFloat(s); return isNaN(v) ? null : v; };
 
   const afcChartData = [...afcRows].sort((a, b) => a.frequency - b.frequency).map(r => ({ freq: r.frequency, amp: r.amplitude, phase: r.phase }));
 
@@ -309,33 +308,19 @@ const Analysis: FC = () => {
                 )}
                 {selectedInst && (
                   <div className="pt-3 border-t space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-slate-600">Пороги срабатывания</p>
-                      <Select value={thresholdUnit} onValueChange={v => setThresholdUnit(v as ThresholdUnit)}>
-                        <SelectTrigger className="h-6 w-20 text-[10px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mm_s" className="text-xs">мм/с</SelectItem>
-                          <SelectItem value="g"    className="text-xs">g (9.81 м/с²)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <p className="text-xs font-medium text-slate-600">Пороги срабатывания, мм/с</p>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-500">Z ({thresholdUnit === 'g' ? 'g' : 'мм/с'})</Label>
-                        <Input type="number" step={thresholdUnit === 'g' ? '1e-7' : '0.001'} value={mmSToDisplay(thresholdZMmS)}
+                        <Label className="text-[11px] text-slate-500">Z (мм/с)</Label>
+                        <Input type="number" step="0.001" value={mmSToDisplay(thresholdZMmS)}
                           onChange={e => setThresholdZMmS(displayToMmS(e.target.value))} className="h-7 text-xs font-mono" placeholder="0.005" />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-500">NS/EW ({thresholdUnit === 'g' ? 'g' : 'мм/с'})</Label>
-                        <Input type="number" step={thresholdUnit === 'g' ? '1e-7' : '0.001'} value={mmSToDisplay(thresholdHMmS)}
+                        <Label className="text-[11px] text-slate-500">NS/EW (мм/с)</Label>
+                        <Input type="number" step="0.001" value={mmSToDisplay(thresholdHMmS)}
                           onChange={e => setThresholdHMmS(displayToMmS(e.target.value))} className="h-7 text-xs font-mono" placeholder="0.003" />
                       </div>
                     </div>
-                    {thresholdUnit === 'g' && (thresholdZMmS != null || thresholdHMmS != null) && (
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        {thresholdZMmS != null ? `Z=${thresholdZMmS.toFixed(4)} мм/с` : ''}{thresholdHMmS != null ? `  H=${thresholdHMmS.toFixed(4)} мм/с` : ''}
-                      </p>
-                    )}
                     <Button size="sm" className="w-full h-7 text-xs" variant="outline"
                       onClick={() => saveTriggerThresholds.mutate({ triggerThresholdZ: thresholdZMmS, triggerThresholdH: thresholdHMmS })}
                       disabled={saveTriggerThresholds.isPending}>
