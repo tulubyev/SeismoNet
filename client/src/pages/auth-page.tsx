@@ -84,27 +84,27 @@ export default function AuthPage() {
         {/* Form Section */}
         <div className="flex flex-col justify-center space-y-6">
           <div className="space-y-2 text-center lg:text-left">
-            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              Regional Seismic Network
+            <h1 className="text-2xl font-bold tracking-tighter sm:text-3xl md:text-4xl leading-tight">
+              Сеть сейсмических наблюдений г. Иркутска
             </h1>
-            <p className="text-muted-foreground">
-              Sign in to monitor and manage the seismic sensor network.
+            <p className="text-muted-foreground text-sm">
+              Войдите для доступа к системе мониторинга инфраструктурных объектов.
             </p>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="login">Вход</TabsTrigger>
+              <TabsTrigger value="register">Регистрация</TabsTrigger>
             </TabsList>
             
             {/* Login Tab */}
             <TabsContent value="login">
               <Card>
                 <CardHeader>
-                  <CardTitle>Login</CardTitle>
+                  <CardTitle>Вход в систему</CardTitle>
                   <CardDescription>
-                    Enter your credentials to access the dashboard.
+                    Введите учётные данные для доступа к панели мониторинга.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -335,86 +335,42 @@ export default function AuthPage() {
         <div className="relative hidden lg:flex flex-col items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-slate-900 to-primary/90 p-8 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0wIDEwIEM1MCA0MCA4MCA4MCA4MCA4MCBTMTAwIDQwIDE1MCAxMCBMMTUwIDAgTDAgMCBMMCAxMCIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjEpIiAvPjxwYXRoIGQ9Ik0wIDMwIEM1MCA2MCA4MCA5MCA4MCA5MCBTMTIwIDYwIDE1MCAzMCBMMTUwIDAgTDAgMCBMMCAzMCIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjA1KSIgLz48L3N2Zz4=')] opacity-50"></div>
           <div className="z-10 flex flex-col items-center text-center">
-            <h2 className="text-2xl font-bold">Regional Seismic Network</h2>
-            <p className="mt-4 mb-8 max-w-md text-lg text-white/80">
-              Advanced monitoring system for field expeditions using distributed autonomous sensors. Track seismic events, manage stations, and share data with global research networks.
+            <h2 className="text-xl font-bold leading-snug">Сеть сейсмических наблюдений за объектами гражданской и промышленной инфраструктуры г. Иркутска</h2>
+            <p className="mt-4 mb-8 max-w-md text-base text-white/80">
+              Автоматизированная система мониторинга сейсмических колебаний инфраструктурных объектов. Онлайн-наблюдение, анализ грунтов, нормативная база СП/СНиП/ГОСТ.
             </p>
             <div className="grid grid-cols-2 gap-6 mb-8">
               <div className="flex flex-col items-center">
                 <div className="mb-2 rounded-full bg-white/10 p-3">
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    ></path>
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                   </svg>
                 </div>
-                <h3 className="text-sm font-medium">Real-time Monitoring</h3>
+                <h3 className="text-sm font-medium text-center">Онлайн-мониторинг</h3>
               </div>
               <div className="flex flex-col items-center">
                 <div className="mb-2 rounded-full bg-white/10 p-3">
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                    ></path>
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                   </svg>
                 </div>
-                <h3 className="text-sm font-medium">Global Data Exchange</h3>
+                <h3 className="text-sm font-medium text-center">Объекты инфраструктуры</h3>
               </div>
               <div className="flex flex-col items-center">
                 <div className="mb-2 rounded-full bg-white/10 p-3">
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                    ></path>
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                   </svg>
                 </div>
-                <h3 className="text-sm font-medium">Advanced Analytics</h3>
+                <h3 className="text-sm font-medium text-center">Анализ спектров</h3>
               </div>
               <div className="flex flex-col items-center">
                 <div className="mb-2 rounded-full bg-white/10 p-3">
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                    ></path>
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                   </svg>
                 </div>
-                <h3 className="text-sm font-medium">Station Management</h3>
+                <h3 className="text-sm font-medium text-center">Нормативная база</h3>
               </div>
             </div>
           </div>

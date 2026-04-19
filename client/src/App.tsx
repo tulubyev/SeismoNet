@@ -17,6 +17,9 @@ import Analysis from "@/pages/Analysis";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
+import InfrastructureObjects from "@/pages/InfrastructureObjects";
+import BuildingNorms from "@/pages/BuildingNorms";
+import Seismograms from "@/pages/Seismograms";
 
 // Mobile App
 import MobileApp from "@/mobile/MobileApp";
@@ -102,6 +105,9 @@ function Router() {
         <ProtectedRoute path="/event-map" component={EventMap} />
         <ProtectedRoute path="/event-history" component={EventHistory} />
         <ProtectedRoute path="/analysis" component={Analysis} />
+        <ProtectedRoute path="/infrastructure" component={InfrastructureObjects} />
+        <ProtectedRoute path="/seismograms" component={Seismograms} />
+        <ProtectedRoute path="/building-norms" component={BuildingNorms} />
         <ProtectedRoute 
           path="/settings" 
           component={Settings} 

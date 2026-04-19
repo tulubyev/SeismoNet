@@ -5,21 +5,17 @@ import {
   SquareDashedBottom,
   Gauge,
   SatelliteDish,
-  Globe,
-  History,
-  Calculator,
+  Building2,
+  Activity,
+  BookOpen,
+  Layers,
   Cog,
   PlusCircle,
-  ActivitySquare,
-  Zap,
   LogOut,
-  Network,
-  Waves,
-  BarChart3,
-  Share2,
-  AlertTriangle,
   UserCircle,
-  Shield
+  Shield,
+  Globe,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,26 +34,30 @@ interface NavItemProps {
   isActive: boolean;
 }
 
-const NavItem: FC<NavItemProps> = ({ href, icon, text, isActive }) => {
-  return (
-    <li className="mb-1">
-      <Link href={href}>
-        <div
-          role="menuitem"
-          tabIndex={-1}
-          className={`flex items-center py-3 px-4 text-white cursor-pointer outline-none focus:bg-slate-600 ${
-            isActive
-              ? "bg-blue-500 border-l-4 border-white"
-              : "hover:bg-slate-700 transition-colors"
-          }`}
-        >
-          <div className="w-5 text-center">{icon}</div>
-          <span className="hidden md:block ml-3">{text}</span>
-        </div>
-      </Link>
-    </li>
-  );
-};
+const NavItem: FC<NavItemProps> = ({ href, icon, text, isActive }) => (
+  <li className="mb-0.5">
+    <Link href={href}>
+      <div
+        role="menuitem"
+        tabIndex={-1}
+        className={`flex items-center py-2.5 px-4 text-white cursor-pointer outline-none focus:bg-slate-600 rounded-sm transition-colors ${
+          isActive
+            ? 'bg-blue-600 border-l-4 border-white'
+            : 'hover:bg-slate-700'
+        }`}
+      >
+        <div className="w-5 text-center flex-shrink-0">{icon}</div>
+        <span className="hidden md:block ml-3 text-sm">{text}</span>
+      </div>
+    </Link>
+  </li>
+);
+
+const SectionLabel: FC<{ text: string }> = ({ text }) => (
+  <div className="mt-5 mb-1.5 px-4 hidden md:block">
+    <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{text}</h3>
+  </div>
+);
 
 const Sidebar: FC = () => {
   const [location, navigate] = useLocation();
@@ -67,20 +67,15 @@ const Sidebar: FC = () => {
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
-
     const items = navRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
     if (!items || items.length === 0) return;
-
     const arr = Array.from(items);
     const focused = document.activeElement as HTMLElement;
     const currentIndex = arr.indexOf(focused);
-
     if (e.key === 'ArrowDown') {
-      const next = arr[currentIndex + 1] ?? arr[0];
-      next.focus();
+      (arr[currentIndex + 1] ?? arr[0]).focus();
     } else {
-      const prev = arr[currentIndex - 1] ?? arr[arr.length - 1];
-      prev.focus();
+      (arr[currentIndex - 1] ?? arr[arr.length - 1]).focus();
     }
   }, []);
 
@@ -90,164 +85,90 @@ const Sidebar: FC = () => {
   };
 
   const getUserInitials = () => {
-    if (!user) return "?";
-    const nameParts = user.fullName.split(" ");
-    if (nameParts.length >= 2) {
-      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
-    }
-    return nameParts[0].substring(0, 2).toUpperCase();
+    if (!user) return '?';
+    const parts = user.fullName.split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return parts[0].substring(0, 2).toUpperCase();
   };
 
   const getRoleBadge = () => {
     if (!user) return null;
-    if (user.role === "administrator") {
+    if (user.role === 'administrator') {
       return (
-        <div className="flex items-center text-xs text-amber-300 mt-1">
+        <div className="flex items-center text-xs text-amber-300 mt-0.5">
           <Shield className="h-3 w-3 mr-1" />
-          <span>Administrator</span>
+          <span>Администратор</span>
         </div>
       );
     }
-    return <p className="text-xs text-gray-300 capitalize">{user.role}</p>;
+    return <p className="text-xs text-slate-300 capitalize mt-0.5">{user.role}</p>;
   };
 
   return (
-    <aside className="w-16 md:w-64 bg-slate-800 text-white flex flex-col transition-all duration-300 h-screen">
-      <div className="p-4 flex items-center justify-center md:justify-start flex-shrink-0">
-        <div className="bg-primary rounded-lg p-2 flex items-center justify-center">
+    <aside className="w-14 md:w-60 bg-slate-800 text-white flex flex-col transition-all duration-300 h-screen">
+
+      {/* Logo */}
+      <div className="p-4 flex items-center justify-center md:justify-start flex-shrink-0 border-b border-slate-700">
+        <div className="bg-blue-600 rounded-lg p-1.5 flex items-center justify-center">
           <SquareDashedBottom className="size-5" />
         </div>
-        <span className="hidden md:block ml-3 font-semibold text-lg">SeismoNet</span>
+        <div className="hidden md:block ml-2.5">
+          <span className="font-bold text-sm leading-tight block">СейсмоМонитор</span>
+          <span className="text-[10px] text-slate-400 leading-tight block">г. Иркутск</span>
+        </div>
       </div>
 
       <nav
         ref={navRef}
         onKeyDown={handleKeyDown}
-        className="flex-1 mt-6 overflow-y-auto scrollbar-thin"
+        className="flex-1 mt-3 overflow-y-auto px-2"
         role="menu"
         aria-label="Главное меню"
       >
         <ul className="pb-4">
-          <NavItem
-            href="/"
-            icon={<Gauge className="size-5" />}
-            text="Dashboard"
-            isActive={location === '/'}
-          />
 
-          <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Станции</h3>
-          </div>
-          <NavItem
-            href="/stations"
-            icon={<SatelliteDish className="size-5" />}
-            text="Все станции"
-            isActive={location === '/stations'}
-          />
-          <NavItem
-            href="/stations/new"
-            icon={<PlusCircle className="size-5" />}
-            text="Добавить станцию"
-            isActive={location === '/stations/new'}
-          />
+          <NavItem href="/" icon={<Gauge className="size-4" />} text="Главная" isActive={location === '/'} />
 
-          <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">События</h3>
-          </div>
-          <NavItem
-            href="/event-map"
-            icon={<Globe className="size-5" />}
-            text="Карта событий"
-            isActive={location === '/event-map'}
-          />
-          <NavItem
-            href="/event-history"
-            icon={<History className="size-5" />}
-            text="История событий"
-            isActive={location === '/event-history'}
-          />
-          <NavItem
-            href="/events/intensity"
-            icon={<ActivitySquare className="size-5" />}
-            text="По интенсивности"
-            isActive={location === '/events/intensity'}
-          />
-          <NavItem
-            href="/events/major"
-            icon={<Zap className="size-5" />}
-            text="Крупные события"
-            isActive={location === '/events/major'}
-          />
+          <SectionLabel text="Объекты" />
+          <NavItem href="/infrastructure" icon={<Building2 className="size-4" />} text="Инфраструктура" isActive={location === '/infrastructure'} />
+          <NavItem href="/stations" icon={<SatelliteDish className="size-4" />} text="Станции" isActive={location === '/stations'} />
+          <NavItem href="/stations/new" icon={<PlusCircle className="size-4" />} text="Добавить станцию" isActive={location === '/stations/new'} />
 
-          <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Мониторинг</h3>
-          </div>
-          <NavItem
-            href="/network-status"
-            icon={<Network className="size-5" />}
-            text="Статус сети"
-            isActive={location === '/network-status'}
-          />
-          <NavItem
-            href="/live-waveforms"
-            icon={<Waves className="size-5" />}
-            text="Живые волны"
-            isActive={location === '/live-waveforms'}
-          />
-          <NavItem
-            href="/status-detail"
-            icon={<BarChart3 className="size-5" />}
-            text="Детальный статус"
-            isActive={location === '/status-detail'}
-          />
-          <NavItem
-            href="/data-exchange"
-            icon={<Share2 className="size-5" />}
-            text="Исследовательские сети"
-            isActive={location === '/data-exchange'}
-          />
-          <NavItem
-            href="/alerts"
-            icon={<AlertTriangle className="size-5" />}
-            text="Системные тревоги"
-            isActive={location === '/alerts'}
-          />
+          <SectionLabel text="Мониторинг" />
+          <NavItem href="/seismograms" icon={<Activity className="size-4" />} text="Сейсмограммы" isActive={location === '/seismograms'} />
+          <NavItem href="/event-map" icon={<Globe className="size-4" />} text="Карта событий" isActive={location === '/event-map'} />
+          <NavItem href="/event-history" icon={<History className="size-4" />} text="История событий" isActive={location === '/event-history'} />
 
-          <div className="mt-5 mb-2 px-4 hidden md:block">
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Инструменты</h3>
-          </div>
-          <NavItem
-            href="/analysis"
-            icon={<Calculator className="size-5" />}
-            text="Анализ"
-            isActive={location === '/analysis'}
-          />
-          <NavItem
-            href="/settings"
-            icon={<Cog className="size-5" />}
-            text="Настройки"
-            isActive={location === '/settings'}
-          />
+          <SectionLabel text="Анализ" />
+          <NavItem href="/analysis" icon={<Layers className="size-4" />} text="Анализ данных" isActive={location === '/analysis'} />
+
+          <SectionLabel text="Нормативная база" />
+          <NavItem href="/building-norms" icon={<BookOpen className="size-4" />} text="СНиП / СП / ГОСТ" isActive={location === '/building-norms'} />
+
+          <SectionLabel text="Система" />
+          <NavItem href="/settings" icon={<Cog className="size-4" />} text="Настройки" isActive={location === '/settings'} />
+
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-slate-600 flex-shrink-0">
+      {/* User block */}
+      <div className="p-3 border-t border-slate-600 flex-shrink-0">
         {user ? (
           <>
             <div className="hidden md:flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-                  <span className="text-sm font-semibold text-white">{getUserInitials()}</span>
+              <div className="flex items-center min-w-0">
+                <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-white">{getUserInitials()}</span>
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user.fullName}</p>
+                <div className="ml-2 min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{user.fullName}</p>
                   {getRoleBadge()}
                 </div>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-slate-700">
-                    <UserCircle className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-slate-700 h-7 w-7">
+                    <UserCircle className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -264,35 +185,32 @@ const Sidebar: FC = () => {
                   <DropdownMenuItem onClick={handleLogout} disabled={logoutMutation.isPending}>
                     <div className="flex items-center text-red-500">
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>{logoutMutation.isPending ? "Выход..." : "Выйти"}</span>
+                      <span>{logoutMutation.isPending ? 'Выход...' : 'Выйти'}</span>
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
 
-            <div className="md:hidden flex flex-col items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-                <span className="text-sm font-semibold text-white">{getUserInitials()}</span>
+            <div className="md:hidden flex flex-col items-center gap-1">
+              <div className="h-7 w-7 rounded-full bg-blue-500 flex items-center justify-center">
+                <span className="text-xs font-bold text-white">{getUserInitials()}</span>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-slate-700 flex items-center"
+                className="text-white hover:bg-slate-700 h-6 w-6 p-0"
                 onClick={handleLogout}
                 disabled={logoutMutation.isPending}
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>{logoutMutation.isPending ? "..." : "Выйти"}</span>
+                <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>
           </>
         ) : (
           <div className="flex justify-center">
             <Link href="/auth">
-              <Button variant="secondary" size="sm" className="w-full">
-                Войти
-              </Button>
+              <Button variant="secondary" size="sm" className="w-full text-xs h-8">Войти</Button>
             </Link>
           </div>
         )}

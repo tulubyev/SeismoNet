@@ -13,7 +13,13 @@ const {
   researchNetworks,
   systemStatus,
   alerts,
-  maintenanceRecords
+  maintenanceRecords,
+  infrastructureObjects,
+  soilProfiles,
+  soilLayers,
+  sensorInstallations,
+  buildingNorms,
+  seismogramRecords
 } = schemaImport;
 
 export const schema = {
@@ -25,7 +31,13 @@ export const schema = {
   researchNetworks,
   systemStatus,
   alerts,
-  maintenanceRecords
+  maintenanceRecords,
+  infrastructureObjects,
+  soilProfiles,
+  soilLayers,
+  sensorInstallations,
+  buildingNorms,
+  seismogramRecords
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

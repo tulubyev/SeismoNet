@@ -1,8 +1,8 @@
-# Regional Seismic Network Application
+# Сеть сейсмических наблюдений — г. Иркутск
 
 ## Overview
 
-This is a full-stack regional seismic monitoring application built with Express.js, React, and PostgreSQL. The application provides real-time seismic data monitoring, station management, event detection, and data visualization capabilities. It features a comprehensive dashboard for monitoring seismic activity across a distributed network of stations.
+Специализированная полнофункциональная система сейсмического мониторинга инфраструктурных объектов г. Иркутска. Построена на Express.js, React и PostgreSQL. Обеспечивает онлайн-мониторинг, управление станциями, базу данных грунтов и инфраструктурных объектов, нормативную базу СП/СНиП/ГОСТ и онлайн/офлайн просмотр сейсмограмм.
 
 ## User Preferences
 

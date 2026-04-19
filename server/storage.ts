@@ -16,7 +16,19 @@ import {
   Alert,
   InsertAlert,
   MaintenanceRecord,
-  InsertMaintenanceRecord
+  InsertMaintenanceRecord,
+  InfrastructureObject,
+  InsertInfrastructureObject,
+  SoilProfile,
+  InsertSoilProfile,
+  SoilLayer,
+  InsertSoilLayer,
+  SensorInstallation,
+  InsertSensorInstallation,
+  BuildingNorm,
+  InsertBuildingNorm,
+  SeismogramRecord,
+  InsertSeismogramRecord
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -81,6 +93,38 @@ export interface IStorage {
   getAlerts(limit: number): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
   markAlertAsRead(id: number): Promise<Alert | undefined>;
+
+  // Infrastructure object operations
+  getInfrastructureObjects(): Promise<InfrastructureObject[]>;
+  getInfrastructureObject(id: number): Promise<InfrastructureObject | undefined>;
+  getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined>;
+  createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject>;
+  updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined>;
+
+  // Soil profile operations
+  getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
+  getSoilProfile(id: number): Promise<SoilProfile | undefined>;
+  createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile>;
+  getSoilLayers(profileId: number): Promise<SoilLayer[]>;
+  createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer>;
+
+  // Sensor installation operations
+  getSensorInstallations(objectId?: number): Promise<SensorInstallation[]>;
+  getSensorInstallation(id: number): Promise<SensorInstallation | undefined>;
+  createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation>;
+  updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined>;
+
+  // Building norms operations
+  getBuildingNorms(category?: string): Promise<BuildingNorm[]>;
+  getBuildingNorm(id: number): Promise<BuildingNorm | undefined>;
+  getBuildingNormByCode(code: string): Promise<BuildingNorm | undefined>;
+  createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm>;
+
+  // Seismogram record operations
+  getSeismogramRecords(stationId?: string, limit?: number): Promise<SeismogramRecord[]>;
+  getSeismogramRecord(id: number): Promise<SeismogramRecord | undefined>;
+  createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord>;
+  updateSeismogramProcessingStatus(id: number, status: string): Promise<SeismogramRecord | undefined>;
 }
 
 // In-memory storage implementation
@@ -623,23 +667,63 @@ export class MemStorage implements IStorage {
   async markAlertAsRead(id: number): Promise<Alert | undefined> {
     const alert = this.alerts.get(id);
     if (alert) {
-      const updatedAlert: Alert = {
-        ...alert,
-        isRead: true
-      };
+      const updatedAlert: Alert = { ...alert, isRead: true };
       this.alerts.set(id, updatedAlert);
       return updatedAlert;
     }
     return undefined;
   }
+
+  // ─── Stub implementations for new Irkutsk entities (MemStorage) ───────────
+
+  async getInfrastructureObjects(): Promise<InfrastructureObject[]> { return []; }
+  async getInfrastructureObject(_id: number): Promise<InfrastructureObject | undefined> { return undefined; }
+  async getInfrastructureObjectByObjectId(_objectId: string): Promise<InfrastructureObject | undefined> { return undefined; }
+  async createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject> {
+    return { ...obj, id: 1, createdAt: new Date(), updatedAt: new Date() } as unknown as InfrastructureObject;
+  }
+  async updateInfrastructureObject(_id: number, _data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined> { return undefined; }
+
+  async getSoilProfiles(_objectId?: number): Promise<SoilProfile[]> { return []; }
+  async getSoilProfile(_id: number): Promise<SoilProfile | undefined> { return undefined; }
+  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
+    return { ...profile, id: 1, createdAt: new Date() } as unknown as SoilProfile;
+  }
+  async getSoilLayers(_profileId: number): Promise<SoilLayer[]> { return []; }
+  async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
+    return { ...layer, id: 1 } as unknown as SoilLayer;
+  }
+
+  async getSensorInstallations(_objectId?: number): Promise<SensorInstallation[]> { return []; }
+  async getSensorInstallation(_id: number): Promise<SensorInstallation | undefined> { return undefined; }
+  async createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation> {
+    return { ...inst, id: 1 } as unknown as SensorInstallation;
+  }
+  async updateSensorInstallation(_id: number, _data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined> { return undefined; }
+
+  async getBuildingNorms(_category?: string): Promise<BuildingNorm[]> { return []; }
+  async getBuildingNorm(_id: number): Promise<BuildingNorm | undefined> { return undefined; }
+  async getBuildingNormByCode(_code: string): Promise<BuildingNorm | undefined> { return undefined; }
+  async createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm> {
+    return { ...norm, id: 1, createdAt: new Date() } as unknown as BuildingNorm;
+  }
+
+  async getSeismogramRecords(_stationId?: string, _limit?: number): Promise<SeismogramRecord[]> { return []; }
+  async getSeismogramRecord(_id: number): Promise<SeismogramRecord | undefined> { return undefined; }
+  async createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord> {
+    return { ...record, id: 1, createdAt: new Date() } as unknown as SeismogramRecord;
+  }
+  async updateSeismogramProcessingStatus(_id: number, _status: string): Promise<SeismogramRecord | undefined> { return undefined; }
 }
 
 import { db } from './db';
-import { eq, desc, sql, and, isNull, gt, lte } from 'drizzle-orm';
+import { eq, desc, and, gt, lte } from 'drizzle-orm';
 import { schema } from './db';
 import {
   users, regions, stations, events, waveformData, researchNetworks,
-  systemStatus, alerts, maintenanceRecords
+  systemStatus, alerts, maintenanceRecords,
+  infrastructureObjects, soilProfiles, soilLayers, sensorInstallations,
+  buildingNorms, seismogramRecords
 } from "@shared/schema";
 
 // Database storage implementation
@@ -996,8 +1080,173 @@ export class DatabaseStorage implements IStorage {
       .set({ isRead: true })
       .where(eq(schema.alerts.id, id))
       .returning();
-    
     return updatedAlert;
+  }
+
+  // ─── Infrastructure object operations ────────────────────────────────────────
+
+  async getInfrastructureObjects(): Promise<InfrastructureObject[]> {
+    return db.query.infrastructureObjects.findMany({
+      orderBy: (t, { asc }) => [asc(t.name)]
+    });
+  }
+
+  async getInfrastructureObject(id: number): Promise<InfrastructureObject | undefined> {
+    return db.query.infrastructureObjects.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined> {
+    return db.query.infrastructureObjects.findFirst({
+      where: (t, { eq }) => eq(t.objectId, objectId)
+    });
+  }
+
+  async createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject> {
+    const [newObj] = await db.insert(schema.infrastructureObjects).values(obj).returning();
+    return newObj;
+  }
+
+  async updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined> {
+    const [updated] = await db
+      .update(schema.infrastructureObjects)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schema.infrastructureObjects.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ─── Soil profile operations ──────────────────────────────────────────────────
+
+  async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
+    if (objectId !== undefined) {
+      return db.query.soilProfiles.findMany({
+        where: (t, { eq }) => eq(t.objectId, objectId)
+      });
+    }
+    return db.query.soilProfiles.findMany();
+  }
+
+  async getSoilProfile(id: number): Promise<SoilProfile | undefined> {
+    return db.query.soilProfiles.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
+    const [newProfile] = await db.insert(schema.soilProfiles).values(profile).returning();
+    return newProfile;
+  }
+
+  async getSoilLayers(profileId: number): Promise<SoilLayer[]> {
+    return db.query.soilLayers.findMany({
+      where: (t, { eq }) => eq(t.profileId, profileId),
+      orderBy: (t, { asc }) => [asc(t.layerNumber)]
+    });
+  }
+
+  async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
+    const [newLayer] = await db.insert(schema.soilLayers).values(layer).returning();
+    return newLayer;
+  }
+
+  // ─── Sensor installation operations ──────────────────────────────────────────
+
+  async getSensorInstallations(objectId?: number): Promise<SensorInstallation[]> {
+    if (objectId !== undefined) {
+      return db.query.sensorInstallations.findMany({
+        where: (t, { eq }) => eq(t.objectId, objectId)
+      });
+    }
+    return db.query.sensorInstallations.findMany();
+  }
+
+  async getSensorInstallation(id: number): Promise<SensorInstallation | undefined> {
+    return db.query.sensorInstallations.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation> {
+    const [newInst] = await db.insert(schema.sensorInstallations).values(inst).returning();
+    return newInst;
+  }
+
+  async updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined> {
+    const [updated] = await db
+      .update(schema.sensorInstallations)
+      .set(data)
+      .where(eq(schema.sensorInstallations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ─── Building norms operations ────────────────────────────────────────────────
+
+  async getBuildingNorms(category?: string): Promise<BuildingNorm[]> {
+    if (category) {
+      return db.query.buildingNorms.findMany({
+        where: (t, { eq }) => eq(t.category, category),
+        orderBy: (t, { asc }) => [asc(t.shortCode)]
+      });
+    }
+    return db.query.buildingNorms.findMany({
+      orderBy: (t, { asc }) => [asc(t.category), asc(t.shortCode)]
+    });
+  }
+
+  async getBuildingNorm(id: number): Promise<BuildingNorm | undefined> {
+    return db.query.buildingNorms.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async getBuildingNormByCode(code: string): Promise<BuildingNorm | undefined> {
+    return db.query.buildingNorms.findFirst({
+      where: (t, { eq }) => eq(t.code, code)
+    });
+  }
+
+  async createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm> {
+    const [newNorm] = await db.insert(schema.buildingNorms).values(norm).returning();
+    return newNorm;
+  }
+
+  // ─── Seismogram record operations ─────────────────────────────────────────────
+
+  async getSeismogramRecords(stationId?: string, limit: number = 50): Promise<SeismogramRecord[]> {
+    if (stationId) {
+      return db.query.seismogramRecords.findMany({
+        where: (t, { eq }) => eq(t.stationId, stationId),
+        orderBy: (t, { desc }) => [desc(t.startTime)],
+        limit
+      });
+    }
+    return db.query.seismogramRecords.findMany({
+      orderBy: (t, { desc }) => [desc(t.startTime)],
+      limit
+    });
+  }
+
+  async getSeismogramRecord(id: number): Promise<SeismogramRecord | undefined> {
+    return db.query.seismogramRecords.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord> {
+    const [newRecord] = await db.insert(schema.seismogramRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async updateSeismogramProcessingStatus(id: number, status: string): Promise<SeismogramRecord | undefined> {
+    const [updated] = await db
+      .update(schema.seismogramRecords)
+      .set({ processingStatus: status })
+      .where(eq(schema.seismogramRecords.id, id))
+      .returning();
+    return updated;
   }
 }
 
@@ -1566,6 +1815,448 @@ const initializeDatabase = async () => {
     
     console.log('Database initialization complete.');
   }
+
+  // ── Seed Irkutsk infrastructure objects ──────────────────────────────────────
+  const existingObjects = await dbStorage.getInfrastructureObjects();
+  if (existingObjects.length === 0) {
+    console.log('Seeding Irkutsk infrastructure objects...');
+
+    const irkutskObjects: InsertInfrastructureObject[] = [
+      {
+        objectId: "IRK-OBJ-001",
+        name: "Администрация г. Иркутска",
+        address: "ул. Ленина, 14, Иркутск",
+        objectType: "admin",
+        constructionYear: 1956,
+        floors: 5,
+        latitude: "52.2901",
+        longitude: "104.2964",
+        structuralSystem: "masonry",
+        foundationType: "strip",
+        seismicCategory: "II",
+        designIntensity: 7,
+        technicalCondition: "satisfactory",
+        description: "Здание городской администрации, кирпичная кладка",
+        responsibleOrganization: "Администрация г. Иркутска",
+        isMonitored: true,
+        metadata: {}
+      },
+      {
+        objectId: "IRK-OBJ-002",
+        name: "Мост через р. Ушаковка (ул. Байкальская)",
+        address: "ул. Байкальская, Иркутск",
+        objectType: "bridge",
+        constructionYear: 1978,
+        floors: null,
+        latitude: "52.2756",
+        longitude: "104.3312",
+        structuralSystem: "reinforced_concrete",
+        foundationType: "pile",
+        seismicCategory: "I",
+        designIntensity: 8,
+        technicalCondition: "satisfactory",
+        description: "Железобетонный мост, пролёт 45 м",
+        responsibleOrganization: "ДСИО г. Иркутска",
+        isMonitored: true,
+        metadata: {}
+      },
+      {
+        objectId: "IRK-OBJ-003",
+        name: "Иркутская ГЭС",
+        address: "г. Иркутск, Правый берег Ангары",
+        objectType: "industrial",
+        constructionYear: 1958,
+        floors: null,
+        latitude: "52.3127",
+        longitude: "104.2218",
+        structuralSystem: "reinforced_concrete",
+        foundationType: "slab",
+        seismicCategory: "I",
+        designIntensity: 8,
+        technicalCondition: "good",
+        description: "Гидроэлектростанция на р. Ангара, стратегический объект",
+        responsibleOrganization: "ПАО «ЕН+ Груп»",
+        isMonitored: true,
+        metadata: {}
+      },
+      {
+        objectId: "IRK-OBJ-004",
+        name: "БГМУ — Корпус А",
+        address: "ул. Красного Восстания, 1, Иркутск",
+        objectType: "hospital",
+        constructionYear: 1965,
+        floors: 6,
+        latitude: "52.2813",
+        longitude: "104.2782",
+        structuralSystem: "reinforced_concrete",
+        foundationType: "strip",
+        seismicCategory: "II",
+        designIntensity: 7,
+        technicalCondition: "satisfactory",
+        description: "Главный корпус Байкальского медицинского университета",
+        responsibleOrganization: "ФГБОУ ВО ИГМУ Минздрава России",
+        isMonitored: false,
+        metadata: {}
+      },
+      {
+        objectId: "IRK-OBJ-005",
+        name: "Жилой дом — ул. Депутатская, 44",
+        address: "ул. Депутатская, 44, Иркутск",
+        objectType: "residential",
+        constructionYear: 1982,
+        floors: 9,
+        latitude: "52.2685",
+        longitude: "104.3148",
+        structuralSystem: "reinforced_concrete",
+        foundationType: "pile",
+        seismicCategory: "III",
+        designIntensity: 7,
+        technicalCondition: "satisfactory",
+        description: "9-этажный панельный жилой дом серии 97",
+        responsibleOrganization: "УК «Уют»",
+        isMonitored: false,
+        metadata: {}
+      }
+    ];
+
+    for (const obj of irkutskObjects) {
+      await dbStorage.createInfrastructureObject(obj);
+    }
+  }
+
+  // ── Seed building norms ───────────────────────────────────────────────────────
+  const existingNorms = await dbStorage.getBuildingNorms();
+  if (existingNorms.length === 0) {
+    console.log('Seeding building norms...');
+
+    const norms: InsertBuildingNorm[] = [
+      {
+        code: "SP14.13330.2018",
+        shortCode: "СП 14.13330.2018",
+        name: "Строительство в сейсмических районах",
+        fullName: "СП 14.13330.2018 Строительство в сейсмических районах. Актуализированная редакция СНиП II-7-81*",
+        category: "seismic",
+        adoptionYear: 2018,
+        status: "active",
+        supersedes: "СНиП II-7-81*",
+        description: "Основной нормативный документ для проектирования зданий и сооружений в сейсмических районах. Регламентирует требования к конструктивным решениям, материалам и расчётным методам.",
+        scope: "Здания и сооружения, возводимые в районах с расчётной сейсмичностью 6, 7, 8 и 9 баллов по шкале MSK-64",
+        keyParameters: {
+          intensityZones: [6, 7, 8, 9],
+          soilCategories: {
+            "I": "Vs > 700 м/с (скальные грунты)",
+            "II": "250 < Vs ≤ 700 м/с (плотные связные грунты)",
+            "III": "150 < Vs ≤ 250 м/с (пески средние, суглинки)",
+            "IV": "Vs ≤ 150 м/с (слабые грунты)"
+          },
+          amplificationCoefficients: {
+            "I": 1.0,
+            "II": 1.2,
+            "III": 1.5,
+            "IV": 2.0
+          },
+          irkutskIntensity: 7
+        },
+        sections: [
+          "Область применения",
+          "Нормативные ссылки",
+          "Термины и определения",
+          "Общие требования",
+          "Грунты и основания",
+          "Требования к конструктивным решениям",
+          "Расчёт на сейсмические воздействия",
+          "Инженерно-сейсмологические изыскания"
+        ],
+        url: "https://docs.cntd.ru/document/554402540"
+      },
+      {
+        code: "SP20.13330.2017",
+        shortCode: "СП 20.13330.2017",
+        name: "Нагрузки и воздействия",
+        fullName: "СП 20.13330.2017 Нагрузки и воздействия. Актуализированная редакция СНиП 2.01.07-85*",
+        category: "loads",
+        adoptionYear: 2017,
+        status: "active",
+        supersedes: "СНиП 2.01.07-85*",
+        description: "Устанавливает нагрузки и воздействия, которые необходимо учитывать при проектировании строительных конструкций. Включает сейсмические, ветровые, снеговые и временные нагрузки.",
+        scope: "Несущие и ограждающие конструкции зданий и сооружений",
+        keyParameters: {
+          loadTypes: ["постоянные", "временные длительные", "кратковременные", "особые"],
+          seismicLoadFactor: 1.0,
+          dynamicFactor: "по расчёту",
+          combinationCoefficients: { "psi1": 0.95, "psi2": 0.9 }
+        },
+        sections: [
+          "Классификация нагрузок",
+          "Постоянные нагрузки",
+          "Временные нагрузки",
+          "Сейсмические воздействия",
+          "Ветровые нагрузки",
+          "Снеговые нагрузки",
+          "Комбинации нагрузок"
+        ],
+        url: "https://docs.cntd.ru/document/456069568"
+      },
+      {
+        code: "SP47.13330.2016",
+        shortCode: "СП 47.13330.2016",
+        name: "Инженерные изыскания для строительства",
+        fullName: "СП 47.13330.2016 Инженерные изыскания для строительства. Основные положения. Актуализированная редакция СНиП 11-02-96",
+        category: "survey",
+        adoptionYear: 2016,
+        status: "active",
+        supersedes: "СНиП 11-02-96",
+        description: "Определяет состав, порядок и методы инженерных изысканий для строительства, в том числе инженерно-сейсмологических изысканий в сейсмически активных районах.",
+        scope: "Инженерные изыскания для проектирования, строительства и эксплуатации зданий и сооружений",
+        keyParameters: {
+          surveyTypes: ["инженерно-геодезические", "инженерно-геологические", "инженерно-гидрометеорологические", "инженерно-экологические", "инженерно-сейсмологические"],
+          seismicSurveyDepth: "не менее 30 м",
+          vs30Method: "сейсмическое зондирование или сдвиговые волны"
+        },
+        sections: [
+          "Виды инженерных изысканий",
+          "Инженерно-геологические изыскания",
+          "Инженерно-сейсмологические изыскания",
+          "Требования к отчётной документации"
+        ],
+        url: "https://docs.cntd.ru/document/456054212"
+      },
+      {
+        code: "SP22.13330.2016",
+        shortCode: "СП 22.13330.2016",
+        name: "Основания зданий и сооружений",
+        fullName: "СП 22.13330.2016 Основания зданий и сооружений. Актуализированная редакция СНиП 2.02.01-83*",
+        category: "foundations",
+        adoptionYear: 2016,
+        status: "active",
+        supersedes: "СНиП 2.02.01-83*",
+        description: "Регламентирует проектирование оснований зданий и сооружений. Содержит требования к расчёту оснований при сейсмических воздействиях, учёту нелинейных свойств грунтов.",
+        scope: "Проектирование оснований и фундаментов зданий и сооружений",
+        keyParameters: {
+          soilClassification: "по прочности и деформируемости",
+          bearingCapacityFactors: "таблицы В.1–В.3",
+          seismicSurcharge: "1,5 при I=8 баллов"
+        },
+        sections: [
+          "Общие требования",
+          "Классификация грунтов",
+          "Расчёт оснований по несущей способности",
+          "Расчёт оснований по деформациям",
+          "Основания при сейсмических воздействиях"
+        ],
+        url: "https://docs.cntd.ru/document/456054016"
+      },
+      {
+        code: "GOST17516-1-90",
+        shortCode: "ГОСТ 17516.1-90",
+        name: "Виброустойчивость. Классификация",
+        fullName: "ГОСТ 17516.1-90 Изделия электротехнические. Условия эксплуатации в части воздействия механических факторов внешней среды",
+        category: "monitoring",
+        adoptionYear: 1990,
+        status: "active",
+        supersedes: null,
+        description: "Классифицирует условия эксплуатации технических изделий по механическим воздействиям (вибрации, удары, сейсмика). Применяется для сертификации сейсмических датчиков.",
+        scope: "Электротехнические изделия, приборы и аппаратура",
+        keyParameters: {
+          seismicGroups: ["М6", "М7", "М8"],
+          accelerationLevels: { "М6": "1g", "М7": "2g", "М8": "5g" }
+        },
+        sections: [
+          "Группы механических воздействий",
+          "Параметры вибрации",
+          "Параметры удара",
+          "Сейсмические воздействия"
+        ],
+        url: "https://docs.cntd.ru/document/1200009012"
+      },
+      {
+        code: "SP274.1325800.2016",
+        shortCode: "СП 274.1325800.2016",
+        name: "Сооружения промышленных предприятий в сейсмических районах",
+        fullName: "СП 274.1325800.2016 Сооружения промышленных предприятий в сейсмических районах. Правила проектирования",
+        category: "seismic",
+        adoptionYear: 2016,
+        status: "active",
+        supersedes: null,
+        description: "Устанавливает требования к проектированию производственных зданий и сооружений в сейсмических районах с учётом технологических нагрузок и особых условий эксплуатации.",
+        scope: "Производственные здания, сооружения и технологические установки промышленных предприятий",
+        keyParameters: {
+          dynamicAmplificationFactor: "β = 2,5 при высокочастотных воздействиях",
+          structuralImportanceFactor: { "I": 1.5, "II": 1.2, "III": 1.0 },
+          equipmentAnchorage: "обязательно при I ≥ 7 баллов"
+        },
+        sections: [
+          "Общие требования",
+          "Конструктивные требования",
+          "Расчёт на сейсмические воздействия",
+          "Технологическое оборудование",
+          "Трубопроводы и коммуникации"
+        ],
+        url: "https://docs.cntd.ru/document/456049362"
+      },
+      {
+        code: "SP31-114-2004",
+        shortCode: "СП 31-114-2004",
+        name: "Здания жилые и общественные в сейсмических районах",
+        fullName: "СП 31-114-2004 Правила проектирования жилых и общественных зданий для строительства в сейсмических районах",
+        category: "seismic",
+        adoptionYear: 2004,
+        status: "active",
+        supersedes: null,
+        description: "Конкретизирует требования СП 14 применительно к жилым и общественным зданиям. Регламентирует планировочные, конструктивные и противосейсмические мероприятия.",
+        scope: "Жилые дома, объекты образования, здравоохранения и культуры в сейсмических районах",
+        keyParameters: {
+          maxFloorsPerIntensity: { "7 баллов": 12, "8 баллов": 9, "9 баллов": 5 },
+          seismicBelts: "обязательны при I ≥ 7 баллов",
+          antiseismicJoints: "шаг не более 30 м"
+        },
+        sections: [
+          "Требования к планировке",
+          "Конструктивные системы",
+          "Фундаменты",
+          "Перекрытия и покрытия",
+          "Лестничные клетки"
+        ],
+        url: "https://docs.cntd.ru/document/1200036487"
+      }
+    ];
+
+    for (const norm of norms) {
+      const existing = await dbStorage.getBuildingNormByCode(norm.code);
+      if (!existing) {
+        await dbStorage.createBuildingNorm(norm);
+      }
+    }
+  }
+
+  // ── Seed Irkutsk stations (replace US stations with Irkutsk ones) ─────────────
+  const existingStationsAfter = await dbStorage.getStations();
+  const hasIrkutskStation = existingStationsAfter.some(s => s.stationId.startsWith('IRK-'));
+  if (!hasIrkutskStation) {
+    console.log('Seeding Irkutsk monitoring stations...');
+
+    const irkRegion = await dbStorage.getRegionByName("Иркутск");
+    let irkRegionId: number | undefined;
+    if (!irkRegion) {
+      const r = await dbStorage.createRegion({
+        name: "Иркутск",
+        description: "Город Иркутск и прилегающие территории",
+        centerLatitude: "52.2900",
+        centerLongitude: "104.2964",
+        radiusKm: 50,
+        createdAt: new Date()
+      });
+      irkRegionId = r.id;
+    } else {
+      irkRegionId = irkRegion.id;
+    }
+
+    const irkStations: InsertStation[] = [
+      {
+        stationId: "IRK-ST-001",
+        name: "Станция «Центр»",
+        location: "ул. Ленина, Иркутск",
+        latitude: "52.2897",
+        longitude: "104.2963",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 89,
+        batteryVoltage: 12.6,
+        powerConsumption: 2.8,
+        serialNumber: "IRK-2024-001",
+        firmwareVersion: "v3.0.1",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 0, 15),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 2, 10),
+        nextCalibrationDue: new Date(2024, 8, 10),
+        storageRemaining: 75,
+        connectionStrength: 95,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-002",
+        name: "Станция «ГЭС»",
+        location: "Иркутская ГЭС",
+        latitude: "52.3127",
+        longitude: "104.2218",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 94,
+        batteryVoltage: 12.9,
+        powerConsumption: 3.1,
+        serialNumber: "IRK-2024-002",
+        firmwareVersion: "v3.0.1",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 1, 20),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 2, 15),
+        nextCalibrationDue: new Date(2024, 8, 15),
+        storageRemaining: 82,
+        connectionStrength: 98,
+        configuration: { samplingRate: 100, triggerThreshold: 0.005, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-003",
+        name: "Станция «Мост»",
+        location: "Мост через р. Ушаковка",
+        latitude: "52.2756",
+        longitude: "104.3312",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 77,
+        batteryVoltage: 12.2,
+        powerConsumption: 2.5,
+        serialNumber: "IRK-2024-003",
+        firmwareVersion: "v3.0.1",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 2, 5),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 2, 20),
+        nextCalibrationDue: new Date(2024, 8, 20),
+        storageRemaining: 68,
+        connectionStrength: 87,
+        configuration: { samplingRate: 100, triggerThreshold: 0.008, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-004",
+        name: "Станция «Академгородок»",
+        location: "мкр. Академгородок, Иркутск",
+        latitude: "52.2604",
+        longitude: "104.2481",
+        status: "degraded",
+        lastUpdate: new Date(),
+        dataRate: 60,
+        regionId: irkRegionId,
+        batteryLevel: 45,
+        batteryVoltage: 11.2,
+        powerConsumption: 2.9,
+        serialNumber: "IRK-2024-004",
+        firmwareVersion: "v3.0.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 2, 10),
+        sensorsCalibrated: false,
+        storageRemaining: 41,
+        connectionStrength: 62,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
+      }
+    ];
+
+    for (const st of irkStations) {
+      const exists = await dbStorage.getStationByStationId(st.stationId);
+      if (!exists) {
+        await dbStorage.createStation(st);
+      }
+    }
+  }
+
+  console.log('Database initialization complete.');
   
   return dbStorage;
 };

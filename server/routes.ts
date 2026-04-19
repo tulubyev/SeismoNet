@@ -607,6 +607,197 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Infrastructure Objects API ────────────────────────────────────────────────
+
+  app.get('/api/infrastructure-objects', async (req, res) => {
+    try {
+      const objects = await storage.getInfrastructureObjects();
+      res.json(objects);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching infrastructure objects' });
+    }
+  });
+
+  app.get('/api/infrastructure-objects/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const obj = await storage.getInfrastructureObject(id);
+      if (!obj) return res.status(404).json({ message: 'Object not found' });
+      res.json(obj);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching infrastructure object' });
+    }
+  });
+
+  app.post('/api/infrastructure-objects', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const newObj = await storage.createInfrastructureObject(req.body);
+      res.status(201).json(newObj);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating infrastructure object' });
+    }
+  });
+
+  app.patch('/api/infrastructure-objects/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateInfrastructureObject(id, req.body);
+      if (!updated) return res.status(404).json({ message: 'Object not found' });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating infrastructure object' });
+    }
+  });
+
+  // ─── Soil Profiles API ─────────────────────────────────────────────────────────
+
+  app.get('/api/soil-profiles', async (req, res) => {
+    try {
+      const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
+      const profiles = await storage.getSoilProfiles(objectId);
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching soil profiles' });
+    }
+  });
+
+  app.get('/api/soil-profiles/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const profile = await storage.getSoilProfile(id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching soil profile' });
+    }
+  });
+
+  app.get('/api/soil-profiles/:id/layers', async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.id);
+      const layers = await storage.getSoilLayers(profileId);
+      res.json(layers);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching soil layers' });
+    }
+  });
+
+  app.post('/api/soil-profiles', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const profile = await storage.createSoilProfile(req.body);
+      res.status(201).json(profile);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating soil profile' });
+    }
+  });
+
+  app.post('/api/soil-layers', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const layer = await storage.createSoilLayer(req.body);
+      res.status(201).json(layer);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating soil layer' });
+    }
+  });
+
+  // ─── Sensor Installations API ──────────────────────────────────────────────────
+
+  app.get('/api/sensor-installations', async (req, res) => {
+    try {
+      const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
+      const installations = await storage.getSensorInstallations(objectId);
+      res.json(installations);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching sensor installations' });
+    }
+  });
+
+  app.post('/api/sensor-installations', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const installation = await storage.createSensorInstallation(req.body);
+      res.status(201).json(installation);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating sensor installation' });
+    }
+  });
+
+  // ─── Building Norms API ────────────────────────────────────────────────────────
+
+  app.get('/api/building-norms', async (req, res) => {
+    try {
+      const category = req.query.category as string | undefined;
+      const norms = await storage.getBuildingNorms(category);
+      res.json(norms);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching building norms' });
+    }
+  });
+
+  app.get('/api/building-norms/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const norm = await storage.getBuildingNorm(id);
+      if (!norm) return res.status(404).json({ message: 'Norm not found' });
+      res.json(norm);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching building norm' });
+    }
+  });
+
+  app.post('/api/building-norms', requireRole('administrator'), async (req, res) => {
+    try {
+      const norm = await storage.createBuildingNorm(req.body);
+      res.status(201).json(norm);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating building norm' });
+    }
+  });
+
+  // ─── Seismogram Records API ────────────────────────────────────────────────────
+
+  app.get('/api/seismograms', async (req, res) => {
+    try {
+      const stationId = req.query.stationId as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const records = await storage.getSeismogramRecords(stationId, limit);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching seismogram records' });
+    }
+  });
+
+  app.get('/api/seismograms/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const record = await storage.getSeismogramRecord(id);
+      if (!record) return res.status(404).json({ message: 'Seismogram not found' });
+      res.json(record);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching seismogram' });
+    }
+  });
+
+  app.post('/api/seismograms', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const record = await storage.createSeismogramRecord(req.body);
+      res.status(201).json(record);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating seismogram record' });
+    }
+  });
+
+  app.patch('/api/seismograms/:id/status', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      const updated = await storage.updateSeismogramProcessingStatus(id, status);
+      if (!updated) return res.status(404).json({ message: 'Seismogram not found' });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating seismogram status' });
+    }
+  });
+
   // Schedule regular earthquake data synchronization (every 30 minutes)
   const usgsEarthquakeJob = scheduleEarthquakeSyncJob(30);
   

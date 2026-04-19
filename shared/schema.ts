@@ -44,33 +44,29 @@ export const stations = pgTable("stations", {
   location: text("location"),
   latitude: numeric("latitude").notNull(),
   longitude: numeric("longitude").notNull(),
-  status: text("status").notNull().default("offline"), // online, degraded, offline
+  status: text("status").notNull().default("offline"),
   lastUpdate: timestamp("last_update").notNull().defaultNow(),
   dataRate: real("data_rate"),
   regionId: integer("region_id").references(() => regions.id),
-  
-  // Field operations data
-  batteryLevel: integer("battery_level"), // percentage (0-100)
-  batteryVoltage: real("battery_voltage"), // actual voltage reading
-  powerConsumption: real("power_consumption"), // in watts
-  solarCharging: real("solar_charging"), // in watts (if equipped with solar)
-  
-  // Hardware details
+
+  batteryLevel: integer("battery_level"),
+  batteryVoltage: real("battery_voltage"),
+  powerConsumption: real("power_consumption"),
+  solarCharging: real("solar_charging"),
+
   serialNumber: text("serial_number"),
   firmwareVersion: text("firmware_version"),
   hardwareModel: text("hardware_model"),
   installationDate: timestamp("installation_date"),
-  
-  // Sensor parameters and calibration
+
   sensorsCalibrated: boolean("sensors_calibrated").default(false),
   lastCalibrationDate: timestamp("last_calibration_date"),
   nextCalibrationDue: timestamp("next_calibration_due"),
   calibrationParameters: jsonb("calibration_parameters"),
-  
-  // Configuration and additional data
+
   configuration: jsonb("configuration"),
-  connectionStrength: integer("connection_strength"), // signal strength as percentage
-  storageRemaining: integer("storage_remaining") // percentage of local storage remaining
+  connectionStrength: integer("connection_strength"),
+  storageRemaining: integer("storage_remaining")
 });
 
 // Seismic events
@@ -83,8 +79,8 @@ export const events = pgTable("events", {
   longitude: numeric("longitude").notNull(),
   depth: real("depth").notNull(),
   magnitude: real("magnitude").notNull(),
-  type: text("type").notNull().default("earthquake"), // earthquake, volcanic, etc.
-  status: text("status").notNull().default("detected"), // detected, verified, false_positive
+  type: text("type").notNull().default("earthquake"),
+  status: text("status").notNull().default("detected"),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   calculationConfidence: real("calculation_confidence"),
   data: jsonb("data")
@@ -97,7 +93,7 @@ export const waveformData = pgTable("waveform_data", {
   eventId: text("event_id").references(() => events.eventId),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   dataPoints: jsonb("data_points").notNull(),
-  dataType: text("data_type").notNull(), // p-wave, s-wave, etc.
+  dataType: text("data_type").notNull(),
   sampleRate: integer("sample_rate").notNull()
 });
 
@@ -107,7 +103,7 @@ export const researchNetworks = pgTable("research_networks", {
   networkId: text("network_id").notNull().unique(),
   name: text("name").notNull(),
   region: text("region"),
-  connectionStatus: text("connection_status").notNull().default("disconnected"), // connected, disconnected, syncing
+  connectionStatus: text("connection_status").notNull().default("disconnected"),
   lastSyncTimestamp: timestamp("last_sync_timestamp"),
   syncedDataVolume: real("synced_data_volume"),
   apiEndpoint: text("api_endpoint")
@@ -129,8 +125,8 @@ export const historicalAnalysis = pgTable("historical_analysis", {
   analysisId: text("analysis_id").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
-  analysisType: text("analysis_type").notNull(), // 'trend', 'comparison', 'seasonal', 'statistical'
-  timeFrame: text("time_frame").notNull(), // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
+  analysisType: text("analysis_type").notNull(),
+  timeFrame: text("time_frame").notNull(),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   parameters: jsonb("parameters").notNull(),
@@ -147,7 +143,7 @@ export const comparisonStudies = pgTable("comparison_studies", {
   studyId: text("study_id").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
-  studyType: text("study_type").notNull(), // 'event_comparison', 'period_comparison', 'network_comparison'
+  studyType: text("study_type").notNull(),
   primaryDataset: jsonb("primary_dataset").notNull(),
   comparisonDataset: jsonb("comparison_dataset").notNull(),
   comparisonResults: jsonb("comparison_results").notNull(),
@@ -161,7 +157,7 @@ export const comparisonStudies = pgTable("comparison_studies", {
 export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
   alertType: text("alert_type").notNull(),
-  severity: text("severity").notNull(), // info, warning, danger
+  severity: text("severity").notNull(),
   message: text("message").notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   relatedEntityId: text("related_entity_id"),
@@ -173,11 +169,11 @@ export const alerts = pgTable("alerts", {
 export const maintenanceRecords = pgTable("maintenance_records", {
   id: serial("id").primaryKey(),
   stationId: text("station_id").notNull().references(() => stations.stationId),
-  maintenanceType: text("maintenance_type").notNull(), // calibration, repair, upgrade, inspection, battery
+  maintenanceType: text("maintenance_type").notNull(),
   performedBy: text("performed_by").notNull(),
   performedAt: timestamp("performed_at").notNull(),
   scheduledAt: timestamp("scheduled_at"),
-  status: text("status").notNull().default("completed"), // scheduled, in-progress, completed, cancelled
+  status: text("status").notNull().default("completed"),
   description: text("description"),
   findings: text("findings"),
   partsReplaced: jsonb("parts_replaced"),
@@ -185,11 +181,136 @@ export const maintenanceRecords = pgTable("maintenance_records", {
   calibrationPerformed: boolean("calibration_performed").default(false),
   firmwareUpdated: boolean("firmware_updated").default(false),
   nextMaintenanceDue: timestamp("next_maintenance_due"),
-  images: jsonb("images"), // URLs to maintenance photos
+  images: jsonb("images"),
   notes: text("notes")
 });
 
-// Insert schemas
+// ─── Irkutsk Infrastructure Monitoring ───────────────────────────────────────
+
+// Civil and industrial infrastructure objects in Irkutsk
+export const infrastructureObjects = pgTable("infrastructure_objects", {
+  id: serial("id").primaryKey(),
+  objectId: text("object_id").notNull().unique(),
+  name: text("name").notNull(),
+  address: text("address"),
+  objectType: text("object_type").notNull(), // residential, industrial, bridge, dam, hospital, school, admin
+  constructionYear: integer("construction_year"),
+  floors: integer("floors"),
+  latitude: numeric("latitude").notNull(),
+  longitude: numeric("longitude").notNull(),
+  structuralSystem: text("structural_system"), // reinforced_concrete, steel, masonry, wood, mixed
+  foundationType: text("foundation_type"), // pile, strip, slab, combined
+  seismicCategory: text("seismic_category"), // I, II, III, IV (per SP 14.13330.2018)
+  designIntensity: integer("design_intensity"), // MSK-64 intensity (6, 7, 8, 9)
+  technicalCondition: text("technical_condition").default("satisfactory"), // good, satisfactory, poor, critical
+  description: text("description"),
+  responsibleOrganization: text("responsible_organization"),
+  contactPerson: text("contact_person"),
+  contactPhone: text("contact_phone"),
+  isMonitored: boolean("is_monitored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  metadata: jsonb("metadata")
+});
+
+// Soil profiles linked to infrastructure objects
+export const soilProfiles = pgTable("soil_profiles", {
+  id: serial("id").primaryKey(),
+  objectId: integer("object_id").references(() => infrastructureObjects.id),
+  profileName: text("profile_name").notNull(),
+  soilCategory: text("soil_category").notNull(), // I, II, III, IV per SP 14.13330.2018
+  avgShearVelocity: real("avg_shear_velocity"), // Vs30 (m/s), average over 30m depth
+  groundwaterDepth: real("groundwater_depth"), // meters
+  dominantFrequency: real("dominant_frequency"), // Hz
+  amplificationFactor: real("amplification_factor"),
+  boreholeDepth: real("borehole_depth"), // meters
+  surveyDate: timestamp("survey_date"),
+  surveyOrganization: text("survey_organization"),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// Individual soil layers within a profile
+export const soilLayers = pgTable("soil_layers", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").references(() => soilProfiles.id),
+  layerNumber: integer("layer_number").notNull(),
+  soilType: text("soil_type").notNull(), // clay, loam, sand, gravel, rock, fill
+  thickness: real("thickness").notNull(), // meters
+  depthFrom: real("depth_from").notNull(), // meters from surface
+  depthTo: real("depth_to").notNull(), // meters from surface
+  shearVelocity: real("shear_velocity").notNull(), // Vs (m/s)
+  compressionalVelocity: real("compressional_velocity"), // Vp (m/s)
+  density: real("density"), // kg/m³
+  dampingRatio: real("damping_ratio"), // %
+  description: text("description")
+});
+
+// Sensor installations linking stations to infrastructure objects
+export const sensorInstallations = pgTable("sensor_installations", {
+  id: serial("id").primaryKey(),
+  stationId: text("station_id").notNull().references(() => stations.stationId),
+  objectId: integer("object_id").references(() => infrastructureObjects.id),
+  installationLocation: text("installation_location"), // foundation, ground_floor, mid_floor, roof, free_field
+  floor: integer("floor"), // null = underground/free-field
+  measurementAxes: text("measurement_axes").notNull().default("Z,NS,EW"), // comma-separated: Z, NS, EW
+  installationDate: timestamp("installation_date").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  calibrationDate: timestamp("calibration_date"),
+  sensorType: text("sensor_type"), // accelerometer, velocimeter, seismometer
+  sensitivity: real("sensitivity"), // V/(m/s) or V/g
+  frequencyRange: text("frequency_range"), // e.g., "0.1-50 Hz"
+  notes: text("notes")
+});
+
+// Russian Building Norms and Standards reference
+export const buildingNorms = pgTable("building_norms", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(), // e.g., "SP14.13330.2018"
+  shortCode: text("short_code").notNull(), // e.g., "СП 14.13330.2018"
+  name: text("name").notNull(),
+  fullName: text("full_name"),
+  category: text("category").notNull(), // seismic, loads, survey, foundations, structures, monitoring
+  adoptionYear: integer("adoption_year"),
+  status: text("status").notNull().default("active"), // active, superseded, draft
+  supersedes: text("supersedes"), // e.g., "СНиП II-7-81*"
+  description: text("description"),
+  scope: text("scope"), // area of application
+  keyParameters: jsonb("key_parameters"), // JSON with key numerical values and tables
+  sections: jsonb("sections"), // array of main section titles
+  url: text("url"), // external link to official document
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// Stored seismogram recordings (for offline viewing)
+export const seismogramRecords = pgTable("seismogram_records", {
+  id: serial("id").primaryKey(),
+  recordId: text("record_id").notNull().unique(),
+  stationId: text("station_id").notNull().references(() => stations.stationId),
+  objectId: integer("object_id").references(() => infrastructureObjects.id),
+  eventId: text("event_id").references(() => events.eventId),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  durationSec: real("duration_sec"),
+  sampleRate: integer("sample_rate").notNull(),
+  channels: text("channels").notNull().default("Z,NS,EW"),
+  peakAmplitudeZ: real("peak_amplitude_z"),
+  peakAmplitudeNS: real("peak_amplitude_ns"),
+  peakAmplitudeEW: real("peak_amplitude_ew"),
+  peakGroundAcceleration: real("peak_ground_acceleration"), // g
+  dominantFrequency: real("dominant_frequency"), // Hz
+  triggerThreshold: real("trigger_threshold"),
+  recordingType: text("recording_type").notNull().default("triggered"), // triggered, continuous, manual
+  processingStatus: text("processing_status").notNull().default("raw"), // raw, filtered, processed
+  dataZ: jsonb("data_z"),
+  dataNS: jsonb("data_ns"),
+  dataEW: jsonb("data_ew"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// ─── Insert schemas ────────────────────────────────────────────────────────────
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
 export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
 export const insertStationSchema = createInsertSchema(stations).omit({ id: true });
@@ -199,8 +320,19 @@ export const insertResearchNetworkSchema = createInsertSchema(researchNetworks).
 export const insertSystemStatusSchema = createInsertSchema(systemStatus).omit({ id: true });
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true });
 export const insertMaintenanceRecordSchema = createInsertSchema(maintenanceRecords).omit({ id: true });
+export const insertHistoricalAnalysisSchema = createInsertSchema(historicalAnalysis).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertComparisonStudySchema = createInsertSchema(comparisonStudies).omit({ id: true, createdAt: true, updatedAt: true });
 
-// Types
+// New Irkutsk-specific schemas
+export const insertInfrastructureObjectSchema = createInsertSchema(infrastructureObjects).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSoilProfileSchema = createInsertSchema(soilProfiles).omit({ id: true, createdAt: true });
+export const insertSoilLayerSchema = createInsertSchema(soilLayers).omit({ id: true });
+export const insertSensorInstallationSchema = createInsertSchema(sensorInstallations).omit({ id: true });
+export const insertBuildingNormSchema = createInsertSchema(buildingNorms).omit({ id: true, createdAt: true });
+export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords).omit({ id: true, createdAt: true });
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -220,17 +352,13 @@ export type ResearchNetwork = typeof researchNetworks.$inferSelect;
 export type InsertResearchNetwork = z.infer<typeof insertResearchNetworkSchema>;
 
 export type SystemStatus = typeof systemStatus.$inferSelect;
-export type HistoricalAnalysis = typeof historicalAnalysis.$inferSelect;
-export type ComparisonStudy = typeof comparisonStudies.$inferSelect;
-
-// Insert schemas
-export const insertHistoricalAnalysisSchema = createInsertSchema(historicalAnalysis).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertComparisonStudySchema = createInsertSchema(comparisonStudies).omit({ id: true, createdAt: true, updatedAt: true });
-
-// Insert types
-export type InsertHistoricalAnalysis = z.infer<typeof insertHistoricalAnalysisSchema>;
-export type InsertComparisonStudy = z.infer<typeof insertComparisonStudySchema>;
 export type InsertSystemStatus = z.infer<typeof insertSystemStatusSchema>;
+
+export type HistoricalAnalysis = typeof historicalAnalysis.$inferSelect;
+export type InsertHistoricalAnalysis = z.infer<typeof insertHistoricalAnalysisSchema>;
+
+export type ComparisonStudy = typeof comparisonStudies.$inferSelect;
+export type InsertComparisonStudy = z.infer<typeof insertComparisonStudySchema>;
 
 export type Alert = typeof alerts.$inferSelect;
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
@@ -238,7 +366,26 @@ export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type MaintenanceRecord = typeof maintenanceRecords.$inferSelect;
 export type InsertMaintenanceRecord = z.infer<typeof insertMaintenanceRecordSchema>;
 
-// Types for API communication
+export type InfrastructureObject = typeof infrastructureObjects.$inferSelect;
+export type InsertInfrastructureObject = z.infer<typeof insertInfrastructureObjectSchema>;
+
+export type SoilProfile = typeof soilProfiles.$inferSelect;
+export type InsertSoilProfile = z.infer<typeof insertSoilProfileSchema>;
+
+export type SoilLayer = typeof soilLayers.$inferSelect;
+export type InsertSoilLayer = z.infer<typeof insertSoilLayerSchema>;
+
+export type SensorInstallation = typeof sensorInstallations.$inferSelect;
+export type InsertSensorInstallation = z.infer<typeof insertSensorInstallationSchema>;
+
+export type BuildingNorm = typeof buildingNorms.$inferSelect;
+export type InsertBuildingNorm = z.infer<typeof insertBuildingNormSchema>;
+
+export type SeismogramRecord = typeof seismogramRecords.$inferSelect;
+export type InsertSeismogramRecord = z.infer<typeof insertSeismogramRecordSchema>;
+
+// ─── WebSocket / API types ─────────────────────────────────────────────────────
+
 export type SeismicDataPoint = {
   timestamp: number;
   value: number;
