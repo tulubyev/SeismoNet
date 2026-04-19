@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import {
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
   Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation, ObjectCategory } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import { apiRequest } from '@/lib/queryClient';
@@ -604,7 +604,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
 const InfrastructureObjects: FC = () => {
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
-  const [developerSearch,    setDeveloperSearch]    = useState('');
+  const [developerFilter,    setDeveloperFilter]    = useState('all');
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [yearFrom,           setYearFrom]           = useState('');
   const [yearTo,             setYearTo]             = useState('');
@@ -617,6 +617,19 @@ const InfrastructureObjects: FC = () => {
   const { data: categories = [] } = useQuery<ObjectCategory[]>({
     queryKey: ['/api/object-categories'],
   });
+
+  const { data: developers = [] } = useQuery<Developer[]>({
+    queryKey: ['/api/developers'],
+  });
+
+  // Combined list of developer names for the dropdown:
+  // registered (reestr) + any legacy/free-text values present on objects.
+  const developerOptions = useMemo(() => {
+    const names = new Set<string>();
+    developers.forEach(d => names.add(d.name));
+    objects.forEach(o => { if (o.developer) names.add(o.developer); });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [developers, objects]);
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations', selectedObj?.id],
@@ -639,8 +652,8 @@ const InfrastructureObjects: FC = () => {
     const matchDistrict = districtFilter === 'all' ||
       (obj.district ?? '') === districtFilter;
 
-    const matchDeveloper = developerSearch === '' ||
-      (obj.developer ?? '').toLowerCase().includes(developerSearch.toLowerCase());
+    const matchDeveloper = developerFilter === 'all' ||
+      (obj.developer ?? '') === developerFilter;
 
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
@@ -654,7 +667,7 @@ const InfrastructureObjects: FC = () => {
 
   const activeFilterCount = [
     districtFilter !== 'all',
-    developerSearch !== '',
+    developerFilter !== 'all',
     constructionFilter !== 'all',
     yearFrom !== '',
     yearTo !== '',
@@ -754,13 +767,21 @@ const InfrastructureObjects: FC = () => {
                   {/* Row 3: developer + year range */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="relative">
-                      <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      <Input
-                        placeholder="Застройщик / подрядчик"
-                        value={developerSearch}
-                        onChange={e => setDeveloperSearch(e.target.value)}
-                        className="pl-8 h-9 text-sm"
-                      />
+                      <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 z-10 pointer-events-none" />
+                      <Select value={developerFilter} onValueChange={setDeveloperFilter}>
+                        <SelectTrigger className="pl-8 h-9 text-sm" data-testid="select-developer-filter">
+                          <SelectValue placeholder="Застройщик / подрядчик" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          <SelectItem value="all">Все застройщики</SelectItem>
+                          {developerOptions.length === 0 && (
+                            <div className="px-2 py-1.5 text-xs text-slate-400">Нет данных</div>
+                          )}
+                          {developerOptions.map(name => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
