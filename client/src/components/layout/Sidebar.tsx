@@ -16,6 +16,7 @@ import {
   Shield,
   Globe,
   History,
+  Archive as ArchiveIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -139,8 +140,8 @@ const Sidebar: FC = () => {
           <NavItem href="/seismo-live" icon={<Activity className="size-4" />} text="Seismo Live" isActive={location === '/seismo-live'} />
           <NavItem href="/monitoring" icon={<Globe className="size-4" />} text="Состояние сети" isActive={location === '/monitoring'} />
 
-          <SectionLabel text="Грунты и геология" />
-          <NavItem href="/soil-profiles" icon={<Layers className="size-4" />} text="База грунтов" isActive={location === '/soil-profiles'} />
+          <SectionLabel text="Архив" />
+          <NavItem href="/archive" icon={<ArchiveIcon className="size-4" />} text="Архив данных" isActive={location === '/archive'} />
 
           <SectionLabel text="Анализ" />
           <NavItem href="/analysis" icon={<Layers className="size-4" />} text="Анализ данных" isActive={location === '/analysis'} />
