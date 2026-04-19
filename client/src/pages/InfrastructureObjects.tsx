@@ -14,28 +14,31 @@ import {
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
   Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation, ObjectCategory } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import { apiRequest } from '@/lib/queryClient';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
 
-const objectTypeOptions = [
-  { value: 'residential', label: 'Жилое' },
-  { value: 'industrial',  label: 'Промышленное' },
-  { value: 'bridge',      label: 'Мост / Путепровод' },
-  { value: 'pipeline',    label: 'Трубопровод' },
-  { value: 'dam',         label: 'Плотина / ГТС' },
-  { value: 'hospital',    label: 'Больница' },
-  { value: 'school',      label: 'Школа / ВУЗ' },
-  { value: 'admin',       label: 'Административное' },
-  { value: 'other',       label: 'Прочее' },
-];
+// Fallback labels — used only until the categories endpoint loads, or for
+// legacy slugs no longer present in the DB.
+const FALLBACK_TYPE_LABELS: Record<string, string> = {
+  residential: 'Жилое',
+  industrial:  'Промышленное',
+  bridge:      'Мост / Путепровод',
+  pipeline:    'Трубопровод',
+  dam:         'Плотина / ГТС',
+  hospital:    'Больница',
+  school:      'Школа / ВУЗ',
+  admin:       'Административное',
+  other:       'Прочее',
+};
 
-const objectTypeLabel = (type: string) => {
-  const found = objectTypeOptions.find(o => o.value === type);
-  return found ? found.label : type;
+const objectTypeLabelFor = (categories: ObjectCategory[], type: string) => {
+  const found = categories.find(c => c.slug === type);
+  if (found) return found.name;
+  return FALLBACK_TYPE_LABELS[type] ?? type;
 };
 
 const IRKUTSK_DISTRICTS = [
@@ -137,7 +140,7 @@ const SENSOR_TYPE_OPTS = [
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[] }> = ({ obj, sensors }) => {
+const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[] }> = ({ obj, sensors, categories }) => {
   const cond    = conditionInfo(obj.technicalCondition);
   const queryClient = useQueryClient();
 
@@ -255,7 +258,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
             <div className="grid grid-cols-2 gap-y-3 gap-x-4">
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wide">Тип</p>
-                <p className="text-xs font-medium text-slate-700 mt-0.5">{objectTypeLabel(obj.objectType)}</p>
+                <p className="text-xs font-medium text-slate-700 mt-0.5">{objectTypeLabelFor(categories, obj.objectType)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wide">Год постройки</p>
@@ -603,13 +606,16 @@ const InfrastructureObjects: FC = () => {
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [developerSearch,    setDeveloperSearch]    = useState('');
   const [constructionFilter, setConstructionFilter] = useState('all');
-  const [typeFilter,         setTypeFilter]         = useState('all');
   const [yearFrom,           setYearFrom]           = useState('');
   const [yearTo,             setYearTo]             = useState('');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
 
   const { data: objects = [], isLoading } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects']
+  });
+
+  const { data: categories = [] } = useQuery<ObjectCategory[]>({
+    queryKey: ['/api/object-categories'],
   });
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
@@ -639,21 +645,17 @@ const InfrastructureObjects: FC = () => {
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
 
-    const matchType = typeFilter === 'all' ||
-      (obj.objectType ?? '') === typeFilter;
-
     const yr = obj.constructionYear ?? 0;
     const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
     const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
 
-    return matchSearch && matchDistrict && matchDeveloper && matchConstruction && matchType && matchYearFrom && matchYearTo;
+    return matchSearch && matchDistrict && matchDeveloper && matchConstruction && matchYearFrom && matchYearTo;
   });
 
   const activeFilterCount = [
     districtFilter !== 'all',
     developerSearch !== '',
     constructionFilter !== 'all',
-    typeFilter !== 'all',
     yearFrom !== '',
     yearTo !== '',
   ].filter(Boolean).length;
@@ -662,7 +664,6 @@ const InfrastructureObjects: FC = () => {
     setDistrictFilter('all');
     setDeveloperSearch('');
     setConstructionFilter('all');
-    setTypeFilter('all');
     setYearFrom('');
     setYearTo('');
     setSearch('');
@@ -750,22 +751,7 @@ const InfrastructureObjects: FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  {/* Row 3: object type filter */}
-                  <div>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="h-9 text-sm w-full">
-                        <Building2 className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                        <SelectValue placeholder="Тип объекта" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Все типы объектов</SelectItem>
-                        {objectTypeOptions.map(o => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* Row 4: developer + year range */}
+                  {/* Row 3: developer + year range */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="relative">
                       <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -857,7 +843,7 @@ const InfrastructureObjects: FC = () => {
                                   </p>
                                 )}
                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                  <Badge variant="outline" className="text-[10px] h-5">{objectTypeLabel(obj.objectType)}</Badge>
+                                  <Badge variant="outline" className="text-[10px] h-5">{objectTypeLabelFor(categories, obj.objectType)}</Badge>
                                   {obj.structuralSystem && (
                                     <Badge variant="outline" className="text-[10px] h-5">{structuralSystemLabel(obj.structuralSystem)}</Badge>
                                   )}

@@ -215,6 +215,19 @@ export const infrastructureObjects = pgTable("infrastructure_objects", {
   metadata: jsonb("metadata")
 });
 
+// Object categories — used for grouping monitoring objects on map layers
+// and for the "тип объекта" lookup (replaces hard-coded list).
+// `slug` matches `infrastructure_objects.object_type` so existing data keeps working.
+export const objectCategories = pgTable("object_categories", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default('#64748b'),  // hex, used for marker fill
+  icon: text("icon"),                                  // optional lucide icon hint
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
 // Soil profiles linked to infrastructure objects
 export const soilProfiles = pgTable("soil_profiles", {
   id: serial("id").primaryKey(),
@@ -378,6 +391,7 @@ export const insertBuildingNormSchema = createInsertSchema(buildingNorms).omit({
 export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords).omit({ id: true, createdAt: true });
 export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true });
 export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
+export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -416,6 +430,9 @@ export type InsertMaintenanceRecord = z.infer<typeof insertMaintenanceRecordSche
 
 export type InfrastructureObject = typeof infrastructureObjects.$inferSelect;
 export type InsertInfrastructureObject = z.infer<typeof insertInfrastructureObjectSchema>;
+
+export type ObjectCategory = typeof objectCategories.$inferSelect;
+export type InsertObjectCategory = z.infer<typeof insertObjectCategorySchema>;
 
 export type SoilProfile = typeof soilProfiles.$inferSelect;
 export type InsertSoilProfile = z.infer<typeof insertSoilProfileSchema>;

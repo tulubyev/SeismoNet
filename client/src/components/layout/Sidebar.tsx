@@ -136,6 +136,7 @@ const Sidebar: FC = () => {
 
           <SectionLabel text="Мониторинг" />
           <NavItem href="/seismograms" icon={<Activity className="size-4" />} text="Сейсмограммы" isActive={location === '/seismograms'} />
+          <NavItem href="/seismo-live" icon={<Activity className="size-4" />} text="Seismo Live" isActive={location === '/seismo-live'} />
           <NavItem href="/monitoring" icon={<Globe className="size-4" />} text="Состояние сети" isActive={location === '/monitoring'} />
 
           <SectionLabel text="Грунты и геология" />

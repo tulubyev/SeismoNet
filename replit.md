@@ -63,9 +63,16 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Visualization
 - Interactive maps using Leaflet for station and event visualization
+  - Resizable map container (CSS `resize:both` + ResizeObserver → Leaflet `invalidateSize`)
+  - Category-based layer toggles (driven by `object_categories` table)
 - Real-time waveform charts with Chart.js
 - Dashboard widgets for system health monitoring
 - Mobile-optimized interface for field operations
+- **Seismo Live (`/seismo-live`)** — online concentrator dashboard:
+  - WebSocket-driven aggregate of all incoming station streams
+  - Per-channel mini live waveforms (canvas, ring buffer 1024 samples)
+  - Throughput counters (sps, packets), pipeline event log
+  - Pause/resume + log clear controls
 
 ### Soil Profiles (per monitoring object)
 - Soil profile management is embedded inside the "Объекты мониторинга" (infrastructure

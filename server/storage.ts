@@ -19,6 +19,8 @@ import {
   InsertMaintenanceRecord,
   InfrastructureObject,
   InsertInfrastructureObject,
+  ObjectCategory,
+  InsertObjectCategory,
   SoilProfile,
   InsertSoilProfile,
   SoilLayer,
@@ -107,6 +109,14 @@ export interface IStorage {
   updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined>;
   deleteInfrastructureObject(id: number): Promise<boolean>;
 
+  // Object category operations
+  getObjectCategories(): Promise<ObjectCategory[]>;
+  getObjectCategory(id: number): Promise<ObjectCategory | undefined>;
+  getObjectCategoryBySlug(slug: string): Promise<ObjectCategory | undefined>;
+  createObjectCategory(cat: InsertObjectCategory): Promise<ObjectCategory>;
+  updateObjectCategory(id: number, data: Partial<InsertObjectCategory>): Promise<ObjectCategory | undefined>;
+  deleteObjectCategory(id: number): Promise<boolean>;
+
   // Soil profile operations
   getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
   getSoilProfile(id: number): Promise<SoilProfile | undefined>;
@@ -163,6 +173,7 @@ export class MemStorage implements IStorage {
   private regions: Map<number, Region>;
   private maintenanceRecords: Map<number, MaintenanceRecord>;
   private infrastructureObjects: Map<number, InfrastructureObject>;
+  private objectCategories: Map<number, ObjectCategory>;
   private soilProfiles: Map<number, SoilProfile>;
   private soilLayers: Map<number, SoilLayer>;
   private sensorInstallations: Map<number, SensorInstallation>;
@@ -181,6 +192,7 @@ export class MemStorage implements IStorage {
   private currentRegionId: number;
   private currentMaintenanceId: number;
   private currentInfraObjectId: number;
+  private currentObjectCategoryId: number;
   private currentSoilProfileId: number;
   private currentSoilLayerId: number;
   private currentSensorInstId: number;
@@ -200,6 +212,7 @@ export class MemStorage implements IStorage {
     this.regions = new Map();
     this.maintenanceRecords = new Map();
     this.infrastructureObjects = new Map();
+    this.objectCategories = new Map();
     this.soilProfiles = new Map();
     this.soilLayers = new Map();
     this.sensorInstallations = new Map();
@@ -218,6 +231,7 @@ export class MemStorage implements IStorage {
     this.currentRegionId = 1;
     this.currentMaintenanceId = 1;
     this.currentInfraObjectId = 1;
+    this.currentObjectCategoryId = 1;
     this.currentSoilProfileId = 1;
     this.currentSoilLayerId = 1;
     this.currentSensorInstId = 1;
@@ -771,6 +785,42 @@ export class MemStorage implements IStorage {
     return this.infrastructureObjects.delete(id);
   }
 
+  // ─── Object category operations ────────────────────────────────────────────
+  async getObjectCategories(): Promise<ObjectCategory[]> {
+    return Array.from(this.objectCategories.values())
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }
+  async getObjectCategory(id: number): Promise<ObjectCategory | undefined> {
+    return this.objectCategories.get(id);
+  }
+  async getObjectCategoryBySlug(slug: string): Promise<ObjectCategory | undefined> {
+    return Array.from(this.objectCategories.values()).find(c => c.slug === slug);
+  }
+  async createObjectCategory(cat: InsertObjectCategory): Promise<ObjectCategory> {
+    const id = this.currentObjectCategoryId++;
+    const newCat: ObjectCategory = {
+      id,
+      slug: cat.slug,
+      name: cat.name,
+      color: cat.color ?? '#64748b',
+      icon: cat.icon ?? null,
+      description: cat.description ?? null,
+      sortOrder: cat.sortOrder ?? 0,
+    };
+    this.objectCategories.set(id, newCat);
+    return newCat;
+  }
+  async updateObjectCategory(id: number, data: Partial<InsertObjectCategory>): Promise<ObjectCategory | undefined> {
+    const c = this.objectCategories.get(id);
+    if (!c) return undefined;
+    const updated: ObjectCategory = { ...c, ...data };
+    this.objectCategories.set(id, updated);
+    return updated;
+  }
+  async deleteObjectCategory(id: number): Promise<boolean> {
+    return this.objectCategories.delete(id);
+  }
+
   // ─── Soil profile operations ───────────────────────────────────────────────
   async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
     const all = Array.from(this.soilProfiles.values());
@@ -958,7 +1008,7 @@ import { schema } from './db';
 import {
   users, regions, stations, events, waveformData, researchNetworks,
   systemStatus, alerts, maintenanceRecords,
-  infrastructureObjects, soilProfiles, soilLayers, sensorInstallations,
+  infrastructureObjects, objectCategories, soilProfiles, soilLayers, sensorInstallations,
   buildingNorms, seismogramRecords
 } from "@shared/schema";
 
@@ -1368,6 +1418,31 @@ export class DatabaseStorage implements IStorage {
       .delete(schema.infrastructureObjects)
       .where(eq(schema.infrastructureObjects.id, id))
       .returning({ id: schema.infrastructureObjects.id });
+    return result.length > 0;
+  }
+
+  // ─── Object category operations ──────────────────────────────────────────────
+  async getObjectCategories(): Promise<ObjectCategory[]> {
+    return db.query.objectCategories.findMany({
+      orderBy: (t, { asc }) => [asc(t.sortOrder), asc(t.name)],
+    });
+  }
+  async getObjectCategory(id: number): Promise<ObjectCategory | undefined> {
+    return db.query.objectCategories.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  }
+  async getObjectCategoryBySlug(slug: string): Promise<ObjectCategory | undefined> {
+    return db.query.objectCategories.findFirst({ where: (t, { eq }) => eq(t.slug, slug) });
+  }
+  async createObjectCategory(cat: InsertObjectCategory): Promise<ObjectCategory> {
+    const [newCat] = await db.insert(schema.objectCategories).values(cat).returning();
+    return newCat;
+  }
+  async updateObjectCategory(id: number, data: Partial<InsertObjectCategory>): Promise<ObjectCategory | undefined> {
+    const [updated] = await db.update(schema.objectCategories).set(data).where(eq(schema.objectCategories.id, id)).returning();
+    return updated;
+  }
+  async deleteObjectCategory(id: number): Promise<boolean> {
+    const result = await db.delete(schema.objectCategories).where(eq(schema.objectCategories.id, id)).returning();
     return result.length > 0;
   }
 
@@ -2192,6 +2267,26 @@ const initializeDatabase = async () => {
     }
     
     console.log('Database initialization complete.');
+  }
+
+  // ── Seed object categories ──────────────────────────────────────────────────
+  const existingCategories = await dbStorage.getObjectCategories();
+  if (existingCategories.length === 0) {
+    console.log('Seeding object categories...');
+    const seedCategories: InsertObjectCategory[] = [
+      { slug: 'residential', name: 'Жилое',           color: '#3b82f6', icon: 'Home',         sortOrder: 1 },
+      { slug: 'admin',       name: 'Административное',color: '#8b5cf6', icon: 'Building2',    sortOrder: 2 },
+      { slug: 'hospital',    name: 'Больница',        color: '#ef4444', icon: 'Activity',     sortOrder: 3 },
+      { slug: 'school',      name: 'Школа / ВУЗ',     color: '#14b8a6', icon: 'GraduationCap',sortOrder: 4 },
+      { slug: 'industrial',  name: 'Промышленное',    color: '#f97316', icon: 'Factory',      sortOrder: 5 },
+      { slug: 'bridge',      name: 'Мост / Путепровод', color: '#0ea5e9', icon: 'Milestone',  sortOrder: 6 },
+      { slug: 'pipeline',    name: 'Трубопровод',     color: '#06b6d4', icon: 'GitBranch',    sortOrder: 7 },
+      { slug: 'dam',         name: 'Плотина / ГТС',   color: '#6366f1', icon: 'Waves',        sortOrder: 8 },
+      { slug: 'other',       name: 'Прочее',          color: '#64748b', icon: 'HelpCircle',   sortOrder: 99 },
+    ];
+    for (const c of seedCategories) {
+      await dbStorage.createObjectCategory(c);
+    }
   }
 
   // ── Seed Irkutsk infrastructure objects ──────────────────────────────────────

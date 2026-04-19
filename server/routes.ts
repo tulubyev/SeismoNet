@@ -665,6 +665,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Object Categories API ────────────────────────────────────────────────────
+
+  app.get('/api/object-categories', async (_req, res) => {
+    try {
+      const cats = await storage.getObjectCategories();
+      res.json(cats);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching object categories' });
+    }
+  });
+
+  app.post('/api/object-categories', requireRole(['administrator']), async (req, res) => {
+    try {
+      const cat = await storage.createObjectCategory(req.body);
+      res.status(201).json(cat);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating object category' });
+    }
+  });
+
+  app.patch('/api/object-categories/:id', requireRole(['administrator']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateObjectCategory(id, req.body);
+      if (!updated) return res.status(404).json({ message: 'Category not found' });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating object category' });
+    }
+  });
+
+  app.delete('/api/object-categories/:id', requireRole(['administrator']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteObjectCategory(id);
+      if (!ok) return res.status(404).json({ message: 'Category not found' });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting object category' });
+    }
+  });
+
   // ─── Soil Profiles API ─────────────────────────────────────────────────────────
 
   app.get('/api/soil-profiles', async (req, res) => {
