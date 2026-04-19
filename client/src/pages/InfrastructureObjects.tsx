@@ -610,8 +610,6 @@ const InfrastructureObjects: FC = () => {
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
-  const [yearFrom,           setYearFrom]           = useState('');
-  const [yearTo,             setYearTo]             = useState('');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
 
   const { data: objects = [], isLoading } = useQuery<InfrastructureObject[]>({
@@ -650,10 +648,6 @@ const InfrastructureObjects: FC = () => {
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
 
-    const yr = obj.constructionYear ?? 0;
-    const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
-    const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
-
     const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
     const matchObject    = devFilter.objectId      === 'all' || String(obj.id) === devFilter.objectId;
     const matchComplex   = devFilter.complexName   === 'all' || (() => {
@@ -661,7 +655,7 @@ const InfrastructureObjects: FC = () => {
       return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
     })();
 
-    return matchSearch && matchDistrict && matchConstruction && matchYearFrom && matchYearTo &&
+    return matchSearch && matchDistrict && matchConstruction &&
            matchDeveloper && matchComplex && matchObject;
   });
 
@@ -671,16 +665,12 @@ const InfrastructureObjects: FC = () => {
     devFilter.complexName !== 'all',
     devFilter.objectId !== 'all',
     constructionFilter !== 'all',
-    yearFrom !== '',
-    yearTo !== '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
     setDistrictFilter('all');
     setDevFilter(DEVELOPER_FILTER_DEFAULT);
     setConstructionFilter('all');
-    setYearFrom('');
-    setYearTo('');
     setSearch('');
   };
 
@@ -774,28 +764,6 @@ const InfrastructureObjects: FC = () => {
                     onChange={setDevFilter}
                   />
 
-                  {/* Row 4: year range */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      <Input
-                        placeholder="с года"
-                        value={yearFrom}
-                        onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
-                        maxLength={4}
-                        className="pl-8 h-9 text-sm"
-                      />
-                    </div>
-                    <div className="relative flex-1">
-                      <Input
-                        placeholder="по год"
-                        value={yearTo}
-                        onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
-                        maxLength={4}
-                        className="pl-2 h-9 text-sm"
-                      />
-                    </div>
-                  </div>
                   {filtered.length !== objects.length && (
                     <p className="text-xs text-slate-500">
                       Найдено: <span className="font-semibold text-blue-600">{filtered.length}</span> из {objects.length}

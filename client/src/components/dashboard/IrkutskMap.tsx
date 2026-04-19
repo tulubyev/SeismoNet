@@ -1,7 +1,7 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map as MapIcon, Search, MapPin, Layers, Calendar, Radio } from 'lucide-react';
+import { Map as MapIcon, Search, MapPin, Layers, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -73,8 +73,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
-  const [yearFrom,           setYearFrom]           = useState('');
-  const [yearTo,             setYearTo]             = useState('');
   const [showStations,       setShowStations]       = useState(true);
 
   const { data: categories  = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
@@ -95,9 +93,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         (obj.objectId ?? '').toLowerCase().includes(q);
       const matchDistrict     = districtFilter     === 'all' || (obj.district         ?? '') === districtFilter;
       const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
-      const yr = obj.constructionYear ?? 0;
-      const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
-      const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
 
       // Hierarchical developer filter
       const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
@@ -107,10 +102,10 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
       })();
 
-      return matchSearch && matchDistrict && matchConstruction && matchYearFrom && matchYearTo &&
+      return matchSearch && matchDistrict && matchConstruction &&
              matchDeveloper && matchComplex && matchObject;
     });
-  }, [objects, search, districtFilter, devFilter, constructionFilter, yearFrom, yearTo]);
+  }, [objects, search, districtFilter, devFilter, constructionFilter]);
 
   const activeFilterCount = [
     districtFilter !== 'all',
@@ -118,14 +113,12 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     devFilter.complexName !== 'all',
     devFilter.objectId !== 'all',
     constructionFilter !== 'all',
-    yearFrom !== '',
-    yearTo !== '',
     search !== '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
     setSearch(''); setDistrictFilter('all'); setDevFilter(DEVELOPER_FILTER_DEFAULT);
-    setConstructionFilter('all'); setYearFrom(''); setYearTo('');
+    setConstructionFilter('all');
   };
 
   const objectColor = (obj: InfrastructureObject): string => {
@@ -368,30 +361,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
             popoverZIndex={1001}
           />
 
-          {/* Row 4: year range */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="с года"
-                value={yearFrom}
-                onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
-                maxLength={4}
-                className="pl-8 h-9 text-sm"
-                data-testid="map-input-year-from"
-              />
-            </div>
-            <div className="relative flex-1">
-              <Input
-                placeholder="по год"
-                value={yearTo}
-                onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
-                maxLength={4}
-                className="pl-2 h-9 text-sm"
-                data-testid="map-input-year-to"
-              />
-            </div>
-          </div>
         </div>
 
         {/* ── Map (full width) ── */}
