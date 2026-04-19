@@ -25,7 +25,7 @@ interface BlockDef {
 
 const HomePage: FC = () => {
   const [, navigate] = useLocation();
-  const { isConnected, stations, events } = useSeismicData();
+  const { stations, events } = useSeismicData();
   const { user } = useAuth();
   const isAdmin = user?.role === 'administrator';
 
@@ -47,17 +47,6 @@ const HomePage: FC = () => {
   const offlineStations = stations.filter(s => s.status === 'offline').length;
 
   const blocks: BlockDef[] = [
-    {
-      href:       '/monitoring',
-      title:      'Онлайн-мониторинг',
-      subtitle:   'Реальное время, WebSocket, состояние сети',
-      icon:       Activity,
-      gradient:   'from-blue-600 to-blue-800',
-      shadow:     'shadow-blue-900/40',
-      badge:      `${onlineStations} / ${stations.length}`,
-      badgeLabel: 'датчиков онлайн',
-      status:     isConnected ? 'ok' : 'error',
-    },
     {
       href:       '/infrastructure',
       title:      'Объекты инфраструктуры',
