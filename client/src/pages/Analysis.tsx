@@ -148,6 +148,123 @@ function isExpired(d: string | Date): boolean {
   return new Date(d) < ago;
 }
 
+// ─── МТСМ — 1D SH-wave transfer function (Thomson-Haskell propagator) ────────
+// Computes |H(f)| = surface motion / 2× incident bedrock motion for vertically
+// propagating SH waves through a stack of horizontal layers above an elastic
+// halfspace. Damping is included via complex shear modulus.
+//
+// Layers ordered top → bottom; the deepest entry is treated as half-space
+// (its `thickness` is ignored).
+//
+// Refs: Kramer S.L., "Geotechnical Earthquake Engineering" (1996), §7.5.2.
+//       Haskell N.A. (1953), Bull. Seism. Soc. Am.
+
+interface AmpLayer { thickness: number; vs: number; density: number; damping: number; }
+interface AmpPoint { freq: number; amp: number; }
+
+// Complex helpers (re/im pairs)
+const cMul = (ar: number, ai: number, br: number, bi: number): [number, number] =>
+  [ar*br - ai*bi, ar*bi + ai*br];
+const cDiv = (ar: number, ai: number, br: number, bi: number): [number, number] => {
+  const d = br*br + bi*bi;
+  return [(ar*br + ai*bi)/d, (ai*br - ar*bi)/d];
+};
+const cExp = (ar: number, ai: number): [number, number] => {
+  const e = Math.exp(ar);
+  return [e * Math.cos(ai), e * Math.sin(ai)];
+};
+const cSqrt = (ar: number, ai: number): [number, number] => {
+  const r = Math.hypot(ar, ai);
+  const re = Math.sqrt((r + ar)/2);
+  const im = Math.sign(ai || 1) * Math.sqrt((r - ar)/2);
+  return [re, im];
+};
+
+function computeAmplification(layers: AmpLayer[], freqs: number[]): AmpPoint[] {
+  if (layers.length < 2) return [];
+  const N = layers.length;
+  const result: AmpPoint[] = [];
+
+  for (const f of freqs) {
+    if (f <= 0) { result.push({ freq: f, amp: 1 }); continue; }
+    const omega = 2 * Math.PI * f;
+
+    // Free-surface BC: A_1 = B_1 = 1 (down + up wave amplitudes equal)
+    let Ar = 1, Ai = 0, Br = 1, Bi = 0;
+
+    for (let i = 0; i < N - 1; i++) {
+      const L = layers[i], M = layers[i+1];
+      // Complex shear-wave velocity Vs* = Vs √(1 + 2iξ)
+      const [vs1r, vs1i] = cSqrt(L.vs*L.vs, 2 * L.vs*L.vs * L.damping);
+      const [vs2r, vs2i] = cSqrt(M.vs*M.vs, 2 * M.vs*M.vs * M.damping);
+      // k_i = ω / Vs*
+      const [k1r, k1i] = cDiv(omega, 0, vs1r, vs1i);
+      const [k2r, k2i] = cDiv(omega, 0, vs2r, vs2i);
+      // Impedance ratio α* = (ρ1 Vs1*) / (ρ2 Vs2*)  — Kramer (1996), Eq. 7.21
+      const [alphaR, alphaI] = cDiv(L.density * vs1r, L.density * vs1i,
+                                    M.density * vs2r, M.density * vs2i);
+      // (k2 unused after this — kept its computation only as documentation)
+      void k2r; void k2i;
+      // Phase ψ = i k_i h_i
+      const [psiR, psiI] = [-k1i * L.thickness, k1r * L.thickness];
+      const [eP_r, eP_i] = cExp(psiR, psiI);
+      const [eN_r, eN_i] = cExp(-psiR, -psiI);
+      // A_{i+1} = 0.5 A_i (1+α*) e^{+iψ} + 0.5 B_i (1-α*) e^{-iψ}
+      // B_{i+1} = 0.5 A_i (1-α*) e^{+iψ} + 0.5 B_i (1+α*) e^{-iψ}
+      const [pR, pI] = [1 + alphaR, alphaI];
+      const [mR, mI] = [1 - alphaR, -alphaI];
+      const [t1r, t1i] = cMul(...cMul(Ar, Ai, pR, pI), eP_r, eP_i);
+      const [t2r, t2i] = cMul(...cMul(Br, Bi, mR, mI), eN_r, eN_i);
+      const [t3r, t3i] = cMul(...cMul(Ar, Ai, mR, mI), eP_r, eP_i);
+      const [t4r, t4i] = cMul(...cMul(Br, Bi, pR, pI), eN_r, eN_i);
+      Ar = 0.5*(t1r + t2r); Ai = 0.5*(t1i + t2i);
+      Br = 0.5*(t3r + t4r); Bi = 0.5*(t3i + t4i);
+    }
+    // Surface motion = 2·A_1 = 2; bedrock incident motion = B_N → amp = 1/|B_N|
+    const amp = 1 / Math.hypot(Br, Bi);
+    result.push({ freq: f, amp });
+  }
+  return result;
+}
+
+// ─── SDOF response spectrum (Newmark-β, β=1/4, γ=1/2) ───────────────────────
+// Input: ground-acceleration time history `ag` (m/s²), sample step `dt` (s).
+// Output: Sa (m/s²), Sv (m/s), Sd (m) for each requested period T.
+// Refs: Chopra A.K., "Dynamics of Structures", Table 5.7.2.
+
+interface SpecPoint { T: number; Sa: number; Sv: number; Sd: number; }
+
+function responseSpectrum(ag: number[], dt: number, periods: number[], zeta = 0.05): SpecPoint[] {
+  const out: SpecPoint[] = [];
+  const beta = 0.25, gamma = 0.5;
+  const n = ag.length;
+  for (const T of periods) {
+    const wn = 2 * Math.PI / T;
+    const k = wn * wn;       // m=1 → k=ω²
+    const c = 2 * zeta * wn; // m=1 → c=2ζω
+    let u = 0, v = 0;
+    let a = -ag[0] - c*v - k*u;
+    const a1 = 1/(beta*dt*dt) + gamma*c/(beta*dt);
+    const a2 = 1/(beta*dt) + (gamma/beta - 1)*c;
+    const a3 = (1/(2*beta) - 1) + dt*(gamma/(2*beta) - 1)*c;
+    const kHat = k + a1;
+    let uMax = 0, vMax = 0, aTotMax = 0;
+    for (let i = 1; i < n; i++) {
+      const pHat = -ag[i] + a1*u + a2*v + a3*a;
+      const uNew = pHat / kHat;
+      const vNew = (gamma/(beta*dt))*(uNew - u) + (1 - gamma/beta)*v + dt*(1 - gamma/(2*beta))*a;
+      const aNew = (1/(beta*dt*dt))*(uNew - u) - (1/(beta*dt))*v - (1/(2*beta) - 1)*a;
+      u = uNew; v = vNew; a = aNew;
+      const aTot = Math.abs(a + ag[i]);                 // total acceleration
+      if (Math.abs(u) > uMax) uMax = Math.abs(u);
+      if (Math.abs(v) > vMax) vMax = Math.abs(v);
+      if (aTot > aTotMax) aTotMax = aTot;
+    }
+    out.push({ T, Sa: aTotMax, Sv: vMax, Sd: uMax });
+  }
+  return out;
+}
+
 // Thresholds are stored and displayed in mm/s (velocity). Ground acceleration (g)
 // requires separate fields and integration steps — not convertible to velocity without
 // knowing frequency, so no unit toggle is offered here.
@@ -157,6 +274,8 @@ const Analysis: FC = () => {
 
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: seismograms = [] }   = useQuery<SeismogramRecord[]>({ queryKey: ['/api/seismograms'] });
+  const { data: objects = [] }       = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
+  const { data: soilProfiles = [] }  = useQuery<SoilProfile[]>({ queryKey: ['/api/soil-profiles'] });
 
   const [selectedInstId,       setSelectedInstId]       = useState<number | null>(null);
   const [selectedSeismogramId, setSelectedSeismogramId] = useState<number | null>(null);
@@ -164,6 +283,14 @@ const Analysis: FC = () => {
   const [showNewSessionForm,   setShowNewSessionForm]   = useState(false);
   const [fftData,   setFftData]   = useState<FftChartPoint[] | null>(null);
   const [hvResult,  setHvResult]  = useState<HVPoint[] | null>(null);
+  const [selectedSoilProfileId, setSelectedSoilProfileId] = useState<number | null>(null);
+  const [bedrockVs,      setBedrockVs]      = useState<string>('1500');
+  const [bedrockDensity, setBedrockDensity] = useState<string>('2400');
+  const [bedrockDamping, setBedrockDamping] = useState<string>('0.005');
+  const [ampResult,      setAmpResult]      = useState<AmpPoint[] | null>(null);
+  const [respDamping,    setRespDamping]    = useState<string>('5');
+  const [respComponent,  setRespComponent]  = useState<'Z'|'NS'|'EW'>('NS');
+  const [respResult,     setRespResult]     = useState<SpecPoint[] | null>(null);
   const [afcRows,   setAfcRows]   = useState(DEFAULT_AFC);
   const [thresholdZMmS,  setThresholdZMmS]  = useState<number | null>(null);
   const [thresholdHMmS,  setThresholdHMmS]  = useState<number | null>(null);
@@ -282,11 +409,13 @@ const Analysis: FC = () => {
       </div>
 
       <Tabs defaultValue="calibration" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
-          <TabsTrigger value="calibration" className="text-xs gap-1"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
-          <TabsTrigger value="afc"         className="text-xs gap-1"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
-          <TabsTrigger value="waveforms"   className="text-xs gap-1"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
-          <TabsTrigger value="spectrum"    className="text-xs gap-1"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
+        <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+          <TabsTrigger value="calibration"   className="text-xs gap-1"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
+          <TabsTrigger value="afc"           className="text-xs gap-1"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
+          <TabsTrigger value="waveforms"     className="text-xs gap-1"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
+          <TabsTrigger value="spectrum"      className="text-xs gap-1"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
+          <TabsTrigger value="amplification" className="text-xs gap-1"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
+          <TabsTrigger value="response"      className="text-xs gap-1"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
         </TabsList>
 
         <TabsContent value="calibration" className="space-y-4">
@@ -680,8 +809,401 @@ const Analysis: FC = () => {
             </Card>
           )}
         </TabsContent>
+
+        <TabsContent value="amplification" className="space-y-4">
+          <AmplificationTab
+            objects={objects}
+            soilProfiles={soilProfiles}
+            selectedSoilProfileId={selectedSoilProfileId}
+            setSelectedSoilProfileId={setSelectedSoilProfileId}
+            bedrockVs={bedrockVs} setBedrockVs={setBedrockVs}
+            bedrockDensity={bedrockDensity} setBedrockDensity={setBedrockDensity}
+            bedrockDamping={bedrockDamping} setBedrockDamping={setBedrockDamping}
+            ampResult={ampResult} setAmpResult={setAmpResult}
+            toast={toast}
+          />
+        </TabsContent>
+
+        <TabsContent value="response" className="space-y-4">
+          <ResponseTab
+            seismograms={seismograms}
+            selectedSeismogramId={selectedSeismogramId}
+            setSelectedSeismogramId={setSelectedSeismogramId}
+            respDamping={respDamping} setRespDamping={setRespDamping}
+            respComponent={respComponent} setRespComponent={setRespComponent}
+            respResult={respResult} setRespResult={setRespResult}
+            toast={toast}
+          />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+};
+
+// ─── Amplification tab (МТСМ — 1D SH transfer function) ─────────────────────
+
+interface AmpTabProps {
+  objects: InfrastructureObject[];
+  soilProfiles: SoilProfile[];
+  selectedSoilProfileId: number | null;
+  setSelectedSoilProfileId: (id: number | null) => void;
+  bedrockVs: string;      setBedrockVs: (v: string) => void;
+  bedrockDensity: string; setBedrockDensity: (v: string) => void;
+  bedrockDamping: string; setBedrockDamping: (v: string) => void;
+  ampResult: AmpPoint[] | null; setAmpResult: (v: AmpPoint[] | null) => void;
+  toast: ReturnType<typeof useToast>['toast'];
+}
+
+const AmplificationTab: FC<AmpTabProps> = ({
+  objects, soilProfiles, selectedSoilProfileId, setSelectedSoilProfileId,
+  bedrockVs, setBedrockVs, bedrockDensity, setBedrockDensity,
+  bedrockDamping, setBedrockDamping, ampResult, setAmpResult, toast
+}) => {
+  const { data: layers = [] } = useQuery<SoilLayer[]>({
+    queryKey: ['/api/soil-profiles', selectedSoilProfileId, 'layers'],
+    queryFn: async () => {
+      if (!selectedSoilProfileId) return [];
+      const res = await fetch(`/api/soil-profiles/${selectedSoilProfileId}/layers`);
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+    enabled: !!selectedSoilProfileId,
+  });
+
+  const profile = soilProfiles.find(p => p.id === selectedSoilProfileId) ?? null;
+  const objectName = (id: number | null) => id == null ? '—' :
+    (objects.find(o => o.id === id)?.name ?? `#${id}`);
+
+  const sortedLayers = [...layers].sort((a, b) => a.layerNumber - b.layerNumber);
+  const f0Estimate = profile?.dominantFrequency ??
+    (sortedLayers.length > 0 && sortedLayers[0].shearVelocity > 0
+      ? sortedLayers[0].shearVelocity / (4 * sortedLayers.reduce((s, l) => s + l.thickness, 0))
+      : null);
+
+  const handleCompute = useCallback(() => {
+    if (sortedLayers.length === 0) {
+      toast({ title: 'Нет слоёв грунта', description: 'У выбранного профиля нет инженерно-геологических слоёв.' });
+      return;
+    }
+    const vsBR = parseFloat(bedrockVs); const rhoBR = parseFloat(bedrockDensity); const xiBR = parseFloat(bedrockDamping);
+    if (!isFinite(vsBR) || vsBR <= 0 || !isFinite(rhoBR) || rhoBR <= 0) {
+      toast({ title: 'Параметры скального основания некорректны', variant: 'destructive' });
+      return;
+    }
+    const ampLayers: AmpLayer[] = sortedLayers.map(l => ({
+      thickness: l.thickness,
+      vs:        l.shearVelocity,
+      density:   l.density ?? 1900,
+      damping:   (l.dampingRatio ?? 3) / 100,  // % → decimal
+    }));
+    ampLayers.push({ thickness: 0, vs: vsBR, density: rhoBR, damping: xiBR });
+    // Log-spaced frequency grid 0.1…25 Hz
+    const fs: number[] = [];
+    const NF = 200;
+    for (let i = 0; i < NF; i++) fs.push(Math.pow(10, -1 + (Math.log10(25) + 1) * i / (NF - 1)));
+    setAmpResult(computeAmplification(ampLayers, fs));
+  }, [sortedLayers, bedrockVs, bedrockDensity, bedrockDamping, setAmpResult, toast]);
+
+  const peakAmp = ampResult ? ampResult.reduce((b, p) => p.amp > b.amp ? p : b, { freq: 0, amp: 0 }) : null;
+
+  return (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600">Профиль грунта</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            <Select
+              value={selectedSoilProfileId?.toString() ?? ''}
+              onValueChange={v => { setSelectedSoilProfileId(parseInt(v)); setAmpResult(null); }}
+            >
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Выбрать профиль..." /></SelectTrigger>
+              <SelectContent>
+                {soilProfiles.map(p => (
+                  <SelectItem key={p.id} value={p.id.toString()} className="text-xs">
+                    {p.profileName} · {objectName(p.objectId)} · кат. {p.soilCategory}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {profile && (
+              <div className="text-xs text-slate-500 space-y-0.5 pt-1">
+                <div>Объект: <strong className="text-slate-700">{objectName(profile.objectId)}</strong></div>
+                <div>Слоёв: <strong className="text-slate-700">{sortedLayers.length}</strong></div>
+                {profile.boreholeDepth && <div>Глубина скважины: <strong className="text-slate-700">{profile.boreholeDepth} м</strong></div>}
+                {f0Estimate && <div>Прогноз f₀ (1/4 длины волны): <strong className="text-purple-600">{f0Estimate.toFixed(2)} Гц</strong></div>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600">Скальное основание (полупространство)</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            <div>
+              <Label className="text-xs">Vs, м/с</Label>
+              <Input className="h-8 text-sm" value={bedrockVs} onChange={e => setBedrockVs(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Плотность ρ, кг/м³</Label>
+              <Input className="h-8 text-sm" value={bedrockDensity} onChange={e => setBedrockDensity(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Затухание ξ (доли)</Label>
+              <Input className="h-8 text-sm" value={bedrockDamping} onChange={e => setBedrockDamping(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600">Расчёт МТСМ</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            <p className="text-xs text-slate-500 leading-snug">
+              Метод Томсона–Хаскелла (1D SH-волна): передаточная функция
+              «свободная поверхность / выход на коренные породы» с комплексным
+              сдвиговым модулем (демпфирование).
+            </p>
+            <Button size="sm" className="w-full gap-1" onClick={handleCompute} disabled={!profile || sortedLayers.length === 0}>
+              <Zap className="h-3.5 w-3.5" /> Вычислить |H(f)|
+            </Button>
+            {peakAmp && peakAmp.freq > 0 && (
+              <div className="text-xs pt-1">
+                <div>Резонанс: <strong className="text-purple-600">f = {peakAmp.freq.toFixed(2)} Гц</strong></div>
+                <div>Макс. усиление: <strong className="text-purple-600">A = {peakAmp.amp.toFixed(2)}</strong></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {sortedLayers.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600">Стратиграфия профиля</CardTitle></CardHeader>
+          <CardContent className="px-2 pb-3 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="px-2 py-1 text-left">№</th>
+                  <th className="px-2 py-1 text-left">Тип</th>
+                  <th className="px-2 py-1 text-right">h, м</th>
+                  <th className="px-2 py-1 text-right">Vs, м/с</th>
+                  <th className="px-2 py-1 text-right">ρ, кг/м³</th>
+                  <th className="px-2 py-1 text-right">ξ, %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedLayers.map(l => (
+                  <tr key={l.id} className="border-t border-slate-100">
+                    <td className="px-2 py-1">{l.layerNumber}</td>
+                    <td className="px-2 py-1">{l.soilType}</td>
+                    <td className="px-2 py-1 text-right">{l.thickness.toFixed(1)}</td>
+                    <td className="px-2 py-1 text-right">{l.shearVelocity.toFixed(0)}</td>
+                    <td className="px-2 py-1 text-right">{l.density?.toFixed(0) ?? '—'}</td>
+                    <td className="px-2 py-1 text-right">{l.dampingRatio?.toFixed(1) ?? '3.0'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      {ampResult && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm text-slate-600">
+              Передаточная функция |H(f)| — амплитудно-частотная характеристика грунтовой толщи
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-2 pb-4">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={ampResult} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="freq" scale="log" type="number" domain={[0.1, 25]}
+                  label={{ value: 'Частота (Гц)', position: 'insideBottom', offset: -5, fontSize: 10 }}
+                  tickFormatter={v => v < 1 ? v.toFixed(1) : v.toFixed(0)} tick={{ fontSize: 9 }}
+                />
+                <YAxis
+                  label={{ value: 'A = u_surf / u_bedr', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+                  tick={{ fontSize: 9 }}
+                />
+                <Tooltip formatter={(v: number) => [v.toFixed(3), 'A']} labelFormatter={v => `f=${Number(v).toFixed(3)} Гц`} />
+                <ReferenceLine y={1} stroke="#94a3b8" strokeDasharray="3 3" />
+                {peakAmp && peakAmp.freq > 0 && (
+                  <ReferenceLine x={peakAmp.freq} stroke="#7c3aed" strokeDasharray="4 2"
+                    label={{ value: `f₀=${peakAmp.freq.toFixed(2)} Гц`, fontSize: 9, fill: '#7c3aed', position: 'top' }} />
+                )}
+                <Line type="monotone" dataKey="amp" stroke="#0891b2" strokeWidth={1.8} dot={false} name="|H(f)|" />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="px-4 text-xs text-slate-500 space-y-0.5">
+              <p>Метод: 1D SH-волна, формализм Томсона–Хаскелла; демпфирование введено через комплексный модуль сдвига G* = ρVs²(1+2iξ).</p>
+              {peakAmp && peakAmp.freq > 0 && (
+                <p className="text-purple-600 font-medium">
+                  f₀ ≈ {peakAmp.freq.toFixed(2)} Гц · A_max ≈ {peakAmp.amp.toFixed(2)} · Tₛ ≈ {(1/peakAmp.freq).toFixed(2)} с
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!profile && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-10 text-center text-slate-400">
+            <LayersIcon className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Выберите профиль грунта для расчёта усиления</p>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+};
+
+// ─── Response spectrum tab (Newmark-β SDOF) ──────────────────────────────────
+
+interface RespTabProps {
+  seismograms: SeismogramRecord[];
+  selectedSeismogramId: number | null;
+  setSelectedSeismogramId: (id: number | null) => void;
+  respDamping: string;   setRespDamping: (v: string) => void;
+  respComponent: 'Z'|'NS'|'EW'; setRespComponent: (v: 'Z'|'NS'|'EW') => void;
+  respResult: SpecPoint[] | null; setRespResult: (v: SpecPoint[] | null) => void;
+  toast: ReturnType<typeof useToast>['toast'];
+}
+
+const ResponseTab: FC<RespTabProps> = ({
+  seismograms, selectedSeismogramId, setSelectedSeismogramId,
+  respDamping, setRespDamping, respComponent, setRespComponent,
+  respResult, setRespResult, toast,
+}) => {
+  const rec = seismograms.find(s => s.id === selectedSeismogramId) ?? null;
+  const real = hasRealData(rec);
+
+  const handleCompute = useCallback(() => {
+    if (!rec || !real) return;
+    const arrs = getRealArrays(rec);
+    const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
+    const sr = rec.sampleRate || 100;
+    const dt = 1 / sr;
+    const zeta = (parseFloat(respDamping) || 5) / 100;
+    // Periods 0.05…3 s, log-spaced (60 points)
+    const periods: number[] = [];
+    const NP = 60;
+    for (let i = 0; i < NP; i++) {
+      periods.push(Math.pow(10, Math.log10(0.05) + (Math.log10(3) - Math.log10(0.05)) * i / (NP - 1)));
+    }
+    try {
+      setRespResult(responseSpectrum(sig, dt, periods, zeta));
+      toast({ title: 'Спектр отклика рассчитан', description: `${NP} периодов, ζ=${(zeta*100).toFixed(1)}%` });
+    } catch (e) {
+      toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
+    }
+  }, [rec, real, respComponent, respDamping, setRespResult, toast]);
+
+  const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <Label className="text-xs">Сейсмограмма</Label>
+          <Select
+            value={selectedSeismogramId?.toString() ?? ''}
+            onValueChange={v => { setSelectedSeismogramId(parseInt(v)); setRespResult(null); }}
+          >
+            <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder="Выберите запись..." /></SelectTrigger>
+            <SelectContent>
+              {seismograms.map(s => (
+                <SelectItem key={s.id} value={s.id.toString()} className="text-xs">
+                  {s.recordId} — {s.stationId} ({new Date(s.startTime).toLocaleDateString('ru-RU')})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Компонента</Label>
+          <Select value={respComponent} onValueChange={v => { setRespComponent(v as 'Z'|'NS'|'EW'); setRespResult(null); }}>
+            <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Z">Z</SelectItem>
+              <SelectItem value="NS">NS</SelectItem>
+              <SelectItem value="EW">EW</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Затухание ζ, %</Label>
+          <Input className="h-8 w-24 text-xs" value={respDamping} onChange={e => setRespDamping(e.target.value)} />
+        </div>
+        <Button size="sm" className="h-8 text-xs gap-1" onClick={handleCompute} disabled={!rec || !real}>
+          <Zap className="h-3.5 w-3.5" /> Расчёт спектра отклика
+        </Button>
+      </div>
+
+      {selectedSeismogramId && !real && (
+        <Card className="border-amber-300 bg-amber-50 shadow-sm">
+          <CardContent className="py-4 px-4 text-sm text-amber-800 font-medium">
+            ⚠ Запись не содержит реальных компонент (dataZ/NS/EW). Расчёт SDOF-отклика невозможен.
+          </CardContent>
+        </Card>
+      )}
+
+      {respResult && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm text-slate-600">
+              Спектр отклика конструкций · SDOF · Newmark-β (β=¼, γ=½)
+              {peakSa && peakSa.T > 0 && (
+                <span className="ml-2 text-purple-600 font-normal text-xs">
+                  Пик Sa @ T = {peakSa.T.toFixed(2)} с · Sa = {peakSa.Sa.toFixed(3)} м/с²
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-2 pb-4">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={respResult} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="T" scale="log" type="number" domain={[0.05, 3]}
+                  label={{ value: 'Период T (с)', position: 'insideBottom', offset: -5, fontSize: 10 }}
+                  tickFormatter={v => v < 1 ? v.toFixed(2) : v.toFixed(1)} tick={{ fontSize: 9 }}
+                />
+                <YAxis
+                  label={{ value: 'Sa (м/с²)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+                  tick={{ fontSize: 9 }} tickFormatter={v => v.toFixed(2)}
+                />
+                <Tooltip
+                  formatter={(v: number, name: string) => [v.toFixed(4), name]}
+                  labelFormatter={v => `T=${Number(v).toFixed(3)} с`}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {peakSa && peakSa.T > 0 && (
+                  <ReferenceLine x={peakSa.T} stroke="#7c3aed" strokeDasharray="4 2"
+                    label={{ value: `T=${peakSa.T.toFixed(2)}с`, fontSize: 9, fill: '#7c3aed', position: 'top' }} />
+                )}
+                <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa, ζ=${respDamping}%`} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="px-4 text-xs text-slate-500 space-y-0.5">
+              <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
+              <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!selectedSeismogramId && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="py-10 text-center text-slate-400">
+            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Выберите сейсмограмму с реальными данными для расчёта спектра отклика конструкций</p>
+          </CardContent>
+        </Card>
+      )}
+    </>
   );
 };
 
