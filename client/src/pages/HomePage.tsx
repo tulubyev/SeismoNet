@@ -5,7 +5,7 @@ import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
   Activity, Building2, Radio, Map, FileText,
-  BookOpen, Layers, History, ArrowRight, Wifi, WifiOff,
+  BookOpen, Layers, History, ArrowRight,
   AlertTriangle, CheckCircle2, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -163,27 +163,7 @@ const HomePage: FC = () => {
     <div className="min-h-full bg-slate-900">
       <div className="px-6 pt-8 pb-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-2xl font-bold text-white">
-                Сеть сейсмических наблюдений
-              </h1>
-              <p className="text-slate-400 text-sm mt-1">
-                Объекты гражданской и промышленной инфраструктуры г. Иркутска
-              </p>
-            </div>
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-              isConnected
-                ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700'
-                : 'bg-red-900/60 text-red-300 border border-red-700'
-            }`}>
-              {isConnected
-                ? <><Wifi className="h-4 w-4" /> Система активна</>
-                : <><WifiOff className="h-4 w-4" /> Нет связи</>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               { label: 'Датчиков онлайн', value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
               { label: 'Под наблюдением', value: monitoredObjs, color: 'text-blue-400' },
