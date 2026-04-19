@@ -6,7 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  SP14_ACCELEROGRAMS,
+  SP14_BY_INTENSITY,
+  SP14_SOIL_K_TABLE4,
+  synthesizeSP14Accelerogram,
+  type NormativeAccelerogram,
+  type SeismicIntensity,
+} from '@/data/sp14-accelerograms';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -1180,12 +1188,17 @@ const ResponseTab: FC<RespTabProps> = ({
   respDamping, setRespDamping, respComponent, setRespComponent,
   respResult, setRespResult, toast,
 }) => {
-  const [inputMode, setInputMode] = useState<'catalog' | 'seismogram'>('catalog');
+  const [inputMode, setInputMode] = useState<'catalog' | 'sp14' | 'seismogram'>('sp14');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>(BAIKAL_CATALOG[0].id);
+  const [sp14Intensity, setSp14Intensity] = useState<SeismicIntensity>('VIII');
+  const [sp14SoilCategory, setSp14SoilCategory] = useState<'I'|'II'|'III'>('II');
+  const [sp14RecordId, setSp14RecordId] = useState<string>(SP14_BY_INTENSITY['VIII'][0].id);
 
   const rec = seismograms.find(s => s.id === selectedSeismogramId) ?? null;
   const real = hasRealData(rec);
   const scenario = BAIKAL_CATALOG.find(s => s.id === selectedScenarioId) ?? BAIKAL_CATALOG[0];
+  const sp14Record: NormativeAccelerogram =
+    SP14_ACCELEROGRAMS.find(r => r.id === sp14RecordId) ?? SP14_BY_INTENSITY[sp14Intensity][0];
 
   const handleCompute = useCallback(() => {
     const NP = 60;
@@ -1200,6 +1213,13 @@ const ResponseTab: FC<RespTabProps> = ({
         const sig = generateSyntheticAccelerogram(scenario, sr);
         setRespResult(responseSpectrum(sig, 1 / sr, periods, zeta));
         toast({ title: 'Спектр отклика рассчитан', description: `Сценарий: ${scenario.label}, PGA=${(scenario.PGA_g * 1000).toFixed(0)} мг, ζ=${(zeta*100).toFixed(1)}%` });
+      } else if (inputMode === 'sp14') {
+        const { signal, sampleRate, pga_ms2 } = synthesizeSP14Accelerogram(sp14Record, { soilCategory: sp14SoilCategory });
+        setRespResult(responseSpectrum(signal, 1 / sampleRate, periods, zeta));
+        toast({
+          title: 'Спектр отклика рассчитан',
+          description: `СП 14: ${sp14Record.label}, грунт ${sp14SoilCategory} (K=${SP14_SOIL_K_TABLE4[sp14SoilCategory]}), PGA=${pga_ms2.toFixed(2)} м/с², ζ=${(zeta*100).toFixed(1)}%`,
+        });
       } else {
         if (!rec || !real) return;
         const arrs = getRealArrays(rec);
@@ -1211,7 +1231,7 @@ const ResponseTab: FC<RespTabProps> = ({
     } catch (e) {
       toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
     }
-  }, [inputMode, scenario, rec, real, respComponent, respDamping, setRespResult, toast]);
+  }, [inputMode, scenario, sp14Record, sp14SoilCategory, rec, real, respComponent, respDamping, setRespResult, toast]);
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
@@ -1219,16 +1239,77 @@ const ResponseTab: FC<RespTabProps> = ({
     <>
       <Card className="border-0 shadow-sm">
         <CardContent className="pt-4 pb-3 px-4">
-          <div className="flex gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Button size="sm" variant={inputMode === 'sp14' ? 'default' : 'outline'} className="h-7 text-xs"
+              onClick={() => { setInputMode('sp14'); setRespResult(null); }}>
+              📚 Библиотека акселерограмм СП 14.13330
+            </Button>
             <Button size="sm" variant={inputMode === 'catalog' ? 'default' : 'outline'} className="h-7 text-xs"
               onClick={() => { setInputMode('catalog'); setRespResult(null); }}>
-              📂 Каталог байкальских сценариев (СП 14.13330)
+              📂 Байкальские сценарии
             </Button>
             <Button size="sm" variant={inputMode === 'seismogram' ? 'default' : 'outline'} className="h-7 text-xs"
               onClick={() => { setInputMode('seismogram'); setRespResult(null); }}>
               📡 Загруженная сейсмограмма
             </Button>
           </div>
+
+          {inputMode === 'sp14' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Расчётная сейсмичность (MSK-64)</Label>
+                  <Select value={sp14Intensity} onValueChange={v => {
+                    const it = v as SeismicIntensity;
+                    setSp14Intensity(it);
+                    setSp14RecordId(SP14_BY_INTENSITY[it][0].id);
+                    setRespResult(null);
+                  }}>
+                    <SelectTrigger className="h-9 w-44 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="VII" className="text-xs">VII — PGA 0.10 g</SelectItem>
+                      <SelectItem value="VIII" className="text-xs">VIII — PGA 0.20 g</SelectItem>
+                      <SelectItem value="IX" className="text-xs">IX — PGA 0.40 g</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Категория грунта (Табл. 4)</Label>
+                  <Select value={sp14SoilCategory} onValueChange={v => { setSp14SoilCategory(v as 'I'|'II'|'III'); setRespResult(null); }}>
+                    <SelectTrigger className="h-9 w-56 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="I" className="text-xs">I — скальные (K=0.8)</SelectItem>
+                      <SelectItem value="II" className="text-xs">II — плотные/твёрдые (K=1.0)</SelectItem>
+                      <SelectItem value="III" className="text-xs">III — рыхлые/мягкие (K=1.4)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1 flex-1 min-w-[18rem]">
+                  <Label className="text-xs">Запись-прототип</Label>
+                  <Select value={sp14RecordId} onValueChange={v => { setSp14RecordId(v); setRespResult(null); }}>
+                    <SelectTrigger className="h-9 w-full text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel className="text-xs">Интенсивность {sp14Intensity}</SelectLabel>
+                        {SP14_BY_INTENSITY[sp14Intensity].map(r => (
+                          <SelectItem key={r.id} value={r.id} className="text-xs">{r.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded p-3 text-xs text-slate-600 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div><span className="text-slate-400">Прототип</span><div className="font-bold">{sp14Record.source}</div></div>
+                <div><span className="text-slate-400">Магнитуда / R</span><div className="font-bold">Mw {sp14Record.Mw} · {sp14Record.R_km} км</div></div>
+                <div><span className="text-slate-400">Целевой PGA</span><div className="font-bold">
+                  {(sp14Record.PGA_g * 1000).toFixed(0)} мг × K={SP14_SOIL_K_TABLE4[sp14SoilCategory]} = {(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²
+                </div></div>
+                <div><span className="text-slate-400">T_dom / Длит.</span><div className="font-bold">{sp14Record.T_dom.toFixed(2)} с · {sp14Record.duration_s} с</div></div>
+                <div className="col-span-2 md:col-span-4 text-slate-500">{sp14Record.notes}</div>
+              </div>
+            </div>
+          )}
 
           {inputMode === 'catalog' && (
             <div className="space-y-3">
@@ -1343,10 +1424,15 @@ const ResponseTab: FC<RespTabProps> = ({
             </ResponsiveContainer>
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
-              {inputMode === 'catalog'
-                ? <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018</p>
-                : <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
-              }
+              {inputMode === 'catalog' && (
+                <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018</p>
+              )}
+              {inputMode === 'sp14' && (
+                <p>СП 14.13330: <strong>{sp14Record.label}</strong> · прототип: {sp14Record.source} · грунт {sp14SoilCategory} (K={SP14_SOIL_K_TABLE4[sp14SoilCategory]}) · PGA={(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²</p>
+              )}
+              {inputMode === 'seismogram' && (
+                <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
+              )}
             </div>
             <div className="px-4 flex gap-2 pt-2">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
@@ -1356,7 +1442,11 @@ const ResponseTab: FC<RespTabProps> = ({
                   );
                   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
                   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-                  a.download = `response_spectrum_${inputMode === 'catalog' ? scenario.id : (rec?.recordId ?? 'result')}.csv`; a.click();
+                  const fname =
+                    inputMode === 'catalog' ? scenario.id :
+                    inputMode === 'sp14'    ? `${sp14Record.id}_soil${sp14SoilCategory}` :
+                    (rec?.recordId ?? 'result');
+                  a.download = `response_spectrum_${fname}.csv`; a.click();
                 }}>
                 <Download className="h-3 w-3" /> CSV
               </Button>
@@ -1365,9 +1455,12 @@ const ResponseTab: FC<RespTabProps> = ({
                   try {
                     const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'response_spectrum',
-                        inputParams: inputMode === 'catalog'
-                          ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping) }
-                          : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
+                        inputParams:
+                          inputMode === 'catalog'
+                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping) }
+                            : inputMode === 'sp14'
+                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping) }
+                              : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
