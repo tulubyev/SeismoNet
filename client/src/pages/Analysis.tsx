@@ -12,6 +12,7 @@ import {
   SP14_BY_INTENSITY,
   SP14_SOIL_K_TABLE4,
   SP14_PGA_TABLE3,
+  SP14_K1_TABLE5,
   sp14DesignSpectrum,
   synthesizeSP14Accelerogram,
   type NormativeAccelerogram,
@@ -1230,6 +1231,14 @@ const ResponseTab: FC<RespTabProps> = ({
   const [sp14Intensity, setSp14Intensity] = useState<SeismicIntensity>('VIII');
   const [sp14SoilCategory, setSp14SoilCategory] = useState<'I'|'II'|'III'>('II');
   const [sp14RecordId, setSp14RecordId] = useState<string>(SP14_BY_INTENSITY['VIII'][0].id);
+  const [sp14K1Key, setSp14K1Key] = useState<keyof typeof SP14_K1_TABLE5>('elastic');
+  const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
+  const SP14_K1_LABEL: Record<keyof typeof SP14_K1_TABLE5, string> = {
+    elastic:     'Упругий — 1.00',
+    critical:    'Критич. сооружения — 1.00',
+    normal:      'Здания I уровня — 0.35',
+    residential: 'Гражданские — 0.25',
+  };
 
   const rec = seismograms.find(s => s.id === selectedSeismogramId) ?? null;
   const real = hasRealData(rec);
@@ -1287,11 +1296,11 @@ const ResponseTab: FC<RespTabProps> = ({
   const chartData = useMemo(() => {
     if (!respResult) return [];
     const periods = respResult.map(p => p.T);
-    const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, 1.0);
+    const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, sp14K1);
     return respResult.map((p, i) => ({ ...p, Sa_design: design[i].Sa_design }));
-  }, [respResult, sp14Intensity, sp14SoilCategory]);
+  }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1]);
 
-  const designPeak = SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665 * 2.5;
+  const designPeak = SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * sp14K1 * 9.80665 * 2.5;
 
   return (
     <>
@@ -1428,6 +1437,18 @@ const ResponseTab: FC<RespTabProps> = ({
               <Label className="text-xs">Затухание ζ, %</Label>
               <Input className="h-8 w-24 text-xs" value={respDamping} onChange={e => setRespDamping(e.target.value)} />
             </div>
+            <div>
+              <Label className="text-xs">K₁ — допуск. поврежд. (Табл. 5)</Label>
+              <Select value={sp14K1Key} onValueChange={v => setSp14K1Key(v as keyof typeof SP14_K1_TABLE5)}>
+                <SelectTrigger className="h-8 w-64 text-xs" data-testid="select-sp14-k1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="elastic" className="text-xs">Упругий — 1.00</SelectItem>
+                  <SelectItem value="critical" className="text-xs">Критич. сооружения — 1.00</SelectItem>
+                  <SelectItem value="normal" className="text-xs">Здания I уровня — 0.35</SelectItem>
+                  <SelectItem value="residential" className="text-xs">Гражданские — 0.25</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button size="sm" className="h-8 text-xs gap-1"
               onClick={handleCompute}
               disabled={inputMode === 'seismogram' && (!rec || !real)}>
@@ -1481,16 +1502,16 @@ const ResponseTab: FC<RespTabProps> = ({
                 )}
                 <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa расч., ζ=${respDamping}%`} />
                 <Line type="monotone" dataKey="Sa_design" stroke="#0369a1" strokeWidth={1.6} strokeDasharray="6 4" dot={false}
-                  name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory})`} />
+                  name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory}, K₁=${sp14K1.toFixed(2)})`} />
               </LineChart>
             </ResponsiveContainer>
             <div className="px-4 pt-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-md mx-3 py-1.5">
               <strong>Норм. спектр СП 14.13330.2018 §5:</strong>{' '}
               Sa<sub>норм</sub>(T) = A<sub>0</sub>·g·K<sub>гр</sub>·K<sub>1</sub>·β(T) ={' '}
-              {SP14_PGA_TABLE3[sp14Intensity].toFixed(2)}·9.81·{SP14_SOIL_K_TABLE4[sp14SoilCategory]}·1.0·β(T) ={' '}
-              {(SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)}·β(T) м/с²
+              {SP14_PGA_TABLE3[sp14Intensity].toFixed(2)}·9.81·{SP14_SOIL_K_TABLE4[sp14SoilCategory]}·{sp14K1.toFixed(2)}·β(T) ={' '}
+              {(SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * sp14K1 * 9.80665).toFixed(2)}·β(T) м/с²
               {' · '}пик плато {designPeak.toFixed(2)} м/с² @ T ≤ {sp14SoilCategory === 'III' ? '0.8' : '0.4'} с
-              {' · '}I={sp14Intensity}, грунт {sp14SoilCategory}, K<sub>1</sub>=1.0 (упругий)
+              {' · '}I={sp14Intensity}, грунт {sp14SoilCategory}, K<sub>1</sub>={sp14K1.toFixed(2)} ({SP14_K1_LABEL[sp14K1Key]})
             </div>
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
@@ -1530,10 +1551,10 @@ const ResponseTab: FC<RespTabProps> = ({
                       body: JSON.stringify({ calcType: 'response_spectrum',
                         inputParams:
                           inputMode === 'catalog'
-                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping) }
+                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key }
                             : inputMode === 'sp14'
-                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping) }
-                              : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
+                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping) }
+                              : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key },
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
