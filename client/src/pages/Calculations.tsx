@@ -1,4 +1,4 @@
-import { FC, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -20,7 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import {
   Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download,
-  Eye, Search, Database, FileBarChart, History,
+  Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
 } from 'lucide-react';
 import type { SeismicCalculation, SoilProfile, InfrastructureObject } from '@shared/schema';
 
@@ -121,6 +122,10 @@ const Calculations: FC = () => {
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<SeismicCalculation | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SeismicCalculation | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+
+  const MAX_COMPARE = 3;
 
   const { data: calcs = [], isLoading } = useQuery<SeismicCalculation[]>({
     queryKey: ['/api/calculations', { limit: 500 }],
@@ -165,6 +170,47 @@ const Calculations: FC = () => {
     return map;
   }, [filtered]);
 
+  const calcMap = useMemo(() => new Map(calcs.map(c => [c.id, c])), [calcs]);
+  const selectedCalcs = useMemo(
+    () => selected.map(id => calcMap.get(id)).filter(Boolean) as SeismicCalculation[],
+    [selected, calcMap],
+  );
+  const selectionType: CalcType | null = selectedCalcs[0]?.calcType as CalcType ?? null;
+
+  // Prune stale selected IDs whenever the calc list changes (e.g. after delete/refetch).
+  // Without this, an ID that no longer exists in `calcs` would silently block all further
+  // selections (toolbar hides because selectedCalcs is empty, but toggleSelect still sees
+  // a non-empty `selected` and rejects different types).
+  useEffect(() => {
+    if (selected.length === 0) return;
+    const valid = selected.filter(id => calcMap.has(id));
+    if (valid.length !== selected.length) setSelected(valid);
+  }, [calcMap, selected]);
+
+  const toggleSelect = (c: SeismicCalculation) => {
+    setSelected(prev => {
+      if (prev.includes(c.id)) return prev.filter(id => id !== c.id);
+      // Resolve current valid selections from the live calcMap. If none of the previously
+      // selected IDs exist anymore, treat the selection as empty rather than getting stuck.
+      const validPrev = prev.filter(id => calcMap.has(id));
+      if (validPrev.length === 0) return [c.id];
+      const firstType = calcMap.get(validPrev[0])?.calcType;
+      if (firstType !== c.calcType) {
+        toast({ title: 'Можно сравнивать расчёты только одного типа',
+          description: 'Снимите текущий выбор, чтобы выбрать расчёты другого типа.', variant: 'destructive' });
+        return validPrev;
+      }
+      if (validPrev.length >= MAX_COMPARE) {
+        toast({ title: `Можно сравнить не более ${MAX_COMPARE} расчётов одновременно`, variant: 'destructive' });
+        return validPrev;
+      }
+      return [...validPrev, c.id];
+    });
+  };
+
+  const canCompare = selectedCalcs.length >= 2 &&
+    (selectionType === 'mtsm' || selectionType === 'response_spectrum');
+
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest('DELETE', `/api/calculations/${id}`),
     onSuccess: () => {
@@ -179,11 +225,22 @@ const Calculations: FC = () => {
     const prof = c.soilProfileId ? profMap.get(c.soilProfileId)?.profileName : null;
     const obj  = c.objectId      ? objMap.get(c.objectId)?.name              : null;
     const meta = TYPE_META[c.calcType as CalcType];
+    const isSelected = selected.includes(c.id);
+    const disabledForSelect = !isSelected && selectedCalcs.length > 0 && selectionType !== c.calcType;
     return (
       <div key={c.id}
-        className="grid grid-cols-12 gap-2 items-center border rounded px-3 py-2 text-xs hover:bg-slate-50 transition-colors"
+        className={`grid grid-cols-12 gap-2 items-center border rounded px-3 py-2 text-xs transition-colors ${
+          isSelected ? 'bg-indigo-50 border-indigo-300' : 'hover:bg-slate-50'
+        }`}
         data-testid={`calc-row-${c.id}`}>
         <div className="col-span-12 md:col-span-2 flex items-center gap-2">
+          <Checkbox
+            checked={isSelected}
+            disabled={disabledForSelect}
+            onCheckedChange={() => toggleSelect(c)}
+            aria-label="Выбрать для сравнения"
+            data-testid={`checkbox-compare-${c.id}`}
+          />
           <Badge variant="outline" className={`${meta?.color ?? ''} gap-1 text-[10px] font-medium`}>
             {meta?.icon}{meta?.label.split(' — ')[0] ?? c.calcType}
           </Badge>
@@ -255,6 +312,38 @@ const Calculations: FC = () => {
           <Download className="h-3.5 w-3.5" /> Экспорт списка (CSV)
         </Button>
       </div>
+
+      {selectedCalcs.length > 0 && (
+        <div className="flex items-center gap-3 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs"
+          data-testid="compare-toolbar">
+          <GitCompareArrows className="h-4 w-4 text-indigo-600" />
+          <div className="flex-1 text-indigo-900">
+            Выбрано для сравнения: <strong>{selectedCalcs.length}</strong> / {MAX_COMPARE}
+            {selectionType && (
+              <span className="ml-2 text-indigo-700">
+                · тип: {TYPE_META[selectionType]?.label.split(' — ')[0]}
+              </span>
+            )}
+            {selectedCalcs.length === 1 && (
+              <span className="ml-2 text-indigo-600">— выберите ещё минимум один расчёт того же типа</span>
+            )}
+            {selectedCalcs.length >= 2 && selectionType === 'resonance' && (
+              <span className="ml-2 text-amber-700">— оверлей графика недоступен для резонанса</span>
+            )}
+          </div>
+          <Button size="sm" variant="default" className="h-7 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700"
+            disabled={!canCompare}
+            onClick={() => setCompareOpen(true)}
+            data-testid="btn-open-compare">
+            <GitCompareArrows className="h-3.5 w-3.5" /> Сравнить
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1"
+            onClick={() => setSelected([])}
+            data-testid="btn-clear-selection">
+            <X className="h-3.5 w-3.5" /> Очистить
+          </Button>
+        </div>
+      )}
 
       <Card className="border-0 shadow-sm">
         <CardContent className="pt-4 pb-3 px-4">
@@ -328,6 +417,14 @@ const Calculations: FC = () => {
         profile={viewing?.soilProfileId ? profMap.get(viewing.soilProfileId) ?? null : null}
         object={viewing?.objectId ? objMap.get(viewing.objectId) ?? null : null}
         onClose={() => setViewing(null)}
+      />
+
+      <CompareDialog
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        calcs={selectedCalcs}
+        profMap={profMap}
+        objMap={objMap}
       />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={open => !open && setConfirmDelete(null)}>
@@ -546,6 +643,181 @@ const ResoDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
         )}
       </div>
     </div>
+  );
+};
+
+// ─── Compare dialog: overlay 2-3 saved curves on one chart ───────────────────
+
+const COMPARE_COLORS = ['#0891b2', '#dc2626', '#7c3aed'];
+
+interface CompareDialogProps {
+  open: boolean;
+  onClose: () => void;
+  calcs: SeismicCalculation[];
+  profMap: Map<number, SoilProfile>;
+  objMap: Map<number, InfrastructureObject>;
+}
+
+const CompareDialog: FC<CompareDialogProps> = ({ open, onClose, calcs, profMap, objMap }) => {
+  const calcType = calcs[0]?.calcType as CalcType | undefined;
+  const meta = calcType ? TYPE_META[calcType] : null;
+
+  const labelFor = (c: SeismicCalculation): string => {
+    const inp = (c.inputParams ?? {}) as Record<string, unknown>;
+    const prof = c.soilProfileId ? profMap.get(c.soilProfileId)?.profileName : null;
+    const obj  = c.objectId      ? objMap.get(c.objectId)?.name              : null;
+    if (c.calcType === 'response_spectrum') {
+      const lbl = (inp.recordLabel ?? inp.scenarioLabel ?? `seismogram #${inp.seismogramId ?? '—'}`) as string;
+      return `#${c.id} · ${lbl}${inp.damping != null ? ` · ζ=${inp.damping}%` : ''}`;
+    }
+    if (c.calcType === 'mtsm') {
+      return `#${c.id}${prof ? ` · ${prof}` : ''}${obj ? ` · ${obj}` : ''}`;
+    }
+    return `#${c.id}`;
+  };
+
+  const exportCombinedCsv = () => {
+    if (!calcType) return;
+    if (calcType === 'mtsm') {
+      const xs = new Set<number>();
+      const series = calcs.map(c => {
+        const pts = ((c.results ?? {}) as MtsmResults).points ?? [];
+        const m = new Map(pts.map(p => [p.freq, p.amp]));
+        m.forEach((_v, f) => xs.add(f));
+        return { label: labelFor(c), m };
+      });
+      const xsSorted = Array.from(xs).sort((a, b) => a - b);
+      const header = 'freq_hz,' + series.map(s => `"A · ${s.label.replace(/"/g, '""')}"`).join(',');
+      const rows = xsSorted.map(f => [f.toFixed(4), ...series.map(s => s.m.get(f)?.toFixed(6) ?? '')].join(','));
+      downloadCsv(`compare_mtsm_${calcs.map(c => c.id).join('_')}.csv`, [header, ...rows].join('\n'));
+      return;
+    }
+    if (calcType === 'response_spectrum') {
+      const xs = new Set<number>();
+      const series = calcs.map(c => {
+        const pts = ((c.results ?? {}) as RespResults).points ?? [];
+        const m = new Map(pts.map(p => [p.T, p.Sa]));
+        m.forEach((_v, T) => xs.add(T));
+        return { label: labelFor(c), m };
+      });
+      const xsSorted = Array.from(xs).sort((a, b) => a - b);
+      const header = 'period_s,' + series.map(s => `"Sa · ${s.label.replace(/"/g, '""')}"`).join(',');
+      const rows = xsSorted.map(T => [T.toFixed(4), ...series.map(s => s.m.get(T)?.toFixed(6) ?? '')].join(','));
+      downloadCsv(`compare_response_${calcs.map(c => c.id).join('_')}.csv`, [header, ...rows].join('\n'));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" data-testid="compare-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <GitCompareArrows className="h-4 w-4 text-indigo-600" />
+            Сравнение расчётов{meta ? ` · ${meta.label}` : ''}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Наложение {calcs.length} сохранённых кривых на один график
+          </DialogDescription>
+        </DialogHeader>
+
+        {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} />}
+        {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} />}
+
+        <div className="border rounded p-3 bg-slate-50 space-y-2">
+          <div className="text-xs font-semibold text-slate-600">Выбранные расчёты</div>
+          <div className="space-y-1">
+            {calcs.map((c, i) => (
+              <div key={c.id} className="flex items-center gap-2 text-xs" data-testid={`compare-legend-${c.id}`}>
+                <span className="inline-block w-3 h-3 rounded" style={{ background: COMPARE_COLORS[i] }} />
+                <span className="font-mono text-slate-500">#{c.id}</span>
+                <span className="text-slate-700 truncate">{labelFor(c)}</span>
+                <span className="ml-auto text-slate-400">
+                  {new Date(c.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={exportCombinedCsv}
+            data-testid="btn-compare-csv">
+            <Download className="h-3 w-3" /> CSV (объединённый)
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const MtsmCompareChart: FC<{
+  calcs: SeismicCalculation[];
+  labelFor: (c: SeismicCalculation) => string;
+}> = ({ calcs, labelFor }) => {
+  const series = calcs.map(c => ({
+    id: c.id,
+    label: labelFor(c),
+    points: ((c.results ?? {}) as MtsmResults).points ?? [],
+    peakFreq: ((c.results ?? {}) as MtsmResults).peakFreq,
+  }));
+  if (series.every(s => s.points.length === 0)) {
+    return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={380}>
+      <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis dataKey="freq" type="number" scale="log" domain={[0.1, 25]} allowDuplicatedCategory={false}
+          label={{ value: 'Частота (Гц)', position: 'insideBottom', offset: -5, fontSize: 10 }}
+          tickFormatter={v => v < 1 ? v.toFixed(1) : v.toFixed(0)} tick={{ fontSize: 9 }} />
+        <YAxis label={{ value: 'A = u_surf / u_bedr', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+          tick={{ fontSize: 9 }} />
+        <Tooltip formatter={(v: number) => v.toFixed(3)}
+          labelFormatter={v => `f=${Number(v).toFixed(3)} Гц`} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <ReferenceLine y={1} stroke="#94a3b8" strokeDasharray="3 3" />
+        {series.map((s, i) => (
+          <Line key={s.id} data={s.points} type="monotone" dataKey="amp"
+            name={s.label}
+            stroke={COMPARE_COLORS[i]} strokeWidth={1.8} dot={false} />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
+
+const RespCompareChart: FC<{
+  calcs: SeismicCalculation[];
+  labelFor: (c: SeismicCalculation) => string;
+}> = ({ calcs, labelFor }) => {
+  const series = calcs.map(c => ({
+    id: c.id,
+    label: labelFor(c),
+    points: ((c.results ?? {}) as RespResults).points ?? [],
+  }));
+  if (series.every(s => s.points.length === 0)) {
+    return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={380}>
+      <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis dataKey="T" type="number" scale="log" domain={[0.05, 3]} allowDuplicatedCategory={false}
+          label={{ value: 'Период T (с)', position: 'insideBottom', offset: -5, fontSize: 10 }}
+          tickFormatter={v => v < 1 ? v.toFixed(2) : v.toFixed(1)} tick={{ fontSize: 9 }} />
+        <YAxis label={{ value: 'Sa (м/с²)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+          tick={{ fontSize: 9 }} tickFormatter={v => v.toFixed(2)} />
+        <Tooltip formatter={(v: number) => v.toFixed(4)}
+          labelFormatter={v => `T=${Number(v).toFixed(3)} с`} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        {series.map((s, i) => (
+          <Line key={s.id} data={s.points} type="monotone" dataKey="Sa"
+            name={s.label}
+            stroke={COMPARE_COLORS[i]} strokeWidth={1.8} dot={false} />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   );
 };
 
