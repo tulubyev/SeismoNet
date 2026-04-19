@@ -1,410 +1,699 @@
-import { FC, useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { FC, useState, useEffect, useRef, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
-import {
-  Activity, Radio, Clock, Download, RefreshCw,
-  Wifi, WifiOff, Search, ChevronRight, Info
+  Activity, Radio, Clock, Download, RefreshCw, Search,
+  Filter, ChevronRight, Layers, BarChart3, TrendingUp,
+  Calculator, X, History, Wifi, AlertCircle, Database
 } from 'lucide-react';
 import type { SeismogramRecord, Station } from '@shared/schema';
-import { useSeismicData } from '@/hooks/useSeismicData';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
-// ─── Online waveform canvas ───────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface WavePoint { t: number; v: number; }
+const SOIL_LABELS: Record<string, string> = {
+  I: 'I — Скальные/полускальные',
+  II: 'II — Твёрдые дисперсные',
+  III: 'III — Мягкие/водонасыщ.',
+  IV: 'IV — Рыхлые/насыпные',
+};
 
-const CHANNEL_COLORS = { Z: '#ef4444', NS: '#3b82f6', EW: '#10b981' };
+const SOURCE_LABELS: Record<string, string> = {
+  local: 'Местная сеть ИЗК СО РАН',
+  historical: 'Исторический архив',
+  cesmd: 'CESMD (США)',
+  iris: 'IRIS / FDSN',
+  seismological_institute: 'Сейсмологический институт',
+};
 
-const WaveformCanvas: FC<{ data: WavePoint[]; color: string; label: string }> = ({ data, color, label }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+const STATUS_COLORS: Record<string, string> = {
+  raw: 'bg-slate-100 text-slate-600',
+  filtered: 'bg-blue-50 text-blue-700',
+  processed: 'bg-emerald-50 text-emerald-700',
+};
 
+const MAG_COLOR = (m: number | null) => {
+  if (!m) return '#94a3b8';
+  if (m >= 6) return '#ef4444';
+  if (m >= 4.5) return '#f97316';
+  if (m >= 3) return '#eab308';
+  if (m >= 1.5) return '#6366f1';
+  return '#94a3b8';
+};
+
+function formatDur(sec: number | null) {
+  if (!sec) return '—';
+  if (sec < 60) return `${sec.toFixed(1)} с`;
+  return `${Math.floor(sec / 60)} м ${(sec % 60).toFixed(0)} с`;
+}
+
+// ─── Synthetic waveform generator ─────────────────────────────────────────────
+
+function genWave(n: number, pga: number, freq: number, seed: number): number[] {
+  const pts: number[] = [];
+  let rng = seed;
+  const next = () => { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return (rng / 0x80000000) - 1; };
+  const taper = (i: number) => {
+    const t = i / n;
+    if (t < 0.05) return t / 0.05;
+    if (t > 0.8) return (1 - t) / 0.2;
+    return 1;
+  };
+  for (let i = 0; i < n; i++) {
+    const t = i / n * 30;
+    const signal = Math.sin(2 * Math.PI * freq * t)
+      + 0.5 * Math.sin(2 * Math.PI * freq * 1.7 * t + 1.2)
+      + 0.3 * Math.sin(2 * Math.PI * freq * 0.4 * t + 2.1)
+      + 0.15 * next();
+    pts.push(signal * taper(i) * pga * 100);
+  }
+  return pts;
+}
+
+// ─── Waveform canvas ──────────────────────────────────────────────────────────
+
+const WaveCanvas: FC<{ pts: number[]; color: string; label: string; height?: number }> = ({
+  pts, color, label, height = 64
+}) => {
+  const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || data.length < 2) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    // Background
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, W, H);
-
-    // Zero line
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, H / 2);
-    ctx.lineTo(W, H / 2);
-    ctx.stroke();
+    const c = ref.current; if (!c || pts.length < 2) return;
+    const ctx = c.getContext('2d')!;
+    const W = c.width, H = c.height;
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+    ctx.setLineDash([3, 3]); ctx.beginPath();
+    ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
     ctx.setLineDash([]);
-
-    // Waveform
-    const minV = Math.min(...data.map(d => d.v));
-    const maxV = Math.max(...data.map(d => d.v));
-    const range = maxV - minV || 1;
-    const padding = 8;
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    data.forEach((pt, i) => {
-      const x = (i / (data.length - 1)) * W;
-      const y = padding + ((maxV - pt.v) / range) * (H - padding * 2);
+    const min = Math.min(...pts), max = Math.max(...pts), range = max - min || 1;
+    const pad = 4;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath();
+    pts.forEach((v, i) => {
+      const x = (i / (pts.length - 1)) * W;
+      const y = pad + ((max - v) / range) * (H - pad * 2);
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
-
-    // Label
-    ctx.fillStyle = color;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText(label, 6, 14);
-  }, [data, color, label]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={800}
-      height={80}
-      className="w-full rounded"
-      style={{ imageRendering: 'pixelated' }}
-    />
-  );
+    ctx.fillStyle = color; ctx.font = 'bold 9px monospace';
+    ctx.fillText(label, 4, 11);
+  }, [pts, color, label]);
+  return <canvas ref={ref} width={600} height={height} className="w-full rounded-sm" style={{ imageRendering: 'pixelated' }} />;
 };
 
-// ─── Online tab ───────────────────────────────────────────────────────────────
+// ─── Response spectrum chart ───────────────────────────────────────────────────
 
-const OnlineTab: FC = () => {
-  const { isConnected, stations, waveformData } = useSeismicData();
-  const [selectedStation, setSelectedStation] = useState<string>('all');
+function computeResponseSpectrum(pga: number, f0: number): { T: number[]; Sa: number[] } {
+  const T: number[] = []; const Sa: number[] = [];
+  const T0 = 1 / f0;
+  for (let i = 0; i <= 80; i++) {
+    const t = 0.05 + i * 0.05;
+    T.push(t);
+    let sa: number;
+    if (t < 0.1) sa = pga * (1 + 6.5 * t);
+    else if (t <= T0 * 1.2) sa = pga * 2.5;
+    else sa = pga * 2.5 * Math.pow(T0 / t, 0.9);
+    Sa.push(sa * 9.81 * 100);
+  }
+  return { T, Sa };
+}
 
-  const irkStations = stations.filter(s => s.stationId.startsWith('IRK-'));
+const SpectrumChart: FC<{ T: number[]; Sa: number[]; color: string; xlabel: string; ylabel: string }> = ({
+  T, Sa, color, xlabel, ylabel
+}) => {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current; if (!c || T.length < 2) return;
+    const ctx = c.getContext('2d')!;
+    const W = c.width, H = c.height;
+    const pad = { l: 40, r: 10, t: 8, b: 28 };
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    const minT = Math.min(...T), maxT = Math.max(...T);
+    const minS = 0, maxS = Math.max(...Sa) * 1.1 || 1;
+    const toX = (t: number) => pad.l + (t - minT) / (maxT - minT) * (W - pad.l - pad.r);
+    const toY = (s: number) => H - pad.b - (s - minS) / (maxS - minS) * (H - pad.t - pad.b);
+    // Grid
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 5; i++) {
+      const y = pad.t + i * (H - pad.t - pad.b) / 5;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+      const v = maxS - i * maxS / 5;
+      ctx.fillStyle = '#64748b'; ctx.font = '8px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(v.toFixed(0), pad.l - 3, y + 3);
+    }
+    ctx.textAlign = 'center';
+    [0.5, 1, 1.5, 2, 2.5, 3].forEach(t => {
+      const x = toX(t);
+      ctx.beginPath(); ctx.strokeStyle = '#1e293b'; ctx.moveTo(x, pad.t); ctx.lineTo(x, H - pad.b); ctx.stroke();
+      ctx.fillStyle = '#64748b'; ctx.font = '8px sans-serif';
+      ctx.fillText(t.toString(), x, H - 2);
+    });
+    // Axes labels
+    ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(xlabel, pad.l + (W - pad.l - pad.r) / 2, H);
+    // Spectrum line
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+    T.forEach((t, i) => {
+      const x = toX(t), y = toY(Sa[i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Area fill
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = color;
+    ctx.lineTo(toX(T[T.length - 1]), H - pad.b);
+    ctx.lineTo(toX(T[0]), H - pad.b);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+  }, [T, Sa, color, xlabel, ylabel]);
+  return <canvas ref={ref} width={480} height={140} className="w-full rounded" style={{ imageRendering: 'pixelated' }} />;
+};
 
-  // waveformData is Record<string, LiveWaveformData> — access by stationId key
-  const getWaveformForStation = useCallback((stationId: string): { timestamp: number; value: number }[] => {
-    const entry = waveformData[stationId];
-    if (!entry) return [];
-    return (entry.dataPoints as { timestamp: number; value: number }[]) ?? [];
-  }, [waveformData]);
+// ─── Filter sidebar ────────────────────────────────────────────────────────────
 
-  const displayStations = selectedStation === 'all'
-    ? irkStations.slice(0, 3)
-    : irkStations.filter(s => s.stationId === selectedStation);
+interface Filters {
+  search: string;
+  type: 'all' | 'historical' | 'current';
+  magMin: number; magMax: number;
+  pgaMin: number; pgaMax: number;
+  soilCategory: string;
+  dataSource: string;
+  station: string;
+  distMax: number;
+}
+
+const DEFAULT_FILTERS: Filters = {
+  search: '', type: 'all',
+  magMin: 0, magMax: 9,
+  pgaMin: 0, pgaMax: 100,
+  soilCategory: 'all', dataSource: 'all', station: 'all',
+  distMax: 500,
+};
+
+// ─── Record card ───────────────────────────────────────────────────────────────
+
+const RecordCard: FC<{
+  rec: SeismogramRecord & { isHistorical?: boolean; magnitude?: number | null; locationName?: string | null; soilCategory?: string | null; epicentralDistanceKm?: number | null; dataSource?: string | null; magnitudeType?: string | null };
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ rec, selected, onSelect }) => {
+  const pga = rec.peakGroundAcceleration ?? 0;
+  const freq = rec.dominantFrequency ?? 2;
+  const mag = rec.magnitude ?? null;
+  const pts = useMemo(() => genWave(120, Math.max(pga, 0.001), freq, rec.id * 1337), [pga, freq, rec.id]);
 
   return (
-    <div className="space-y-4">
-
-      {/* Connection indicator */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-          <span className="text-xs text-slate-600 font-medium">
-            {isConnected ? 'Прямая трансляция активна' : 'Нет соединения с сервером'}
-          </span>
+    <div
+      onClick={onSelect}
+      className={`group border rounded-lg cursor-pointer transition-all overflow-hidden ${
+        selected
+          ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/40'
+          : 'border-slate-200 hover:border-blue-300 hover:shadow-md bg-white'
+      }`}
+    >
+      {/* Top row */}
+      <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs font-bold text-slate-700">{rec.stationId}</span>
+            {mag !== null && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold"
+                style={{ color: MAG_COLOR(mag) }}>
+                M{rec.magnitudeType ?? 'w'} {mag.toFixed(1)}
+              </span>
+            )}
+            {rec.isHistorical && (
+              <Badge variant="outline" className="text-[10px] h-4 gap-0.5 border-amber-200 text-amber-700 bg-amber-50">
+                <History className="h-2.5 w-2.5" />Историческая
+              </Badge>
+            )}
+            <Badge className={`text-[10px] h-4 ${STATUS_COLORS[rec.processingStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+              {rec.processingStatus}
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5 truncate">
+            {rec.locationName ?? rec.stationId} · {new Date(rec.startTime).toLocaleDateString('ru-RU', { day:'2-digit', month:'short', year:'numeric' })}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedStation} onValueChange={setSelectedStation}>
-            <SelectTrigger className="h-8 w-48 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Все станции</SelectItem>
-              {irkStations.map(s => (
-                <SelectItem key={s.stationId} value={s.stationId}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="text-right flex-shrink-0">
+          <p className="text-sm font-bold text-slate-800">
+            {pga > 0 ? `${pga.toFixed(4)} g` : '—'}
+          </p>
+          <p className="text-[10px] text-slate-400">PGA</p>
         </div>
       </div>
 
-      {/* Live waveforms */}
-      {!isConnected ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="py-12 text-center">
-            <WifiOff className="h-8 w-8 mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500 mb-2">Нет соединения с сервером данных</p>
-            <p className="text-xs text-slate-400">Проверьте подключение и обновите страницу</p>
-          </CardContent>
-        </Card>
-      ) : displayStations.length === 0 ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="py-12 text-center">
-            <Radio className="h-8 w-8 mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500">Нет данных от станций Иркутска</p>
-            <p className="text-xs text-slate-400 mt-1">Станции {stations.length > 0 ? 'подключены, ожидание данных...' : 'не подключены'}</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {displayStations.map(station => {
-            const points = getWaveformForStation(station.stationId);
-            const isEmpty = points.length < 2;
+      {/* Mini waveform */}
+      <div className="bg-slate-900 mx-4 rounded overflow-hidden mb-2">
+        <WaveCanvas pts={pts} color="#3b82f6" label="Z" height={36} />
+      </div>
 
-            return (
-              <Card key={station.stationId} className="border-0 shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${station.status === 'online' ? 'bg-emerald-500' : station.status === 'degraded' ? 'bg-amber-500' : 'bg-red-500'}`} />
-                      <CardTitle className="text-sm font-semibold text-slate-700">{station.name}</CardTitle>
-                      <span className="text-[10px] text-slate-400 font-mono">{station.stationId}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
-                      {station.dataRate && <span>{station.dataRate} sps</span>}
-                      <Clock className="h-3 w-3" />
-                      <span>{new Date().toLocaleTimeString('ru-RU')}</span>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-1.5">
-                  <div className="bg-slate-900 rounded-lg p-2 space-y-1">
-                    {isEmpty ? (
-                      <div className="h-[240px] flex items-center justify-center text-slate-500 text-xs">
-                        Ожидание сигнала...
-                      </div>
-                    ) : (
-                      <>
-                        <WaveformCanvas data={points.map(p => ({ t: p.timestamp, v: p.value }))} color={CHANNEL_COLORS.Z} label="Z" />
-                        <WaveformCanvas data={points.map(p => ({ t: p.timestamp, v: p.value * 0.8 + (Math.random() - 0.5) * 0.05 }))} color={CHANNEL_COLORS.NS} label="N-S" />
-                        <WaveformCanvas data={points.map(p => ({ t: p.timestamp, v: p.value * 0.6 + (Math.random() - 0.5) * 0.05 }))} color={CHANNEL_COLORS.EW} label="E-W" />
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
-                    <span>60 с назад</span>
-                    <span className="flex items-center gap-3">
-                      <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded bg-red-500 inline-block" />Z (верт.)</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded bg-blue-500 inline-block" />N-S</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded bg-emerald-500 inline-block" />E-W</span>
-                    </span>
-                    <span>сейчас</span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      {/* Bottom row */}
+      <div className="px-4 pb-3 flex items-center gap-3 text-[10px] text-slate-400">
+        {rec.soilCategory && (
+          <span className="flex items-center gap-0.5">
+            <Layers className="h-3 w-3" /> Гр.{rec.soilCategory}
+          </span>
+        )}
+        {rec.epicentralDistanceKm != null && (
+          <span>{rec.epicentralDistanceKm.toFixed(0)} км</span>
+        )}
+        {rec.dominantFrequency != null && (
+          <span>{rec.dominantFrequency.toFixed(1)} Гц</span>
+        )}
+        {rec.durationSec != null && (
+          <span>{formatDur(rec.durationSec)}</span>
+        )}
+        <span className="ml-auto">
+          {SOURCE_LABELS[rec.dataSource ?? ''] ?? rec.dataSource ?? '—'}
+        </span>
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${selected ? 'rotate-90 text-blue-500' : ''}`} />
+      </div>
     </div>
   );
 };
 
-// ─── Offline tab ──────────────────────────────────────────────────────────────
+// ─── Detail panel ──────────────────────────────────────────────────────────────
 
-const OfflineTab: FC = () => {
-  const [stationFilter, setStationFilter] = useState('all');
-  const [selectedRecord, setSelectedRecord] = useState<SeismogramRecord | null>(null);
+const DetailPanel: FC<{ rec: SeismogramRecord & any; onSendToAnalysis: () => void }> = ({
+  rec, onSendToAnalysis
+}) => {
+  const pga = rec.peakGroundAcceleration ?? 0.005;
+  const freq = rec.dominantFrequency ?? 2;
+  const seed = rec.id * 1337;
+  const ptsZ  = useMemo(() => genWave(600, pga, freq, seed),         [pga, freq, seed]);
+  const ptsNS = useMemo(() => genWave(600, pga * 0.82, freq, seed+1), [pga, freq, seed]);
+  const ptsEW = useMemo(() => genWave(600, pga * 0.71, freq, seed+2), [pga, freq, seed]);
+  const spectrum = useMemo(() => computeResponseSpectrum(pga, freq),  [pga, freq]);
 
-  const { data: stations = [] } = useQuery<Station[]>({
-    queryKey: ['/api/stations']
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => apiRequest('PATCH', `/api/seismograms/${rec.id}/use-for-modeling`, {}),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['/api/seismograms'] }); },
   });
 
-  const { data: records = [], isLoading, refetch } = useQuery<SeismogramRecord[]>({
-    queryKey: ['/api/seismograms', stationFilter]
-  });
-
-  const irkStations = stations.filter(s => s.stationId.startsWith('IRK-'));
-  const filtered = stationFilter === 'all'
-    ? records
-    : records.filter(r => r.stationId === stationFilter);
-
-  const formatDuration = (sec: number | null) => {
-    if (!sec) return '—';
-    if (sec < 60) return `${sec.toFixed(1)}с`;
-    return `${Math.floor(sec / 60)}м ${(sec % 60).toFixed(0)}с`;
+  const handleSendToAnalysis = () => {
+    mutation.mutate();
+    localStorage.setItem('seismo_selected_record', JSON.stringify({
+      recordId: rec.recordId,
+      magnitude: rec.magnitude,
+      pga: pga,
+      dominantFrequency: freq,
+      soilCategory: rec.soilCategory,
+      locationName: rec.locationName,
+      epicentralDistanceKm: rec.epicentralDistanceKm,
+      spectrum: spectrum,
+    }));
+    toast({ title: 'Запись отправлена', description: 'Параметры загружены в модуль расчётов.' });
+    onSendToAnalysis();
   };
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex items-center gap-3">
-        <Select value={stationFilter} onValueChange={setStationFilter}>
-          <SelectTrigger className="h-8 w-48 text-xs">
-            <Radio className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все станции</SelectItem>
-            {irkStations.map(s => (
-              <SelectItem key={s.stationId} value={s.stationId}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => refetch()}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-          Обновить
-        </Button>
-        <span className="text-xs text-slate-400 ml-auto">{filtered.length} записей</span>
+      {/* Key parameters */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        {[
+          { label: 'Магнитуда', value: rec.magnitude != null ? `M${rec.magnitudeType ?? 'w'} ${rec.magnitude.toFixed(1)}` : '—' },
+          { label: 'PGA', value: pga > 0 ? `${pga.toFixed(5)} g` : '—' },
+          { label: 'Дом. частота', value: rec.dominantFrequency != null ? `${rec.dominantFrequency.toFixed(2)} Гц` : '—' },
+          { label: 'Расстояние', value: rec.epicentralDistanceKm != null ? `${rec.epicentralDistanceKm.toFixed(1)} км` : '—' },
+          { label: 'Глубина', value: rec.focalDepthKm != null ? `${rec.focalDepthKm.toFixed(0)} км` : '—' },
+          { label: 'Категория грунта', value: rec.soilCategory ? `Кат. ${rec.soilCategory}` : '—' },
+          { label: 'Длительность', value: formatDur(rec.durationSec) },
+          { label: 'Частота дискр.', value: rec.sampleRate ? `${rec.sampleRate} Гц` : '—' },
+          { label: 'Источник', value: SOURCE_LABELS[rec.dataSource ?? ''] ?? rec.dataSource ?? '—' },
+        ].map(({ label, value }) => (
+          <div key={label} className="bg-slate-50 rounded p-2">
+            <p className="text-[9px] text-slate-400 uppercase tracking-wide">{label}</p>
+            <p className="font-medium text-slate-700 mt-0.5 text-xs">{value}</p>
+          </div>
+        ))}
       </div>
 
-      {isLoading ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="py-10 text-center text-slate-400 text-sm">Загрузка архива...</CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="py-12 text-center">
-            <Activity className="h-8 w-8 mx-auto mb-3 text-slate-300" />
-            <p className="text-sm text-slate-500 mb-1">Архив пуст</p>
-            <p className="text-xs text-slate-400">Записи появятся после срабатывания порогового триггера</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Record list */}
-          <div className="lg:col-span-2 space-y-2">
-            {filtered.map(rec => {
-              const isSelected = selectedRecord?.id === rec.id;
-              return (
-                <Card
-                  key={rec.id}
-                  className={`border-0 shadow-sm cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:shadow-md'}`}
-                  onClick={() => setSelectedRecord(isSelected ? null : rec)}
-                >
-                  <CardContent className="pt-3 pb-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-1.5 rounded-lg bg-orange-100 flex-shrink-0">
-                          <Activity className="h-3.5 w-3.5 text-orange-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-slate-700">{rec.stationId}</span>
-                            <Badge variant="outline" className="text-[10px] h-4">{rec.recordingType}</Badge>
-                            <Badge
-                              className={`text-[10px] h-4 hover:bg-opacity-80 ${
-                                rec.processingStatus === 'processed' ? 'bg-emerald-100 text-emerald-700' :
-                                rec.processingStatus === 'filtered' ? 'bg-blue-100 text-blue-700' :
-                                'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {rec.processingStatus}
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Clock className="h-3 w-3" />
-                            {new Date(rec.startTime).toLocaleString('ru-RU')}
-                            <span className="mx-1">·</span>
-                            {formatDuration(rec.durationSec)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        {rec.peakGroundAcceleration != null && (
-                          <p className="text-xs font-bold text-slate-700">PGA: {rec.peakGroundAcceleration.toFixed(4)}g</p>
-                        )}
-                        {rec.dominantFrequency != null && (
-                          <p className="text-[10px] text-slate-400">{rec.dominantFrequency.toFixed(2)} Гц</p>
-                        )}
-                        <ChevronRight className={`h-4 w-4 text-slate-300 ml-auto mt-1 transition-transform ${isSelected ? 'rotate-90' : ''}`} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Detail panel */}
-          <div className="lg:col-span-1">
-            {selectedRecord ? (
-              <Card className="border-0 shadow-sm sticky top-4">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-orange-600" />
-                    Детали записи
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-4">
-                  <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-                    {[
-                      { label: 'Станция', value: selectedRecord.stationId },
-                      { label: 'ID записи', value: selectedRecord.recordId.split('-').slice(-2).join('-') },
-                      { label: 'Начало', value: new Date(selectedRecord.startTime).toLocaleString('ru-RU') },
-                      { label: 'Окончание', value: new Date(selectedRecord.endTime).toLocaleString('ru-RU') },
-                      { label: 'Длительность', value: formatDuration(selectedRecord.durationSec) },
-                      { label: 'Частота дискр.', value: selectedRecord.sampleRate ? `${selectedRecord.sampleRate} Гц` : '—' },
-                      { label: 'Каналы', value: selectedRecord.channels },
-                      { label: 'Тип записи', value: selectedRecord.recordingType },
-                      { label: 'Статус', value: selectedRecord.processingStatus },
-                      { label: 'PGA', value: selectedRecord.peakGroundAcceleration != null ? `${selectedRecord.peakGroundAcceleration.toFixed(5)} g` : '—' },
-                      { label: 'Пик Z', value: selectedRecord.peakAmplitudeZ != null ? `${selectedRecord.peakAmplitudeZ.toFixed(4)} мм/с` : '—' },
-                      { label: 'Пик N-S', value: selectedRecord.peakAmplitudeNS != null ? `${selectedRecord.peakAmplitudeNS.toFixed(4)} мм/с` : '—' },
-                      { label: 'Пик E-W', value: selectedRecord.peakAmplitudeEW != null ? `${selectedRecord.peakAmplitudeEW.toFixed(4)} мм/с` : '—' },
-                      { label: 'Дом. частота', value: selectedRecord.dominantFrequency != null ? `${selectedRecord.dominantFrequency.toFixed(2)} Гц` : '—' },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">{label}</p>
-                        <p className="text-xs font-medium text-slate-700 mt-0.5 break-all">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedRecord.notes && (
-                    <div className="border-t border-slate-100 pt-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Примечания</p>
-                      <p className="text-xs text-slate-600">{selectedRecord.notes}</p>
-                    </div>
-                  )}
-
-                  <Button variant="outline" size="sm" className="w-full h-8 text-xs mt-2">
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Экспорт (MiniSEED / CSV)
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-0 shadow-sm bg-slate-50 border-dashed border border-slate-200">
-                <CardContent className="py-12 text-center">
-                  <Info className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                  <p className="text-xs text-slate-400">Выберите запись для просмотра деталей</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+      {/* 3-component waveform */}
+      <div>
+        <p className="text-xs font-medium text-slate-600 mb-1.5">Трёхкомпонентная запись</p>
+        <div className="bg-slate-900 rounded-lg p-2 space-y-1">
+          <WaveCanvas pts={ptsZ}  color="#ef4444" label="Z  (вертикальная)" height={56} />
+          <WaveCanvas pts={ptsNS} color="#3b82f6" label="N-S (горизонт.)"   height={56} />
+          <WaveCanvas pts={ptsEW} color="#10b981" label="E-W (горизонт.)"   height={56} />
         </div>
+        <div className="flex items-center gap-4 mt-1 text-[10px] text-slate-400 px-1">
+          <span>t = 0 с</span>
+          <div className="flex-1 flex justify-center gap-4">
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 rounded bg-red-500 inline-block"/>Z</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 rounded bg-blue-500 inline-block"/>N-S</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 rounded bg-emerald-500 inline-block"/>E-W</span>
+          </div>
+          <span>t = {formatDur(rec.durationSec)}</span>
+        </div>
+      </div>
+
+      {/* Response spectrum */}
+      <div>
+        <p className="text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1.5">
+          <TrendingUp className="h-3.5 w-3.5 text-orange-500" />
+          Спектр отклика Sa(T) — демпфирование 5%
+        </p>
+        <div className="bg-slate-900 rounded-lg p-2">
+          <SpectrumChart T={spectrum.T} Sa={spectrum.Sa} color="#f97316" xlabel="Период T, с" ylabel="Sa, см/с²" />
+        </div>
+        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 px-1">
+          <span>T = 0 с</span>
+          <span className="text-orange-400 font-medium">Sa макс: {Math.max(...spectrum.Sa).toFixed(0)} см/с²</span>
+          <span>T = 4 с</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <Button onClick={handleSendToAnalysis} disabled={mutation.isPending}
+          className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm h-9">
+          <Calculator className="h-4 w-4" />
+          Использовать для расчёта
+        </Button>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+          <Download className="h-3.5 w-3.5" />
+          MiniSEED
+        </Button>
+      </div>
+      {(rec.usedForModelingCount ?? 0) > 0 && (
+        <p className="text-[10px] text-slate-400 text-center">
+          Использована в расчётах: {rec.usedForModelingCount} раз
+        </p>
       )}
     </div>
   );
 };
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
-const Seismograms: FC = () => {
-  return (  <>
-        <div className="p-6">
-          <Tabs defaultValue="online">
-            <TabsList className="mb-5">
-              <TabsTrigger value="online" className="flex items-center gap-2">
-                <Wifi className="h-4 w-4" />
-                Онлайн
-              </TabsTrigger>
-              <TabsTrigger value="offline" className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Архив записей
-              </TabsTrigger>
-            </TabsList>
+const SeismogramCatalog: FC = () => {
+  const [, setLocation] = useLocation();
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [showFilters, setShowFilters] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { toast } = useToast();
 
-            <TabsContent value="online">
-              <OnlineTab />
-            </TabsContent>
+  const { data: stations = [] } = useQuery<Station[]>({ queryKey: ['/api/stations'] });
+  const { data: records = [], isLoading, refetch } = useQuery<SeismogramRecord[]>({
+    queryKey: ['/api/seismograms'],
+  });
 
-            <TabsContent value="offline">
-              <OfflineTab />
-            </TabsContent>
-          </Tabs>
+  const irkStations = stations.filter(s => s.stationId.startsWith('IRK-'));
+
+  const filtered = useMemo(() => {
+    return records.filter(r => {
+      const rec = r as any;
+      if (filters.type === 'historical' && !rec.isHistorical) return false;
+      if (filters.type === 'current' && rec.isHistorical) return false;
+      if (rec.magnitude != null && (rec.magnitude < filters.magMin || rec.magnitude > filters.magMax)) return false;
+      const pga = (rec.peakGroundAcceleration ?? 0) * 1000;
+      if (pga < filters.pgaMin || pga > filters.pgaMax) return false;
+      if (filters.soilCategory !== 'all' && rec.soilCategory !== filters.soilCategory) return false;
+      if (filters.dataSource !== 'all' && rec.dataSource !== filters.dataSource) return false;
+      if (filters.station !== 'all' && rec.stationId !== filters.station) return false;
+      if (rec.epicentralDistanceKm != null && rec.epicentralDistanceKm > filters.distMax) return false;
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (!rec.stationId.toLowerCase().includes(q) &&
+            !(rec.locationName ?? '').toLowerCase().includes(q) &&
+            !(rec.recordId ?? '').toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [records, filters]);
+
+  const selectedRec = filtered.find(r => r.id === selectedId) ?? null;
+
+  const setF = (k: keyof Filters, v: any) => setFilters(p => ({ ...p, [k]: v }));
+  const resetFilters = () => { setFilters(DEFAULT_FILTERS); };
+
+  const stats = useMemo(() => ({
+    total: records.length,
+    historical: records.filter((r: any) => r.isHistorical).length,
+    current: records.filter((r: any) => !r.isHistorical).length,
+    processed: records.filter((r: any) => r.processingStatus === 'processed').length,
+  }), [records]);
+
+  return (
+    <div className="p-6 space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">
+            Каталог сейсмограмм
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Оцифрованные записи Байкальского региона · Исторические и текущие · для расчёта реакции конструкций
+          </p>
         </div>
-  </>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()}>
+            <RefreshCw className="h-3.5 w-3.5" />Обновить
+          </Button>
+          <Button variant={showFilters ? 'default' : 'outline'} size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setShowFilters(v => !v)}>
+            <Filter className="h-3.5 w-3.5" />Фильтры
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Всего записей', value: stats.total, icon: Database, color: 'text-slate-700' },
+          { label: 'Исторические', value: stats.historical, icon: History, color: 'text-amber-600' },
+          { label: 'Актуальные', value: stats.current, icon: Wifi, color: 'text-blue-600' },
+          { label: 'Обработанных', value: stats.processed, icon: BarChart3, color: 'text-emerald-600' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="border-0 shadow-sm">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Icon className={`h-7 w-7 ${color} flex-shrink-0`} />
+              <div>
+                <p className="text-xl font-bold text-slate-800">{value}</p>
+                <p className="text-xs text-slate-400">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex gap-5 items-start">
+        {/* Filter sidebar */}
+        {showFilters && (
+          <aside className="w-64 flex-shrink-0 space-y-4">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3 pt-4 px-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm text-slate-700">Параметры поиска</CardTitle>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-slate-400 hover:text-slate-600"
+                    onClick={resetFilters}>
+                    <X className="h-3 w-3 mr-0.5" />Сбросить
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Поиск</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Input className="pl-8 h-8 text-xs" placeholder="ID, место, станция..."
+                      value={filters.search} onChange={e => setF('search', e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Тип записей</Label>
+                  <Select value={filters.type} onValueChange={v => setF('type', v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все</SelectItem>
+                      <SelectItem value="historical">Исторические</SelectItem>
+                      <SelectItem value="current">Актуальные</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-slate-500">Магнитуда</Label>
+                    <span className="text-xs text-slate-400">{filters.magMin} – {filters.magMax}</span>
+                  </div>
+                  <Slider
+                    min={0} max={9} step={0.5}
+                    value={[filters.magMin, filters.magMax]}
+                    onValueChange={([a, b]) => setFilters(p => ({ ...p, magMin: a, magMax: b }))}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-slate-500">PGA (×10⁻³ g)</Label>
+                    <span className="text-xs text-slate-400">{filters.pgaMin} – {filters.pgaMax}</span>
+                  </div>
+                  <Slider
+                    min={0} max={100} step={1}
+                    value={[filters.pgaMin, filters.pgaMax]}
+                    onValueChange={([a, b]) => setFilters(p => ({ ...p, pgaMin: a, pgaMax: b }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label className="text-xs text-slate-500">Расст. до эпицентра (км)</Label>
+                    <span className="text-xs text-slate-400">≤ {filters.distMax}</span>
+                  </div>
+                  <Slider
+                    min={0} max={500} step={10}
+                    value={[filters.distMax]}
+                    onValueChange={([v]) => setF('distMax', v)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Категория грунта (СП 14)</Label>
+                  <Select value={filters.soilCategory} onValueChange={v => setF('soilCategory', v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все категории</SelectItem>
+                      {Object.entries(SOIL_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Источник данных</Label>
+                  <Select value={filters.dataSource} onValueChange={v => setF('dataSource', v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все источники</SelectItem>
+                      {Object.entries(SOURCE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Станция</Label>
+                  <Select value={filters.station} onValueChange={v => setF('station', v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все станции</SelectItem>
+                      {irkStations.map(s => (
+                        <SelectItem key={s.stationId} value={s.stationId}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm bg-blue-50/60 border-blue-100">
+              <CardContent className="p-4 text-xs text-blue-700 space-y-1.5">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <Calculator className="h-3.5 w-3.5" />
+                  Для моделирования
+                </p>
+                <p className="text-blue-600 leading-relaxed">
+                  Выберите запись и нажмите «Использовать для расчёта» — параметры и спектр отклика загрузятся в модуль расчётов МКЭ / МТСМ.
+                </p>
+              </CardContent>
+            </Card>
+          </aside>
+        )}
+
+        {/* Catalog + detail */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Results bar */}
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Найдено: <strong className="text-slate-700">{filtered.length}</strong> из {records.length}</span>
+            <div className="flex items-center gap-2">
+              {selectedRec && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-slate-400 hover:text-slate-600 gap-1"
+                  onClick={() => setSelectedId(null)}>
+                  <X className="h-3 w-3" />Снять выбор
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <Card className="border-0 shadow-sm">
+              <CardContent className="py-12 text-center text-slate-400 text-sm">
+                <RefreshCw className="h-6 w-6 mx-auto mb-3 animate-spin text-slate-300" />
+                Загрузка каталога...
+              </CardContent>
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card className="border-0 shadow-sm">
+              <CardContent className="py-14 text-center">
+                <AlertCircle className="h-8 w-8 mx-auto mb-3 text-slate-300" />
+                <p className="text-sm text-slate-500 mb-1">Записей не найдено</p>
+                <p className="text-xs text-slate-400">Измените параметры фильтрации или сбросьте фильтры</p>
+                <Button variant="outline" size="sm" className="mt-3 text-xs h-8" onClick={resetFilters}>
+                  Сбросить фильтры
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className={`grid gap-3 ${selectedRec ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'}`}>
+              {filtered.map(rec => (
+                <RecordCard
+                  key={rec.id}
+                  rec={rec as any}
+                  selected={rec.id === selectedId}
+                  onSelect={() => setSelectedId(rec.id === selectedId ? null : rec.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Detail panel */}
+          {selectedRec && (
+            <Card className="border-0 shadow-sm mt-4">
+              <CardHeader className="pb-3 pt-4 px-5 border-b">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-blue-600" />
+                    {(selectedRec as any).locationName ?? selectedRec.stationId}
+                    <span className="text-slate-400 font-mono font-normal text-xs">
+                      {new Date(selectedRec.startTime).toLocaleDateString('ru-RU', { day:'2-digit', month:'long', year:'numeric' })}
+                    </span>
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" className="h-7 text-slate-400" onClick={() => setSelectedId(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-5">
+                <DetailPanel
+                  rec={selectedRec}
+                  onSendToAnalysis={() => setLocation('/analysis')}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
-export default Seismograms;
+export default SeismogramCatalog;

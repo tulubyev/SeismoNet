@@ -282,7 +282,7 @@ export const buildingNorms = pgTable("building_norms", {
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 
-// Stored seismogram recordings (for offline viewing)
+// Stored seismogram recordings — catalog of digitised records (historical + current)
 export const seismogramRecords = pgTable("seismogram_records", {
   id: serial("id").primaryKey(),
   recordId: text("record_id").notNull().unique(),
@@ -300,13 +300,25 @@ export const seismogramRecords = pgTable("seismogram_records", {
   peakGroundAcceleration: real("peak_ground_acceleration"), // g
   dominantFrequency: real("dominant_frequency"), // Hz
   triggerThreshold: real("trigger_threshold"),
-  recordingType: text("recording_type").notNull().default("triggered"), // triggered, continuous, manual
+  recordingType: text("recording_type").notNull().default("triggered"), // triggered, continuous, manual, historical
   processingStatus: text("processing_status").notNull().default("raw"), // raw, filtered, processed
   dataZ: jsonb("data_z"),
   dataNS: jsonb("data_ns"),
   dataEW: jsonb("data_ew"),
   notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  // Extended catalog fields
+  magnitude: real("magnitude"),               // earthquake magnitude (Ml, Ms, Mw)
+  magnitudeType: text("magnitude_type"),       // Ml, Ms, Mw, mb
+  focalDepthKm: real("focal_depth_km"),        // hypocenter depth (km)
+  epicentralDistanceKm: real("epicentral_distance_km"), // km from epicenter to station
+  soilCategory: text("soil_category"),         // I, II, III, IV per SP 14.13330
+  locationName: text("location_name"),         // human-readable epicenter location
+  dataSource: text("data_source"),             // local, iris, cesmd, historical, seismological_institute
+  isHistorical: boolean("is_historical").notNull().default(false),
+  responseSpectrum: jsonb("response_spectrum"), // {periods: number[], sa: number[], sd: number[]}
+  fourierSpectrum: jsonb("fourier_spectrum"),   // {freqs: number[], amplitudes: number[]}
+  usedForModelingCount: integer("used_for_modeling_count").notNull().default(0)
 });
 
 // ─── Insert schemas ────────────────────────────────────────────────────────────

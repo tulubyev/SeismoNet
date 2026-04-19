@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { eq } from "drizzle-orm";
+import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
@@ -586,14 +588,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all earthquakes (combines local and external data)
+  // Irkutsk / Baikal region bounds
+  const IRK_LAT_MIN = 49.0, IRK_LAT_MAX = 56.5;
+  const IRK_LON_MIN = 98.0, IRK_LON_MAX = 114.0;
+
   app.get('/api/earthquakes', async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || 100;
+      const region = req.query.region as string | undefined;
       const events = await storage.getRecentEvents(limit);
-      
-      // Filter to only include earthquakes (type = 'earthquake')
-      const earthquakes = events.filter(event => event.type === 'earthquake');
-      
+      let earthquakes = events.filter(event => event.type === 'earthquake');
+
+      // When region=irkutsk filter to Baikal / East Siberia area
+      if (region === 'irkutsk') {
+        earthquakes = earthquakes.filter(e => {
+          const lat = parseFloat(e.latitude.toString());
+          const lon = parseFloat(e.longitude.toString());
+          return lat >= IRK_LAT_MIN && lat <= IRK_LAT_MAX && lon >= IRK_LON_MIN && lon <= IRK_LON_MAX;
+        });
+      }
+
       res.json(earthquakes);
     } catch (error) {
       console.error('Error fetching earthquakes:', error);
@@ -694,6 +708,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/soil-profiles/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const updated = await storage.updateSoilProfile(parseInt(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: 'Profile not found' });
+      res.json(updated);
+    } catch (error) { res.status(500).json({ message: 'Error updating soil profile' }); }
+  });
+
+  app.delete('/api/soil-profiles/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const ok = await storage.deleteSoilProfile(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'Profile not found' });
+      res.json({ success: true });
+    } catch (error) { res.status(500).json({ message: 'Error deleting soil profile' }); }
+  });
+
+  app.patch('/api/soil-layers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const updated = await storage.updateSoilLayer(parseInt(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: 'Layer not found' });
+      res.json(updated);
+    } catch (error) { res.status(500).json({ message: 'Error updating soil layer' }); }
+  });
+
+  app.delete('/api/soil-layers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const ok = await storage.deleteSoilLayer(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'Layer not found' });
+      res.json({ success: true });
+    } catch (error) { res.status(500).json({ message: 'Error deleting soil layer' }); }
+  });
+
   // ─── Sensor Installations API ──────────────────────────────────────────────────
 
   app.get('/api/sensor-installations', async (req, res) => {
@@ -713,6 +759,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: 'Error creating sensor installation' });
     }
+  });
+
+  app.patch('/api/sensor-installations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const updated = await storage.updateSensorInstallation(parseInt(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: 'Installation not found' });
+      res.json(updated);
+    } catch (error) { res.status(500).json({ message: 'Error updating sensor installation' }); }
+  });
+
+  app.delete('/api/sensor-installations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const ok = await storage.deleteSensorInstallation(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'Installation not found' });
+      res.json({ success: true });
+    } catch (error) { res.status(500).json({ message: 'Error deleting sensor installation' }); }
   });
 
   // ─── Building Norms API ────────────────────────────────────────────────────────
@@ -777,6 +839,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(record);
     } catch (error) {
       res.status(500).json({ message: 'Error creating seismogram record' });
+    }
+  });
+
+  app.patch('/api/seismograms/:id/use-for-modeling', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const record = await storage.getSeismogramRecord(id);
+      if (!record) return res.status(404).json({ message: 'Seismogram not found' });
+      const [updated] = await db
+        .update(dbSchema.seismogramRecords)
+        .set({ usedForModelingCount: ((record as any).usedForModelingCount ?? 0) + 1 })
+        .where(eq(dbSchema.seismogramRecords.id, id))
+        .returning();
+      res.json(updated ?? record);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating modeling count' });
     }
   });
 

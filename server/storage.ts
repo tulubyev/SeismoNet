@@ -106,14 +106,19 @@ export interface IStorage {
   getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
   getSoilProfile(id: number): Promise<SoilProfile | undefined>;
   createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile>;
+  updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined>;
+  deleteSoilProfile(id: number): Promise<boolean>;
   getSoilLayers(profileId: number): Promise<SoilLayer[]>;
   createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer>;
+  updateSoilLayer(id: number, data: Partial<InsertSoilLayer>): Promise<SoilLayer | undefined>;
+  deleteSoilLayer(id: number): Promise<boolean>;
 
   // Sensor installation operations
   getSensorInstallations(objectId?: number): Promise<SensorInstallation[]>;
   getSensorInstallation(id: number): Promise<SensorInstallation | undefined>;
   createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation>;
   updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined>;
+  deleteSensorInstallation(id: number): Promise<boolean>;
 
   // Building norms operations
   getBuildingNorms(category?: string): Promise<BuildingNorm[]>;
@@ -750,6 +755,16 @@ export class MemStorage implements IStorage {
     this.soilProfiles.set(id, newProfile);
     return newProfile;
   }
+  async updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined> {
+    const p = this.soilProfiles.get(id);
+    if (!p) return undefined;
+    const updated: SoilProfile = { ...p, ...data };
+    this.soilProfiles.set(id, updated);
+    return updated;
+  }
+  async deleteSoilProfile(id: number): Promise<boolean> {
+    return this.soilProfiles.delete(id);
+  }
 
   // ─── Soil layer operations ─────────────────────────────────────────────────
   async getSoilLayers(profileId: number): Promise<SoilLayer[]> {
@@ -760,6 +775,16 @@ export class MemStorage implements IStorage {
     const newLayer: SoilLayer = { ...layer, id } as SoilLayer;
     this.soilLayers.set(id, newLayer);
     return newLayer;
+  }
+  async updateSoilLayer(id: number, data: Partial<InsertSoilLayer>): Promise<SoilLayer | undefined> {
+    const l = this.soilLayers.get(id);
+    if (!l) return undefined;
+    const updated: SoilLayer = { ...l, ...data };
+    this.soilLayers.set(id, updated);
+    return updated;
+  }
+  async deleteSoilLayer(id: number): Promise<boolean> {
+    return this.soilLayers.delete(id);
   }
 
   // ─── Sensor installation operations ───────────────────────────────────────
@@ -782,6 +807,9 @@ export class MemStorage implements IStorage {
     const updated: SensorInstallation = { ...inst, ...data };
     this.sensorInstallations.set(id, updated);
     return updated;
+  }
+  async deleteSensorInstallation(id: number): Promise<boolean> {
+    return this.sensorInstallations.delete(id);
   }
 
   // ─── Building norm operations ──────────────────────────────────────────────
@@ -1279,6 +1307,16 @@ export class DatabaseStorage implements IStorage {
     return newProfile;
   }
 
+  async updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined> {
+    const [updated] = await db.update(schema.soilProfiles).set(data).where(eq(schema.soilProfiles.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSoilProfile(id: number): Promise<boolean> {
+    const result = await db.delete(schema.soilProfiles).where(eq(schema.soilProfiles.id, id)).returning();
+    return result.length > 0;
+  }
+
   async getSoilLayers(profileId: number): Promise<SoilLayer[]> {
     return db.query.soilLayers.findMany({
       where: (t, { eq }) => eq(t.profileId, profileId),
@@ -1289,6 +1327,16 @@ export class DatabaseStorage implements IStorage {
   async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
     const [newLayer] = await db.insert(schema.soilLayers).values(layer).returning();
     return newLayer;
+  }
+
+  async updateSoilLayer(id: number, data: Partial<InsertSoilLayer>): Promise<SoilLayer | undefined> {
+    const [updated] = await db.update(schema.soilLayers).set(data).where(eq(schema.soilLayers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSoilLayer(id: number): Promise<boolean> {
+    const result = await db.delete(schema.soilLayers).where(eq(schema.soilLayers.id, id)).returning();
+    return result.length > 0;
   }
 
   // ─── Sensor installation operations ──────────────────────────────────────────
@@ -1320,6 +1368,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.sensorInstallations.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteSensorInstallation(id: number): Promise<boolean> {
+    const result = await db.delete(schema.sensorInstallations).where(eq(schema.sensorInstallations.id, id)).returning();
+    return result.length > 0;
   }
 
   // ─── Building norms operations ────────────────────────────────────────────────
@@ -2711,6 +2764,188 @@ const initializeDatabase = async () => {
         await dbStorage.createSensorInstallation(inst);
       }
     }
+  }
+
+  // ── Seed historical seismogram catalog ──────────────────────────────────────
+  const existingSeismograms = await dbStorage.getSeismogramRecords(undefined, 1);
+  if (existingSeismograms.length === 0) {
+    console.log('Seeding historical seismogram catalog...');
+
+    type SeismoInsert = Omit<InsertSeismogramRecord, never> & {
+      magnitude?: number; magnitudeType?: string; focalDepthKm?: number;
+      epicentralDistanceKm?: number; soilCategory?: string; locationName?: string;
+      dataSource?: string; isHistorical?: boolean; usedForModelingCount?: number;
+    };
+
+    const historicalRecords: SeismoInsert[] = [
+      // ─── Major historical Baikal events ────────────────────────────────────
+      {
+        recordId: 'HIST-BAI-1999-001',
+        stationId: 'IRK-ST-001',
+        startTime: new Date('1999-02-25T10:12:00Z'),
+        endTime:   new Date('1999-02-25T10:14:30Z'),
+        durationSec: 150, sampleRate: 100, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 12.4, peakAmplitudeNS: 9.8, peakAmplitudeEW: 8.2,
+        peakGroundAcceleration: 0.082,
+        dominantFrequency: 1.8, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 6.0, magnitudeType: 'Ms',
+        focalDepthKm: 20, epicentralDistanceKm: 85,
+        soilCategory: 'II', locationName: 'Байкал, оз. (Зап. берег)',
+        dataSource: 'historical', isHistorical: true,
+        notes: 'Значительное землетрясение Прибайкалья 1999 г., M6.0. Ощущалось в Иркутске как интенсивность VI балл.'
+      },
+      {
+        recordId: 'HIST-BAI-2008-001',
+        stationId: 'IRK-ST-002',
+        startTime: new Date('2008-08-27T15:35:22Z'),
+        endTime:   new Date('2008-08-27T15:38:00Z'),
+        durationSec: 158, sampleRate: 100, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 18.7, peakAmplitudeNS: 14.2, peakAmplitudeEW: 12.6,
+        peakGroundAcceleration: 0.124,
+        dominantFrequency: 2.1, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 6.3, magnitudeType: 'Mw',
+        focalDepthKm: 15, epicentralDistanceKm: 120,
+        soilCategory: 'III', locationName: 'Култук, р-н (Юж. Байкал)',
+        dataSource: 'seismological_institute', isHistorical: true,
+        notes: 'Культукское землетрясение 27.08.2008, Mw6.3. Вызвало повреждения зданий в Байкальске и Слюдянке.'
+      },
+      {
+        recordId: 'HIST-BAI-2020-001',
+        stationId: 'IRK-ST-003',
+        startTime: new Date('2020-12-09T09:22:50Z'),
+        endTime:   new Date('2020-12-09T09:25:30Z'),
+        durationSec: 160, sampleRate: 100, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 6.2, peakAmplitudeNS: 5.1, peakAmplitudeEW: 4.4,
+        peakGroundAcceleration: 0.041,
+        dominantFrequency: 3.4, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 5.0, magnitudeType: 'Mw',
+        focalDepthKm: 12, epicentralDistanceKm: 58,
+        soilCategory: 'II', locationName: 'оз. Байкал (Сред. Байкал)',
+        dataSource: 'seismological_institute', isHistorical: false,
+        notes: 'Ощутимое землетрясение Байкала декабрь 2020 г. Баллы интенсивности до IV в Иркутске.'
+      },
+      {
+        recordId: 'HIST-IRK-2021-001',
+        stationId: 'IRK-ST-001',
+        startTime: new Date('2021-09-05T03:48:17Z'),
+        endTime:   new Date('2021-09-05T03:50:22Z'),
+        durationSec: 125, sampleRate: 100, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 2.8, peakAmplitudeNS: 2.1, peakAmplitudeEW: 1.9,
+        peakGroundAcceleration: 0.018,
+        dominantFrequency: 4.2, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 3.8, magnitudeType: 'Ml',
+        focalDepthKm: 8, epicentralDistanceKm: 32,
+        soilCategory: 'III', locationName: 'г. Иркутск, р-н Ново-Ленино',
+        dataSource: 'local', isHistorical: false,
+        notes: 'Местное землетрясение под г. Иркутском. Записано всеми станциями сети.'
+      },
+      {
+        recordId: 'HIST-BAI-1950-001',
+        stationId: 'IRK-ST-001',
+        startTime: new Date('1950-10-04T14:30:00Z'),
+        endTime:   new Date('1950-10-04T14:36:00Z'),
+        durationSec: 360, sampleRate: 20, channels: 'Z',
+        peakAmplitudeZ: 38.5, peakAmplitudeNS: null, peakAmplitudeEW: null,
+        peakGroundAcceleration: 0.31,
+        dominantFrequency: 1.2, recordingType: 'historical',
+        processingStatus: 'processed',
+        magnitude: 7.2, magnitudeType: 'Ms',
+        focalDepthKm: 25, epicentralDistanceKm: 240,
+        soilCategory: 'II', locationName: 'Мондинское землетрясение (Вост. Саяны)',
+        dataSource: 'historical', isHistorical: true,
+        notes: 'Оцифрованная архивная запись на механическом сейсмографе. Одно из крупнейших землетрясений Прибайкалья XX века.'
+      },
+      {
+        recordId: 'HIST-BAI-1957-001',
+        stationId: 'IRK-ST-002',
+        startTime: new Date('1957-06-27T03:42:00Z'),
+        endTime:   new Date('1957-06-27T03:50:00Z'),
+        durationSec: 480, sampleRate: 20, channels: 'Z,NS',
+        peakAmplitudeZ: 28.9, peakAmplitudeNS: 22.4, peakAmplitudeEW: null,
+        peakGroundAcceleration: 0.21,
+        dominantFrequency: 0.9, recordingType: 'historical',
+        processingStatus: 'processed',
+        magnitude: 7.3, magnitudeType: 'Ms',
+        focalDepthKm: 30, epicentralDistanceKm: 180,
+        soilCategory: 'II', locationName: 'Муйское землетрясение (Витимское плоскогорье)',
+        dataSource: 'historical', isHistorical: true,
+        notes: 'Оцифровка архивной ленты СМ-3. Разрушения в Северобайкальском р-не.'
+      },
+      // ─── Recent monitoring records ─────────────────────────────────────────
+      {
+        recordId: 'MON-IRK001-2024-0412',
+        stationId: 'IRK-ST-001',
+        startTime: new Date('2024-04-12T16:22:10Z'),
+        endTime:   new Date('2024-04-12T16:23:45Z'),
+        durationSec: 95, sampleRate: 200, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 0.45, peakAmplitudeNS: 0.38, peakAmplitudeEW: 0.31,
+        peakGroundAcceleration: 0.0028,
+        dominantFrequency: 6.5, recordingType: 'triggered',
+        processingStatus: 'filtered',
+        magnitude: 1.9, magnitudeType: 'Ml',
+        focalDepthKm: 5, epicentralDistanceKm: 12,
+        soilCategory: 'III', locationName: 'г. Иркутск (Центр)',
+        dataSource: 'local', isHistorical: false,
+        notes: 'Слабое местное событие, подтверждено 3 станциями.'
+      },
+      {
+        recordId: 'MON-IRK002-2024-0318',
+        stationId: 'IRK-ST-002',
+        startTime: new Date('2024-03-18T08:55:05Z'),
+        endTime:   new Date('2024-03-18T08:57:20Z'),
+        durationSec: 135, sampleRate: 200, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 1.2, peakAmplitudeNS: 0.95, peakAmplitudeEW: 0.88,
+        peakGroundAcceleration: 0.0075,
+        dominantFrequency: 4.8, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 2.4, magnitudeType: 'Ml',
+        focalDepthKm: 7, epicentralDistanceKm: 28,
+        soilCategory: 'II', locationName: 'Иркутское водохранилище (аквальная зона)',
+        dataSource: 'local', isHistorical: false,
+        notes: 'Возможно, техногенное событие в зоне Иркутского водохранилища.'
+      },
+      {
+        recordId: 'MON-IRK005-2024-0601',
+        stationId: 'IRK-ST-005',
+        startTime: new Date('2024-06-01T22:12:44Z'),
+        endTime:   new Date('2024-06-01T22:14:58Z'),
+        durationSec: 134, sampleRate: 200, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 3.4, peakAmplitudeNS: 2.8, peakAmplitudeEW: 2.5,
+        peakGroundAcceleration: 0.022,
+        dominantFrequency: 3.1, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 3.2, magnitudeType: 'Ml',
+        focalDepthKm: 10, epicentralDistanceKm: 45,
+        soilCategory: 'IV', locationName: 'Листвянка — Байкал (северный залив)',
+        dataSource: 'local', isHistorical: false,
+        notes: 'Запись с береговой станции. Высокое усиление из-за мягкого аллювия (кат. IV).'
+      },
+      {
+        recordId: 'IRIS-BAI-2022-001',
+        stationId: 'IRK-ST-003',
+        startTime: new Date('2022-11-14T07:30:55Z'),
+        endTime:   new Date('2022-11-14T07:33:40Z'),
+        durationSec: 165, sampleRate: 100, channels: 'Z,NS,EW',
+        peakAmplitudeZ: 5.6, peakAmplitudeNS: 4.4, peakAmplitudeEW: 3.9,
+        peakGroundAcceleration: 0.038,
+        dominantFrequency: 2.6, recordingType: 'triggered',
+        processingStatus: 'processed',
+        magnitude: 4.7, magnitudeType: 'Mw',
+        focalDepthKm: 18, epicentralDistanceKm: 75,
+        soilCategory: 'I', locationName: 'Северобайкальское нагорье',
+        dataSource: 'iris', isHistorical: false,
+        notes: 'Запись получена по протоколу FDSN от глобальной сети IRIS.'
+      },
+    ];
+
+    for (const rec of historicalRecords) {
+      await dbStorage.createSeismogramRecord(rec as any);
+    }
+    console.log(`Seeded ${historicalRecords.length} seismogram catalog records.`);
   }
 
   console.log('Database initialization complete.');

@@ -2,7 +2,7 @@ import { FC, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, Event as SeismicEvent } from '@shared/schema';
-import { Building2, Radio, Activity, Layers, RefreshCw } from 'lucide-react';
+import { Building2, Radio, Activity, Layers, RefreshCw, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
