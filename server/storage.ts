@@ -2256,6 +2256,202 @@ const initializeDatabase = async () => {
     }
   }
 
+  // ── Seed sensor installations ──────────────────────────────────────────────────
+  const existingInstallations = await dbStorage.getSensorInstallations();
+  if (existingInstallations.length === 0) {
+    console.log('Seeding sensor installations...');
+
+    // Get seeded objects by objectId
+    const objAdmin  = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-001');
+    const objBridge = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-002');
+    const objGES    = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-003');
+    const objBGMU   = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-004');
+
+    if (objAdmin) {
+      const installs: InsertSensorInstallation[] = [
+        {
+          stationId: 'IRK-ST-001',
+          objectId: objAdmin.id,
+          installationLocation: 'foundation',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 0, 15),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 10),
+          sensorType: 'seismometer',
+          sensitivity: 28.8,
+          frequencyRange: '0.1-50 Hz',
+          notes: 'Фундаментный датчик, установка в приямке под перекрытием 1-го этажа',
+        },
+        {
+          stationId: 'IRK-ST-001',
+          objectId: objAdmin.id,
+          installationLocation: 'ground_floor',
+          floor: 1,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 0, 15),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 10),
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: 'Акселерометр на уровне 1-го этажа',
+        },
+        {
+          stationId: 'IRK-ST-001',
+          objectId: objAdmin.id,
+          installationLocation: 'roof',
+          floor: 5,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 0, 15),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 10),
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: 'Кровельный датчик для оценки отклика верхнего этажа',
+        },
+      ];
+      for (const inst of installs) {
+        await dbStorage.createSensorInstallation(inst);
+      }
+    }
+
+    if (objBridge) {
+      const installs: InsertSensorInstallation[] = [
+        {
+          stationId: 'IRK-ST-003',
+          objectId: objBridge.id,
+          installationLocation: 'foundation',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 2, 5),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 20),
+          sensorType: 'seismometer',
+          sensitivity: 28.8,
+          frequencyRange: '0.1-50 Hz',
+          notes: 'Датчик у опоры моста, подводное крепление',
+        },
+        {
+          stationId: 'IRK-ST-003',
+          objectId: objBridge.id,
+          installationLocation: 'mid_floor',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 2, 5),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 20),
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: 'Датчик в середине пролёта на пролётном строении',
+        },
+        {
+          stationId: 'IRK-ST-003',
+          objectId: objBridge.id,
+          installationLocation: 'free_field',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 2, 5),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 20),
+          sensorType: 'seismometer',
+          sensitivity: 28.8,
+          frequencyRange: '0.1-50 Hz',
+          notes: 'Референсный датчик свободного поля в 30 м от моста',
+        },
+      ];
+      for (const inst of installs) {
+        await dbStorage.createSensorInstallation(inst);
+      }
+    }
+
+    if (objGES) {
+      const installs: InsertSensorInstallation[] = [
+        {
+          stationId: 'IRK-ST-002',
+          objectId: objGES.id,
+          installationLocation: 'foundation',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 1, 20),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 15),
+          sensorType: 'seismometer',
+          sensitivity: 28.8,
+          frequencyRange: '0.1-50 Hz',
+          notes: 'Установлен в основании плотины, кессон',
+        },
+        {
+          stationId: 'IRK-ST-002',
+          objectId: objGES.id,
+          installationLocation: 'roof',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 1, 20),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 15),
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: 'Гребень плотины, верхняя отметка',
+        },
+        {
+          stationId: 'IRK-ST-002',
+          objectId: objGES.id,
+          installationLocation: 'free_field',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 1, 20),
+          isActive: true,
+          calibrationDate: new Date(2024, 2, 15),
+          sensorType: 'seismometer',
+          sensitivity: 28.8,
+          frequencyRange: '0.1-50 Hz',
+          notes: 'Референсный датчик на берегу Ангары',
+        },
+      ];
+      for (const inst of installs) {
+        await dbStorage.createSensorInstallation(inst);
+      }
+    }
+
+    if (objBGMU) {
+      const installs: InsertSensorInstallation[] = [
+        {
+          stationId: 'IRK-ST-004',
+          objectId: objBGMU.id,
+          installationLocation: 'foundation',
+          floor: null,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 2, 10),
+          isActive: false,
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: 'Плановое техническое обслуживание, датчик временно отключён',
+        },
+        {
+          stationId: 'IRK-ST-004',
+          objectId: objBGMU.id,
+          installationLocation: 'mid_floor',
+          floor: 3,
+          measurementAxes: 'Z,NS,EW',
+          installationDate: new Date(2024, 2, 10),
+          isActive: true,
+          sensorType: 'accelerometer',
+          sensitivity: 5.0,
+          frequencyRange: '0-100 Hz',
+          notes: '3-й этаж, коридор у лифтовой шахты',
+        },
+      ];
+      for (const inst of installs) {
+        await dbStorage.createSensorInstallation(inst);
+      }
+    }
+  }
+
   console.log('Database initialization complete.');
   
   return dbStorage;

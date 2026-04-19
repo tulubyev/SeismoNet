@@ -91,10 +91,11 @@ const OnlineTab: FC = () => {
 
   const irkStations = stations.filter(s => s.stationId.startsWith('IRK-'));
 
-  const getWaveformForStation = useCallback((stationId: string) => {
-    const found = waveformData.find(w => w.stationId === stationId);
-    if (!found) return [];
-    return (found.dataPoints as { timestamp: number; value: number }[]) || [];
+  // waveformData is Record<string, LiveWaveformData> — access by stationId key
+  const getWaveformForStation = useCallback((stationId: string): { timestamp: number; value: number }[] => {
+    const entry = waveformData[stationId];
+    if (!entry) return [];
+    return (entry.dataPoints as { timestamp: number; value: number }[]) ?? [];
   }, [waveformData]);
 
   const displayStations = selectedStation === 'all'
