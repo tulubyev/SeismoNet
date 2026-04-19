@@ -1232,6 +1232,8 @@ const ResponseTab: FC<RespTabProps> = ({
   const [sp14SoilCategory, setSp14SoilCategory] = useState<'I'|'II'|'III'>('II');
   const [sp14RecordId, setSp14RecordId] = useState<string>(SP14_BY_INTENSITY['VIII'][0].id);
   const [sp14K1Key, setSp14K1Key] = useState<keyof typeof SP14_K1_TABLE5>('elastic');
+  const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[] } | null>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
   const SP14_K1_LABEL: Record<keyof typeof SP14_K1_TABLE5, string> = {
     elastic:     'Упругий — 1.00',
@@ -1253,6 +1255,8 @@ const ResponseTab: FC<RespTabProps> = ({
       periods.push(Math.pow(10, Math.log10(0.05) + (Math.log10(3) - Math.log10(0.05)) * i / (NP - 1)));
     }
     const zeta = (parseFloat(respDamping) || 5) / 100;
+    setComponentSpectra(null);
+    setHiddenSeries(new Set());
     try {
       if (inputMode === 'catalog') {
         const sr = 200;
@@ -1271,16 +1275,22 @@ const ResponseTab: FC<RespTabProps> = ({
         const arrs = getRealArrays(rec);
         const dt = 1 / (rec.sampleRate || 100);
         if (respComponent === 'AVG3') {
-          const specs = [arrs.z, arrs.ns, arrs.ew].map(s => responseSpectrum(s, dt, periods, zeta));
-          setRespResult(combineSpectraGeomean(specs));
+          const specZ = responseSpectrum(arrs.z, dt, periods, zeta);
+          const specNS = responseSpectrum(arrs.ns, dt, periods, zeta);
+          const specEW = responseSpectrum(arrs.ew, dt, periods, zeta);
+          setRespResult(combineSpectraGeomean([specZ, specNS, specEW]));
+          setComponentSpectra({ Z: specZ, NS: specNS, EW: specEW });
           toast({ title: 'Спектр отклика рассчитан', description: `Геом. среднее Z+NS+EW · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
         } else if (respComponent === 'GMH') {
-          const specs = [arrs.ns, arrs.ew].map(s => responseSpectrum(s, dt, periods, zeta));
-          setRespResult(combineSpectraGeomean(specs));
+          const specNS = responseSpectrum(arrs.ns, dt, periods, zeta);
+          const specEW = responseSpectrum(arrs.ew, dt, periods, zeta);
+          setRespResult(combineSpectraGeomean([specNS, specEW]));
+          setComponentSpectra({ NS: specNS, EW: specEW });
           toast({ title: 'Спектр отклика рассчитан', description: `Геом. среднее NS+EW (СП 14) · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
         } else {
           const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
           setRespResult(responseSpectrum(sig, dt, periods, zeta));
+          setComponentSpectra(null);
           toast({ title: 'Спектр отклика рассчитан', description: `Компонента ${respComponent} · ${NP} периодов · ζ=${(zeta*100).toFixed(1)}%` });
         }
       }
@@ -1297,8 +1307,22 @@ const ResponseTab: FC<RespTabProps> = ({
     if (!respResult) return [];
     const periods = respResult.map(p => p.T);
     const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, sp14K1);
-    return respResult.map((p, i) => ({ ...p, Sa_design: design[i].Sa_design }));
-  }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1]);
+    return respResult.map((p, i) => ({
+      ...p,
+      Sa_design: design[i].Sa_design,
+      Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
+      Sa_NS: componentSpectra?.NS?.[i]?.Sa,
+      Sa_EW: componentSpectra?.EW?.[i]?.Sa,
+    }));
+  }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, componentSpectra]);
+
+  const toggleSeries = useCallback((dataKey: string) => {
+    setHiddenSeries(prev => {
+      const next = new Set(prev);
+      if (next.has(dataKey)) next.delete(dataKey); else next.add(dataKey);
+      return next;
+    });
+  }, []);
 
   const designPeak = SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * sp14K1 * 9.80665 * 2.5;
 
@@ -1495,13 +1519,33 @@ const ResponseTab: FC<RespTabProps> = ({
                   formatter={(v: number, name: string) => [Number(v).toFixed(4), name]}
                   labelFormatter={v => `T=${Number(v).toFixed(3)} с`}
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
+                  onClick={(data) => {
+                    const dk = (data as { dataKey?: unknown }).dataKey;
+                    if (typeof dk === 'string') toggleSeries(dk);
+                  }}
+                />
                 {peakSa && peakSa.T > 0 && (
                   <ReferenceLine x={peakSa.T} stroke="#7c3aed" strokeDasharray="4 2"
                     label={{ value: `T=${peakSa.T.toFixed(2)}с`, fontSize: 9, fill: '#7c3aed', position: 'top' }} />
                 )}
-                <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa расч., ζ=${respDamping}%`} />
+                {componentSpectra?.Z && (
+                  <Line type="monotone" dataKey="Sa_Z" stroke="#94a3b8" strokeWidth={1} dot={false}
+                    hide={hiddenSeries.has('Sa_Z')} name="Sa Z (вертик.)" isAnimationActive={false} />
+                )}
+                {componentSpectra?.NS && (
+                  <Line type="monotone" dataKey="Sa_NS" stroke="#65a30d" strokeWidth={1} dot={false}
+                    hide={hiddenSeries.has('Sa_NS')} name="Sa NS (С–Ю)" isAnimationActive={false} />
+                )}
+                {componentSpectra?.EW && (
+                  <Line type="monotone" dataKey="Sa_EW" stroke="#d97706" strokeWidth={1} dot={false}
+                    hide={hiddenSeries.has('Sa_EW')} name="Sa EW (В–З)" isAnimationActive={false} />
+                )}
+                <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false}
+                  hide={hiddenSeries.has('Sa')} name={`Sa расч., ζ=${respDamping}%`} />
                 <Line type="monotone" dataKey="Sa_design" stroke="#0369a1" strokeWidth={1.6} strokeDasharray="6 4" dot={false}
+                  hide={hiddenSeries.has('Sa_design')}
                   name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory}, K₁=${sp14K1.toFixed(2)})`} />
               </LineChart>
             </ResponsiveContainer>
@@ -1531,8 +1575,21 @@ const ResponseTab: FC<RespTabProps> = ({
             <div className="px-4 flex gap-2 pt-2">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                 onClick={() => {
-                  const rows = ['period_s,Sa_m_s2,Sv_m_s,Sd_m'].concat(
-                    respResult!.map(p => `${p.T.toFixed(4)},${p.Sa.toFixed(6)},${p.Sv.toFixed(6)},${p.Sd.toFixed(6)}`)
+                  const cs = componentSpectra;
+                  const extraCols: string[] = [];
+                  if (cs?.Z)  extraCols.push('Sa_Z_m_s2');
+                  if (cs?.NS) extraCols.push('Sa_NS_m_s2');
+                  if (cs?.EW) extraCols.push('Sa_EW_m_s2');
+                  const header = ['period_s,Sa_m_s2,Sv_m_s,Sd_m', ...extraCols].join(',');
+                  const rows = [header].concat(
+                    respResult!.map((p, i) => {
+                      const base = `${p.T.toFixed(4)},${p.Sa.toFixed(6)},${p.Sv.toFixed(6)},${p.Sd.toFixed(6)}`;
+                      const extras: string[] = [];
+                      if (cs?.Z)  extras.push((cs.Z[i]?.Sa  ?? 0).toFixed(6));
+                      if (cs?.NS) extras.push((cs.NS[i]?.Sa ?? 0).toFixed(6));
+                      if (cs?.EW) extras.push((cs.EW[i]?.Sa ?? 0).toFixed(6));
+                      return extras.length ? `${base},${extras.join(',')}` : base;
+                    })
                   );
                   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
                   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
