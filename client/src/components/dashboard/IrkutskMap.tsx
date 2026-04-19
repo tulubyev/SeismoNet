@@ -1,10 +1,13 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map as MapIcon, Layers as LayersIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { Map as MapIcon, Search, MapPin, Layers, Shield, Calendar, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import type { InfrastructureObject, Station, ObjectCategory } from '@shared/schema';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
+import type { InfrastructureObject, Station, ObjectCategory, Developer } from '@shared/schema';
 
 declare global {
   interface Window { L: any; }
@@ -24,6 +27,27 @@ const IRKUTSK_ZOOM = 12;
 
 const FALLBACK_CATEGORY_COLOR = '#6366f1';
 
+const IRKUTSK_DISTRICTS = [
+  'Октябрьский',
+  'Свердловский',
+  'Ленинский',
+  'Правобережный',
+  'Иркутский район',
+];
+
+const constructionTypeOptions = [
+  { value: 'all',                 label: 'Все типы конструкций' },
+  { value: 'monolithic',          label: 'Монолит' },
+  { value: 'frame',               label: 'Каркас' },
+  { value: 'brick',               label: 'Кирпич' },
+  { value: 'panel',               label: 'Панельное' },
+  { value: 'reinforced_concrete', label: 'Ж/Б каркас' },
+  { value: 'steel',               label: 'Стальной каркас' },
+  { value: 'masonry',             label: 'Кирпичная кладка' },
+  { value: 'wood',                label: 'Деревянный' },
+  { value: 'mixed',               label: 'Смешанная система' },
+];
+
 const stationColor = (status: string) => {
   switch (status) {
     case 'online':   return '#10b981';
@@ -40,28 +64,61 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const initializedRef = useRef(false);
   const markersRef     = useRef<any[]>([]);
 
-  const [showStations, setShowStations] = useState(true);
-  const [showLegend,   setShowLegend]   = useState(true);
-  const [enabledCats,  setEnabledCats]  = useState<Set<string>>(new Set());
-  const [enabledInit,  setEnabledInit]  = useState(false);
+  // Filter state — mirrors the filter on the InfrastructureObjects page
+  const [search,             setSearch]             = useState('');
+  const [districtFilter,     setDistrictFilter]     = useState('all');
+  const [developerFilter,    setDeveloperFilter]    = useState('all');
+  const [constructionFilter, setConstructionFilter] = useState('all');
+  const [yearFrom,           setYearFrom]           = useState('');
+  const [yearTo,             setYearTo]             = useState('');
+  const [showStations,       setShowStations]       = useState(true);
 
-  const { data: categories = [] } = useQuery<ObjectCategory[]>({
-    queryKey: ['/api/object-categories'],
-  });
-
-  // Initialise enabled categories to "all on" once categories load
-  useEffect(() => {
-    if (!enabledInit && categories.length) {
-      setEnabledCats(new Set(categories.map(c => c.slug)));
-      setEnabledInit(true);
-    }
-  }, [categories, enabledInit]);
+  const { data: categories  = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
+  const { data: developers  = [] } = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
 
   const catBySlug = useMemo(() => {
     const m = new Map<string, ObjectCategory>();
     categories.forEach(c => m.set(c.slug, c));
     return m;
   }, [categories]);
+
+  const developerOptions = useMemo(() => {
+    const names = new Set<string>();
+    developers.forEach(d => names.add(d.name));
+    objects.forEach(o => { if (o.developer) names.add(o.developer); });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [developers, objects]);
+
+  const filteredObjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return objects.filter(obj => {
+      const matchSearch = q === '' ||
+        obj.name.toLowerCase().includes(q) ||
+        (obj.address ?? '').toLowerCase().includes(q) ||
+        (obj.objectId ?? '').toLowerCase().includes(q);
+      const matchDistrict     = districtFilter     === 'all' || (obj.district          ?? '') === districtFilter;
+      const matchDeveloper    = developerFilter    === 'all' || (obj.developer         ?? '') === developerFilter;
+      const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem  ?? '') === constructionFilter;
+      const yr = obj.constructionYear ?? 0;
+      const matchYearFrom = yearFrom === '' || yr >= parseInt(yearFrom);
+      const matchYearTo   = yearTo   === '' || yr <= parseInt(yearTo);
+      return matchSearch && matchDistrict && matchDeveloper && matchConstruction && matchYearFrom && matchYearTo;
+    });
+  }, [objects, search, districtFilter, developerFilter, constructionFilter, yearFrom, yearTo]);
+
+  const activeFilterCount = [
+    districtFilter !== 'all',
+    developerFilter !== 'all',
+    constructionFilter !== 'all',
+    yearFrom !== '',
+    yearTo !== '',
+    search !== '',
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setSearch(''); setDistrictFilter('all'); setDeveloperFilter('all');
+    setConstructionFilter('all'); setYearFrom(''); setYearTo('');
+  };
 
   const objectColor = (obj: InfrastructureObject): string => {
     if (!obj.isMonitored) return '#94a3b8';
@@ -77,9 +134,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     if (!mapRef.current || !window.L) return;
     clearMarkers();
 
-    objects.forEach(obj => {
-      if (enabledInit && !enabledCats.has(obj.objectType)) return;
-
+    filteredObjects.forEach(obj => {
       const lat = parseFloat(String(obj.latitude));
       const lng = parseFloat(String(obj.longitude));
       if (isNaN(lat) || isNaN(lng)) return;
@@ -109,6 +164,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
               ? '<span style="color: #10b981;">&#9679; Под мониторингом</span>'
               : '<span style="color: #94a3b8;">&#9675; Без мониторинга</span>'}
           </div>
+          ${obj.developer ? `<div style="margin-top: 4px; font-size: 10px; color: #64748b;">Застройщик: ${esc(obj.developer)}</div>` : ''}
         </div>
       `);
 
@@ -177,7 +233,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     addMarkers();
   };
 
-  // Load Leaflet & init
   useEffect(() => {
     if (!window.L) {
       const link = document.createElement('link');
@@ -204,13 +259,11 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-render markers when data / filters change
   useEffect(() => {
     if (initializedRef.current) addMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objects, stations, enabledCats, enabledInit, showStations, categories]);
+  }, [filteredObjects, stations, showStations]);
 
-  // Watch container resize → invalidateSize so Leaflet repaints tiles
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver(() => {
@@ -223,130 +276,165 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     return () => ro.disconnect();
   }, []);
 
-  const toggleCat = (slug: string) => {
-    setEnabledCats(prev => {
-      const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug); else next.add(slug);
-      return next;
-    });
-  };
-  const allOn  = () => setEnabledCats(new Set(categories.map(c => c.slug)));
-  const allOff = () => setEnabledCats(new Set());
-
   return (
-    <Card className={`border-0 shadow-sm ${className}`}>
+    <Card className={`border-0 shadow-sm w-full ${className}`}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <MapIcon className="h-4 w-4 text-blue-600" />
           Карта объектов — г. Иркутск
-          <span className="text-[10px] text-slate-400 font-normal ml-auto">
-            52.29°N, 104.30°E
+          <span className="text-[10px] text-slate-400 font-normal ml-2">52.29°N, 104.30°E</span>
+          <span className="ml-auto text-[11px] text-slate-500 font-normal">
+            На карте: <span className="font-semibold text-blue-600">{filteredObjects.length}</span> из {objects.length}
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex gap-3">
-          {/* Layer panel */}
-          <div className="w-48 flex-shrink-0 border border-slate-200 rounded-lg p-2 bg-slate-50/40 max-h-[420px] overflow-auto">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
-                <LayersIcon className="h-3 w-3" /> Слои
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={allOn}  data-testid="btn-layers-all-on">Все</Button>
-                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={allOff} data-testid="btn-layers-all-off">Снять</Button>
-              </div>
-            </div>
 
-            <div className="space-y-1">
-              {categories.map(cat => {
-                const checked = enabledCats.has(cat.slug);
-                return (
-                  <label
-                    key={cat.slug}
-                    className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-white cursor-pointer"
-                    data-testid={`layer-toggle-${cat.slug}`}
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleCat(cat.slug)}
-                      className="h-3.5 w-3.5"
-                    />
-                    <span
-                      className="inline-block w-3 h-3 rounded-full border border-white shadow-sm flex-shrink-0"
-                      style={{ background: cat.color }}
-                    />
-                    <span className="text-[11px] text-slate-700 truncate">{cat.name}</span>
-                  </label>
-                );
-              })}
-            </div>
+      <CardContent className="pt-0 space-y-3">
 
-            <div className="mt-2 pt-2 border-t border-slate-200">
-              <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-white cursor-pointer">
-                <Checkbox
-                  checked={showStations}
-                  onCheckedChange={v => setShowStations(!!v)}
-                  className="h-3.5 w-3.5"
-                />
-                <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500 flex-shrink-0" />
-                <span className="text-[11px] text-slate-700">Сейсмостанции</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Map container — resizable both axes */}
-          <div className="flex-1 min-w-0">
-            <div
-              ref={wrapperRef}
-              style={{
-                resize: 'both',
-                overflow: 'hidden',
-                width: '100%',
-                height: '420px',
-                minHeight: '260px',
-                minWidth: '300px',
-                maxHeight: '900px',
-              }}
-              className="rounded-lg border border-slate-200"
-              data-testid="map-resize-wrapper"
-            >
-              <div
-                ref={containerRef}
-                className="rounded-lg overflow-hidden"
-                style={{ width: '100%', height: '100%' }}
+        {/* ── Filter bar (mirrors the InfrastructureObjects page) ── */}
+        <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
+          {/* Row 1: search + station toggle + reset */}
+          <div className="flex gap-3 items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Поиск по названию, адресу, ID..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-9 text-sm"
+                data-testid="map-input-search"
               />
             </div>
-
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-              <button
-                type="button"
-                onClick={() => setShowLegend(v => !v)}
-                className="flex items-center gap-1 hover:text-slate-600"
-              >
-                {showLegend ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                Состояние / легенда
-              </button>
-              <span>Перетащите правый-нижний угол карты для изменения размера ↔ ↕</span>
-            </div>
-
-            {showLegend && (
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-slate-500">
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-full bg-slate-400" />Без датчиков
-                </span>
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-emerald-500" />Станция онлайн
-                </span>
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-amber-500" />Деградация
-                </span>
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-red-500" />Офлайн
-                </span>
-              </div>
+            <Button
+              type="button"
+              variant={showStations ? 'default' : 'outline'}
+              size="sm"
+              className="h-9 text-xs flex-shrink-0"
+              onClick={() => setShowStations(v => !v)}
+              data-testid="map-toggle-stations"
+            >
+              <Radio className="h-3.5 w-3.5 mr-1" />
+              Сейсмостанции
+            </Button>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-slate-500 hover:text-red-600 flex-shrink-0" onClick={resetFilters}>
+                Сбросить ({activeFilterCount})
+              </Button>
             )}
           </div>
+
+          {/* Row 2: district + construction */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Select value={districtFilter} onValueChange={setDistrictFilter}>
+              <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
+                <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                <SelectValue placeholder="Район города" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все районы</SelectItem>
+                {IRKUTSK_DISTRICTS.map(d => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={constructionFilter} onValueChange={setConstructionFilter}>
+              <SelectTrigger className="h-9 text-sm" data-testid="map-select-construction">
+                <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                <SelectValue placeholder="Тип конструкции" />
+              </SelectTrigger>
+              <SelectContent>
+                {constructionTypeOptions.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="relative">
+              <Shield className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 z-10 pointer-events-none" />
+              <Select value={developerFilter} onValueChange={setDeveloperFilter}>
+                <SelectTrigger className="pl-8 h-9 text-sm" data-testid="map-select-developer">
+                  <SelectValue placeholder="Застройщик / подрядчик" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="all">Все застройщики</SelectItem>
+                  {developerOptions.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-slate-400">Нет данных</div>
+                  )}
+                  {developerOptions.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  placeholder="с года"
+                  value={yearFrom}
+                  onChange={e => setYearFrom(e.target.value.replace(/\D/g, ''))}
+                  maxLength={4}
+                  className="pl-8 h-9 text-sm"
+                  data-testid="map-input-year-from"
+                />
+              </div>
+              <div className="relative flex-1">
+                <Input
+                  placeholder="по год"
+                  value={yearTo}
+                  onChange={e => setYearTo(e.target.value.replace(/\D/g, ''))}
+                  maxLength={4}
+                  className="pl-2 h-9 text-sm"
+                  data-testid="map-input-year-to"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Map (full width) ── */}
+        <div
+          ref={wrapperRef}
+          style={{
+            resize: 'vertical',
+            overflow: 'hidden',
+            width: '100%',
+            height: '560px',
+            minHeight: '320px',
+            maxHeight: '1000px',
+          }}
+          className="rounded-lg border border-slate-200"
+          data-testid="map-resize-wrapper"
+        >
+          <div
+            ref={containerRef}
+            className="rounded-lg overflow-hidden"
+            style={{ width: '100%', height: '100%' }}
+          />
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+          {categories.slice(0, 8).map(cat => (
+            <span key={cat.slug} className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ background: cat.color }} />
+              {cat.name}
+            </span>
+          ))}
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full bg-slate-400" /> Без датчиков
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded bg-emerald-500" /> Станция онлайн
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded bg-amber-500" /> Деградация
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded bg-red-500" /> Офлайн
+          </span>
         </div>
       </CardContent>
     </Card>
