@@ -142,19 +142,26 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // Development auto-login: when not in production and no session exists,
-  // return a superadmin dev user so login screen is skipped.
-  const isDev = process.env.NODE_ENV !== "production";
+  // DEV-режим: разрешаем войти одной кнопкой со страницы /auth.
+  // POST /api/dev-login создаёт реальную сессию superadmin без ввода пароля.
   const DEV_USER = {
     id: 1, username: "dev_superadmin", fullName: "Dev SuperAdmin",
     email: "dev@seismonet.local", role: "administrator", active: true,
     organization: "ИЗК СО РАН", lastLogin: null as Date | null, createdAt: new Date(),
     updatedAt: new Date(), profileImage: null as string | null,
-    phone: null as string | null, preferences: null as unknown
-  };
+    phone: null as string | null, preferences: null as unknown,
+    password: ""
+  } as unknown as SelectUser;
+
+  app.post("/api/dev-login", (req, res, next) => {
+    req.login(DEV_USER, (loginErr) => {
+      if (loginErr) return next(loginErr);
+      const { password, ...userWithoutPassword } = DEV_USER as SelectUser;
+      return res.status(200).json(userWithoutPassword);
+    });
+  });
 
   app.get("/api/user", (req, res) => {
-    if (isDev && !req.isAuthenticated()) return res.json(DEV_USER);
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
