@@ -759,7 +759,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/calculations', requireRole(['administrator', 'user']), async (req, res) => {
     try {
-      const parsed = insertSeismicCalculationSchema.safeParse(req.body);
+      const parsed = insertSeismicCalculationSchema.safeParse({
+        ...req.body,
+        createdBy: (req.user as { id?: number } | undefined)?.id ?? null,
+      });
       if (!parsed.success) return res.status(400).json({ message: 'Invalid calculation data', errors: parsed.error.flatten() });
       const row = await storage.createSeismicCalculation(parsed.data);
       res.status(201).json(row);
@@ -768,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/calculations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+  app.delete('/api/calculations/:id', requireRole(['administrator']), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const ok = await storage.deleteSeismicCalculation(id);

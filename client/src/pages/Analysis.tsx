@@ -1093,6 +1093,76 @@ const AmplificationTab: FC<AmpTabProps> = ({
   );
 };
 
+// ─── Baikal seismic scenario catalog (СП 14.13330.2018 / SP-14) ──────────────
+// Synthetic accelerograms: envelope × bandpass noise, normalised to target PGA.
+// Parameters derived from attenuation relations for Baikal region.
+
+interface BaikalScenario {
+  id: string;
+  label: string;
+  Mw: number;
+  R_km: number;
+  PGA_g: number;
+  T_dom: number;
+  duration_s: number;
+  seismicIntensity: string;
+  notes: string;
+}
+
+const BAIKAL_CATALOG: BaikalScenario[] = [
+  { id: 'mw50_100', label: 'Mw 5.0, R=100 км (фоновый уровень)',  Mw: 5.0, R_km: 100, PGA_g: 0.025, T_dom: 0.20, duration_s: 15, seismicIntensity: 'VI MSK-64',  notes: 'Типичное слабое землетрясение в зоне Байкальского рифта' },
+  { id: 'mw60_200', label: 'Mw 6.0, R=200 км (Байкальский разлом)', Mw: 6.0, R_km: 200, PGA_g: 0.018, T_dom: 0.30, duration_s: 25, seismicIntensity: 'VI MSK-64',  notes: 'Умеренное землетрясение в зоне Байкальского разлома (Mw 6), г. Иркутск' },
+  { id: 'mw65_50',  label: 'Mw 6.5, R=50 км (ближний сценарий)',  Mw: 6.5, R_km:  50, PGA_g: 0.090, T_dom: 0.12, duration_s: 20, seismicIntensity: 'VIII MSK-64', notes: 'Близкое землетрясение в 50 км — расчётный сценарий для проектирования' },
+  { id: 'mw70_300', label: 'Mw 7.0, R=300 км (монгольский сценарий)', Mw: 7.0, R_km: 300, PGA_g: 0.022, T_dom: 0.40, duration_s: 40, seismicIntensity: 'VII MSK-64', notes: 'Крупное монгольское землетрясение: слабые длинно-периодные колебания' },
+  { id: 'sp14_vii', label: 'СП 14 нормативный, I=VII (0.1g)', Mw: 6.0, R_km: 100, PGA_g: 0.100, T_dom: 0.20, duration_s: 20, seismicIntensity: 'VII MSK-64', notes: 'Нормативное воздействие по СП 14.13330.2018 для 7-балльной зоны (PGA=0.1g)' },
+];
+
+function generateSyntheticAccelerogram(scenario: BaikalScenario, sr = 200): Float64Array {
+  const N = Math.round(scenario.duration_s * sr);
+  const dt = 1 / sr;
+  const arr = new Float64Array(N);
+
+  // Deterministic "random" seed per scenario for reproducibility
+  let seed = scenario.id.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 12345);
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 0xFFFFFFFF; };
+
+  // Phase 1: white noise
+  for (let i = 0; i < N; i++) arr[i] = rnd() * 2 - 1;
+
+  // Phase 2: simple bandpass via two-pass RC filter around T_dom
+  const f_low  = Math.max(0.5 / scenario.T_dom, 0.1);
+  const f_high = Math.min(3.0 / scenario.T_dom, sr / 2 - 1);
+  const rc_hi = 1 / (2 * Math.PI * f_low  * dt);
+  const rc_lo = 1 / (2 * Math.PI * f_high * dt);
+  const a_hi = rc_hi / (rc_hi + 1);
+  const a_lo = 1     / (rc_lo + 1);
+  // High-pass (remove DC)
+  let prev = arr[0], prevOut = arr[0];
+  for (let i = 1; i < N; i++) { const out = a_hi * (prevOut + arr[i] - prev); prev = arr[i]; prevOut = out; arr[i] = out; }
+  // Low-pass
+  let lp = arr[0];
+  for (let i = 1; i < N; i++) { lp = a_lo * arr[i] + (1 - a_lo) * lp; arr[i] = lp; }
+
+  // Phase 3: trapezoidal envelope (ramp 15%, sustain 50%, decay 35%)
+  const t_rise  = 0.15 * scenario.duration_s;
+  const t_end   = 0.65 * scenario.duration_s;
+  for (let i = 0; i < N; i++) {
+    const t = i * dt;
+    let env = 1;
+    if (t < t_rise)           env = t / t_rise;
+    else if (t > t_end) env = Math.exp(-3 * (t - t_end) / (scenario.duration_s - t_end));
+    arr[i] *= env;
+  }
+
+  // Phase 4: normalise to target PGA (m/s²)
+  const g = 9.80665;
+  const peak = arr.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  const targetPGA = scenario.PGA_g * g;
+  if (peak > 0) for (let i = 0; i < N; i++) arr[i] = arr[i] / peak * targetPGA;
+
+  return arr;
+}
+
 // ─── Response spectrum tab (Newmark-β SDOF) ──────────────────────────────────
 
 interface RespTabProps {
@@ -1110,72 +1180,123 @@ const ResponseTab: FC<RespTabProps> = ({
   respDamping, setRespDamping, respComponent, setRespComponent,
   respResult, setRespResult, toast,
 }) => {
+  const [inputMode, setInputMode] = useState<'catalog' | 'seismogram'>('catalog');
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(BAIKAL_CATALOG[0].id);
+
   const rec = seismograms.find(s => s.id === selectedSeismogramId) ?? null;
   const real = hasRealData(rec);
+  const scenario = BAIKAL_CATALOG.find(s => s.id === selectedScenarioId) ?? BAIKAL_CATALOG[0];
 
   const handleCompute = useCallback(() => {
-    if (!rec || !real) return;
-    const arrs = getRealArrays(rec);
-    const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
-    const sr = rec.sampleRate || 100;
-    const dt = 1 / sr;
-    const zeta = (parseFloat(respDamping) || 5) / 100;
-    // Periods 0.05…3 s, log-spaced (60 points)
-    const periods: number[] = [];
     const NP = 60;
+    const periods: number[] = [];
     for (let i = 0; i < NP; i++) {
       periods.push(Math.pow(10, Math.log10(0.05) + (Math.log10(3) - Math.log10(0.05)) * i / (NP - 1)));
     }
+    const zeta = (parseFloat(respDamping) || 5) / 100;
     try {
-      setRespResult(responseSpectrum(sig, dt, periods, zeta));
-      toast({ title: 'Спектр отклика рассчитан', description: `${NP} периодов, ζ=${(zeta*100).toFixed(1)}%` });
+      if (inputMode === 'catalog') {
+        const sr = 200;
+        const sig = generateSyntheticAccelerogram(scenario, sr);
+        setRespResult(responseSpectrum(sig, 1 / sr, periods, zeta));
+        toast({ title: 'Спектр отклика рассчитан', description: `Сценарий: ${scenario.label}, PGA=${(scenario.PGA_g * 1000).toFixed(0)} мг, ζ=${(zeta*100).toFixed(1)}%` });
+      } else {
+        if (!rec || !real) return;
+        const arrs = getRealArrays(rec);
+        const sig = respComponent === 'Z' ? arrs.z : respComponent === 'NS' ? arrs.ns : arrs.ew;
+        const dt = 1 / (rec.sampleRate || 100);
+        setRespResult(responseSpectrum(sig, dt, periods, zeta));
+        toast({ title: 'Спектр отклика рассчитан', description: `${NP} периодов, ζ=${(zeta*100).toFixed(1)}%` });
+      }
     } catch (e) {
       toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
     }
-  }, [rec, real, respComponent, respDamping, setRespResult, toast]);
+  }, [inputMode, scenario, rec, real, respComponent, respDamping, setRespResult, toast]);
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
   return (
     <>
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <Label className="text-xs">Сейсмограмма</Label>
-          <Select
-            value={selectedSeismogramId?.toString() ?? ''}
-            onValueChange={v => { setSelectedSeismogramId(parseInt(v)); setRespResult(null); }}
-          >
-            <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder="Выберите запись..." /></SelectTrigger>
-            <SelectContent>
-              {seismograms.map(s => (
-                <SelectItem key={s.id} value={s.id.toString()} className="text-xs">
-                  {s.recordId} — {s.stationId} ({new Date(s.startTime).toLocaleDateString('ru-RU')})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Компонента</Label>
-          <Select value={respComponent} onValueChange={v => { setRespComponent(v as 'Z'|'NS'|'EW'); setRespResult(null); }}>
-            <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Z">Z</SelectItem>
-              <SelectItem value="NS">NS</SelectItem>
-              <SelectItem value="EW">EW</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label className="text-xs">Затухание ζ, %</Label>
-          <Input className="h-8 w-24 text-xs" value={respDamping} onChange={e => setRespDamping(e.target.value)} />
-        </div>
-        <Button size="sm" className="h-8 text-xs gap-1" onClick={handleCompute} disabled={!rec || !real}>
-          <Zap className="h-3.5 w-3.5" /> Расчёт спектра отклика
-        </Button>
-      </div>
+      <Card className="border-0 shadow-sm">
+        <CardContent className="pt-4 pb-3 px-4">
+          <div className="flex gap-2 mb-3">
+            <Button size="sm" variant={inputMode === 'catalog' ? 'default' : 'outline'} className="h-7 text-xs"
+              onClick={() => { setInputMode('catalog'); setRespResult(null); }}>
+              📂 Каталог байкальских сценариев (СП 14.13330)
+            </Button>
+            <Button size="sm" variant={inputMode === 'seismogram' ? 'default' : 'outline'} className="h-7 text-xs"
+              onClick={() => { setInputMode('seismogram'); setRespResult(null); }}>
+              📡 Загруженная сейсмограмма
+            </Button>
+          </div>
 
-      {selectedSeismogramId && !real && (
+          {inputMode === 'catalog' && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Расчётный сценарий (Байкальский регион)</Label>
+                <Select value={selectedScenarioId} onValueChange={v => { setSelectedScenarioId(v); setRespResult(null); }}>
+                  <SelectTrigger className="h-9 text-sm w-full max-w-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {BAIKAL_CATALOG.map(s => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="bg-slate-50 rounded p-3 text-xs text-slate-600 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div><span className="text-slate-400">Магнитуда</span><div className="font-bold">Mw {scenario.Mw}</div></div>
+                <div><span className="text-slate-400">Эпицентр.</span><div className="font-bold">{scenario.R_km} км</div></div>
+                <div><span className="text-slate-400">PGA</span><div className="font-bold">{(scenario.PGA_g * 1000).toFixed(0)} мг ({(scenario.PGA_g * 9.81).toFixed(2)} м/с²)</div></div>
+                <div><span className="text-slate-400">Интенсивность</span><div className="font-bold">{scenario.seismicIntensity}</div></div>
+                <div className="col-span-2 md:col-span-4 text-slate-500">{scenario.notes}</div>
+              </div>
+            </div>
+          )}
+
+          {inputMode === 'seismogram' && (
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <Label className="text-xs">Сейсмограмма</Label>
+                <Select value={selectedSeismogramId?.toString() ?? ''} onValueChange={v => { setSelectedSeismogramId(parseInt(v)); setRespResult(null); }}>
+                  <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder="Выберите запись..." /></SelectTrigger>
+                  <SelectContent>
+                    {seismograms.map(s => (
+                      <SelectItem key={s.id} value={s.id.toString()} className="text-xs">
+                        {s.recordId} — {s.stationId} ({new Date(s.startTime).toLocaleDateString('ru-RU')})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Компонента</Label>
+                <Select value={respComponent} onValueChange={v => { setRespComponent(v as 'Z'|'NS'|'EW'); setRespResult(null); }}>
+                  <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Z">Z</SelectItem>
+                    <SelectItem value="NS">NS</SelectItem>
+                    <SelectItem value="EW">EW</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3 items-end mt-3">
+            <div>
+              <Label className="text-xs">Затухание ζ, %</Label>
+              <Input className="h-8 w-24 text-xs" value={respDamping} onChange={e => setRespDamping(e.target.value)} />
+            </div>
+            <Button size="sm" className="h-8 text-xs gap-1"
+              onClick={handleCompute}
+              disabled={inputMode === 'seismogram' && (!rec || !real)}>
+              <Zap className="h-3.5 w-3.5" /> Рассчитать спектр отклика
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {inputMode === 'seismogram' && selectedSeismogramId && !real && (
         <Card className="border-amber-300 bg-amber-50 shadow-sm">
           <CardContent className="py-4 px-4 text-sm text-amber-800 font-medium">
             ⚠ Запись не содержит реальных компонент (dataZ/NS/EW). Расчёт SDOF-отклика невозможен.
@@ -1222,7 +1343,10 @@ const ResponseTab: FC<RespTabProps> = ({
             </ResponsiveContainer>
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
-              <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
+              {inputMode === 'catalog'
+                ? <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018</p>
+                : <p>Расчёт по компоненте <strong>{respComponent}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.</p>
+              }
             </div>
             <div className="px-4 flex gap-2 pt-2">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
@@ -1232,7 +1356,7 @@ const ResponseTab: FC<RespTabProps> = ({
                   );
                   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
                   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-                  a.download = `response_spectrum_${rec?.recordId ?? 'result'}.csv`; a.click();
+                  a.download = `response_spectrum_${inputMode === 'catalog' ? scenario.id : (rec?.recordId ?? 'result')}.csv`; a.click();
                 }}>
                 <Download className="h-3 w-3" /> CSV
               </Button>
@@ -1241,8 +1365,10 @@ const ResponseTab: FC<RespTabProps> = ({
                   try {
                     const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'response_spectrum',
-                        inputParams: { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
-                        results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa } }) });
+                        inputParams: inputMode === 'catalog'
+                          ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping) }
+                          : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping) },
+                        results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
                   } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
@@ -1254,11 +1380,11 @@ const ResponseTab: FC<RespTabProps> = ({
         </Card>
       )}
 
-      {!selectedSeismogramId && (
+      {inputMode === 'seismogram' && !selectedSeismogramId && (
         <Card className="border-0 shadow-sm">
           <CardContent className="py-10 text-center text-slate-400">
             <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Выберите сейсмограмму с реальными данными для расчёта спектра отклика конструкций</p>
+            <p className="text-sm">Выберите сейсмограмму для расчёта спектра отклика</p>
           </CardContent>
         </Card>
       )}
