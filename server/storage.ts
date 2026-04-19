@@ -208,50 +208,14 @@ export class MemStorage implements IStorage {
     
     // Initialize stations
     const sampleStations: InsertStation[] = [
-      {
-        stationId: "PNWST-03",
-        name: "Pacific Northwest Station 03",
-        location: "Seattle, WA",
-        latitude: "47.6062",
-        longitude: "-122.3321",
-        status: "online",
-        lastUpdate: new Date(),
-        dataRate: 1.2,
-        configuration: {}
-      },
-      {
-        stationId: "SOCAL-12",
-        name: "Southern California Station 12",
-        location: "Los Angeles, CA",
-        latitude: "34.0522",
-        longitude: "-118.2437",
-        status: "online",
-        lastUpdate: new Date(),
-        dataRate: 1.5,
-        configuration: {}
-      },
-      {
-        stationId: "ALASKA-07",
-        name: "Alaska Station 07",
-        location: "Anchorage, AK",
-        latitude: "61.2181",
-        longitude: "-149.9003",
-        status: "degraded",
-        lastUpdate: new Date(),
-        dataRate: 0.8,
-        configuration: {}
-      },
-      {
-        stationId: "FIJI-01",
-        name: "Fiji Station 01",
-        location: "Suva, Fiji",
-        latitude: "-18.1134",
-        longitude: "178.4253",
-        status: "online",
-        lastUpdate: new Date(),
-        dataRate: 1.0,
-        configuration: {}
-      }
+      { stationId:"IRK-ST-001", name:"Станция «Центр»",        location:"ул. Ленина, Иркутск",         latitude:"52.2897", longitude:"104.2963", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:89, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-002", name:"Станция «ГЭС»",          location:"Иркутская ГЭС",               latitude:"52.3127", longitude:"104.2218", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:94, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-003", name:"Станция «Мост»",         location:"Мост через р. Ушаковка",      latitude:"52.2756", longitude:"104.3312", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:77, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-004", name:"Станция «Академгородок»",location:"мкр. Академгородок",          latitude:"52.2604", longitude:"104.2481", status:"degraded", lastUpdate:new Date(), dataRate:60,  batteryLevel:45, firmwareVersion:"v3.0.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-005", name:"Станция «Иркутск-Южный»",location:"пос. Ново-Иркутский",        latitude:"52.2231", longitude:"104.3012", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:82, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-006", name:"Станция «Шелехов»",      location:"г. Шелехов",                  latitude:"52.2090", longitude:"104.1010", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:88, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-007", name:"Станция «Листвянка»",    location:"пос. Листвянка (береговая)",  latitude:"51.8599", longitude:"104.8736", status:"online",   lastUpdate:new Date(), dataRate:100, batteryLevel:91, firmwareVersion:"v3.1.0", hardwareModel:"СМ-3КВ", configuration:{} },
+      { stationId:"IRK-ST-008", name:"Станция «Ангарск»",      location:"г. Ангарск",                  latitude:"52.5397", longitude:"103.8897", status:"offline",  lastUpdate:new Date(Date.now()-3600000), dataRate:0, batteryLevel:12, firmwareVersion:"v3.0.0", hardwareModel:"СМ-3КВ", configuration:{} }
     ];
     
     sampleStations.forEach(station => this.createStation(station));
@@ -1273,7 +1237,17 @@ export class DatabaseStorage implements IStorage {
 // Initialize storage with sample data and export
 const initializeDatabase = async () => {
   const dbStorage = new DatabaseStorage();
-  
+
+  // Remove legacy international stations that don't belong to the Irkutsk network
+  const LEGACY_STATION_IDS = ["PNWST-03", "SOCAL-12", "ALASKA-07", "FIJI-01"];
+  for (const legacyId of LEGACY_STATION_IDS) {
+    const legacy = await dbStorage.getStationByStationId(legacyId);
+    if (legacy) {
+      await db.delete(schema.stations).where(eq(schema.stations.id, legacy.id));
+      console.log(`Removed legacy station: ${legacyId}`);
+    }
+  }
+
   // Check if there's already data in the database
   const existingUsers = await dbStorage.getUsers();
   const existingStations = await dbStorage.getStations();
@@ -1330,206 +1304,225 @@ const initializeDatabase = async () => {
     // Sample regions
     const sampleRegions: InsertRegion[] = [
       {
-        name: "Pacific Northwest",
-        description: "Cascadia Subduction Zone Region",
-        centerLatitude: "47.6062",
-        centerLongitude: "-122.3321",
-        radiusKm: 500,
+        name: "Иркутск",
+        description: "Город Иркутск и прилегающие территории",
+        centerLatitude: "52.2900",
+        centerLongitude: "104.2964",
+        radiusKm: 50,
         createdAt: new Date()
       },
       {
-        name: "Southern California",
-        description: "San Andreas Fault Region",
-        centerLatitude: "34.0522",
-        centerLongitude: "-118.2437",
-        radiusKm: 300,
-        createdAt: new Date()
-      },
-      {
-        name: "Alaska",
-        description: "Aleutian Islands Region",
-        centerLatitude: "61.2181",
-        centerLongitude: "-149.9003",
-        radiusKm: 800,
-        createdAt: new Date()
-      },
-      {
-        name: "South Pacific",
-        description: "Fiji and Surrounding Islands",
-        centerLatitude: "-18.1134",
-        centerLongitude: "178.4253",
-        radiusKm: 1000,
+        name: "Байкальская зона",
+        description: "Прибайкалье и Западное Забайкалье",
+        centerLatitude: "52.5000",
+        centerLongitude: "104.8000",
+        radiusKm: 250,
         createdAt: new Date()
       }
     ];
-    
+
     // Create regions first
     const regionMap = new Map<string, number>();
     for (const region of sampleRegions) {
-      const createdRegion = await dbStorage.createRegion(region);
-      regionMap.set(region.name, createdRegion.id);
+      const existing = await dbStorage.getRegionByName(region.name);
+      if (existing) {
+        regionMap.set(region.name, existing.id);
+      } else {
+        const created = await dbStorage.createRegion(region);
+        regionMap.set(region.name, created.id);
+      }
     }
-    
-    // Sample stations with field operations data
+    const irkId = regionMap.get("Иркутск");
+
+    // Irkutsk monitoring stations
     const sampleStations: InsertStation[] = [
       {
-        stationId: "PNWST-03",
-        name: "Pacific Northwest Station 03",
-        location: "Seattle, WA",
-        latitude: "47.6062",
-        longitude: "-122.3321",
+        stationId: "IRK-ST-001",
+        name: "Станция «Центр»",
+        location: "ул. Ленина, Иркутск",
+        latitude: "52.2897",
+        longitude: "104.2963",
         status: "online",
         lastUpdate: new Date(),
-        dataRate: 1.2,
-        regionId: regionMap.get("Pacific Northwest"),
-        
-        // Field operations data
-        batteryLevel: 87,
-        batteryVoltage: 12.8,
-        powerConsumption: 3.2,
-        solarCharging: 5.1,
-        
-        // Hardware details
-        serialNumber: "PNW-2023-03458",
-        firmwareVersion: "v2.1.5",
-        hardwareModel: "Seismic-Pro X3",
-        installationDate: new Date(2023, 3, 15), // April 15, 2023
-        
-        // Calibration data
+        dataRate: 100,
+        regionId: irkId,
+        batteryLevel: 89,
+        batteryVoltage: 12.6,
+        powerConsumption: 2.8,
+        serialNumber: "IRK-2024-001",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 0, 15),
         sensorsCalibrated: true,
-        lastCalibrationDate: new Date(2023, 8, 10), // September 10, 2023
-        nextCalibrationDue: new Date(2024, 2, 10), // March 10, 2024
-        
-        storageRemaining: 78,
-        connectionStrength: 92,
-        configuration: {
-          samplingRate: 100,
-          triggerThreshold: 0.02,
-          filterSettings: {
-            lowPass: 40,
-            highPass: 0.1
-          }
-        }
+        lastCalibrationDate: new Date(2024, 2, 10),
+        nextCalibrationDue: new Date(2024, 8, 10),
+        storageRemaining: 75,
+        connectionStrength: 95,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z","NS","EW"] }
       },
       {
-        stationId: "SOCAL-12",
-        name: "Southern California Station 12",
-        location: "Los Angeles, CA",
-        latitude: "34.0522",
-        longitude: "-118.2437",
+        stationId: "IRK-ST-002",
+        name: "Станция «ГЭС»",
+        location: "Иркутская ГЭС",
+        latitude: "52.3127",
+        longitude: "104.2218",
         status: "online",
         lastUpdate: new Date(),
-        dataRate: 1.5,
-        regionId: regionMap.get("Southern California"),
-        
-        // Field operations data
-        batteryLevel: 65,
-        batteryVoltage: 11.9,
-        powerConsumption: 4.1,
-        solarCharging: 4.2,
-        
-        // Hardware details
-        serialNumber: "SOCAL-2022-12874",
-        firmwareVersion: "v2.0.8",
-        hardwareModel: "Seismic-Pro X2",
-        installationDate: new Date(2022, 6, 22), // July 22, 2022
-        
-        // Calibration data
+        dataRate: 100,
+        regionId: irkId,
+        batteryLevel: 94,
+        batteryVoltage: 12.9,
+        powerConsumption: 3.1,
+        serialNumber: "IRK-2024-002",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 1, 20),
         sensorsCalibrated: true,
-        lastCalibrationDate: new Date(2023, 5, 18), // June 18, 2023
-        nextCalibrationDue: new Date(2023, 11, 18), // December 18, 2023
-        
-        storageRemaining: 52,
-        connectionStrength: 88,
-        configuration: {
-          samplingRate: 120,
-          triggerThreshold: 0.015,
-          filterSettings: {
-            lowPass: 45,
-            highPass: 0.08
-          }
-        }
+        lastCalibrationDate: new Date(2024, 2, 15),
+        nextCalibrationDue: new Date(2024, 8, 15),
+        storageRemaining: 82,
+        connectionStrength: 98,
+        configuration: { samplingRate: 100, triggerThreshold: 0.005, channels: ["Z","NS","EW"] }
       },
       {
-        stationId: "ALASKA-07",
-        name: "Alaska Station 07",
-        location: "Anchorage, AK",
-        latitude: "61.2181",
-        longitude: "-149.9003",
+        stationId: "IRK-ST-003",
+        name: "Станция «Мост»",
+        location: "Мост через р. Ушаковка",
+        latitude: "52.2756",
+        longitude: "104.3312",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkId,
+        batteryLevel: 77,
+        batteryVoltage: 12.2,
+        powerConsumption: 2.5,
+        serialNumber: "IRK-2024-003",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 2, 5),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 2, 20),
+        nextCalibrationDue: new Date(2024, 8, 20),
+        storageRemaining: 68,
+        connectionStrength: 87,
+        configuration: { samplingRate: 100, triggerThreshold: 0.008, channels: ["Z","NS","EW"] }
+      },
+      {
+        stationId: "IRK-ST-004",
+        name: "Станция «Академгородок»",
+        location: "мкр. Академгородок, Иркутск",
+        latitude: "52.2604",
+        longitude: "104.2481",
         status: "degraded",
         lastUpdate: new Date(),
-        dataRate: 0.8,
-        regionId: regionMap.get("Alaska"),
-        
-        // Field operations data (showing degraded performance)
-        batteryLevel: 41,
-        batteryVoltage: 10.8,
-        powerConsumption: 3.9,
-        solarCharging: 2.1,
-        
-        // Hardware details
-        serialNumber: "AK-2023-00792",
-        firmwareVersion: "v2.1.2",
-        hardwareModel: "Seismic-Pro X3 Arctic",
-        installationDate: new Date(2023, 1, 8), // February 8, 2023
-        
-        // Calibration data
+        dataRate: 60,
+        regionId: irkId,
+        batteryLevel: 45,
+        batteryVoltage: 11.2,
+        powerConsumption: 2.9,
+        serialNumber: "IRK-2024-004",
+        firmwareVersion: "v3.0.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 2, 10),
         sensorsCalibrated: false,
-        lastCalibrationDate: new Date(2023, 1, 5), // February 5, 2023
-        
-        storageRemaining: 34,
-        connectionStrength: 51,
-        configuration: {
-          samplingRate: 100,
-          triggerThreshold: 0.025,
-          filterSettings: {
-            lowPass: 40,
-            highPass: 0.1
-          },
-          arcticMode: true,
-          heatingElement: "enabled"
-        }
+        storageRemaining: 41,
+        connectionStrength: 62,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z","NS","EW"] }
       },
       {
-        stationId: "FIJI-01",
-        name: "Fiji Station 01",
-        location: "Suva, Fiji",
-        latitude: "-18.1134",
-        longitude: "178.4253",
+        stationId: "IRK-ST-005",
+        name: "Станция «Иркутск-Южный»",
+        location: "пос. Ново-Иркутский",
+        latitude: "52.2231",
+        longitude: "104.3012",
         status: "online",
         lastUpdate: new Date(),
-        dataRate: 1.0,
-        regionId: regionMap.get("South Pacific"),
-        
-        // Field operations data
-        batteryLevel: 92,
-        batteryVoltage: 13.2,
-        powerConsumption: 2.8,
-        solarCharging: 6.5,
-        
-        // Hardware details
-        serialNumber: "SP-2023-05189",
-        firmwareVersion: "v2.1.5",
-        hardwareModel: "Seismic-Pro X3 Tropical",
-        installationDate: new Date(2023, 0, 12), // January 12, 2023
-        
-        // Calibration data
+        dataRate: 100,
+        regionId: irkId,
+        batteryLevel: 82,
+        batteryVoltage: 12.5,
+        powerConsumption: 2.7,
+        serialNumber: "IRK-2024-005",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 3, 1),
         sensorsCalibrated: true,
-        lastCalibrationDate: new Date(2023, 7, 28), // August 28, 2023
-        nextCalibrationDue: new Date(2024, 1, 28), // February 28, 2024
-        
-        storageRemaining: 85,
-        connectionStrength: 78,
-        configuration: {
-          samplingRate: 100,
-          triggerThreshold: 0.018,
-          filterSettings: {
-            lowPass: 40,
-            highPass: 0.1
-          },
-          humidityProtection: "enhanced",
-          waterproofing: "IPX8"
-        }
+        lastCalibrationDate: new Date(2024, 3, 10),
+        nextCalibrationDue: new Date(2024, 9, 10),
+        storageRemaining: 90,
+        connectionStrength: 91,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z","NS","EW"] }
+      },
+      {
+        stationId: "IRK-ST-006",
+        name: "Станция «Шелехов»",
+        location: "г. Шелехов",
+        latitude: "52.2090",
+        longitude: "104.1010",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkId,
+        batteryLevel: 88,
+        batteryVoltage: 12.7,
+        powerConsumption: 2.6,
+        serialNumber: "IRK-2024-006",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 3, 15),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 3, 20),
+        nextCalibrationDue: new Date(2024, 9, 20),
+        storageRemaining: 86,
+        connectionStrength: 89,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z","NS","EW"] }
+      },
+      {
+        stationId: "IRK-ST-007",
+        name: "Станция «Листвянка»",
+        location: "пос. Листвянка (береговая)",
+        latitude: "51.8599",
+        longitude: "104.8736",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: regionMap.get("Байкальская зона"),
+        batteryLevel: 91,
+        batteryVoltage: 12.8,
+        powerConsumption: 2.8,
+        serialNumber: "IRK-2024-007",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 4, 1),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 4, 5),
+        nextCalibrationDue: new Date(2024, 10, 5),
+        storageRemaining: 93,
+        connectionStrength: 84,
+        configuration: { samplingRate: 100, triggerThreshold: 0.005, channels: ["Z","NS","EW"] }
+      },
+      {
+        stationId: "IRK-ST-008",
+        name: "Станция «Ангарск»",
+        location: "г. Ангарск",
+        latitude: "52.5397",
+        longitude: "103.8897",
+        status: "offline",
+        lastUpdate: new Date(Date.now() - 3600000),
+        dataRate: 0,
+        regionId: irkId,
+        batteryLevel: 12,
+        batteryVoltage: 10.1,
+        powerConsumption: 0,
+        serialNumber: "IRK-2024-008",
+        firmwareVersion: "v3.0.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 4, 10),
+        sensorsCalibrated: false,
+        storageRemaining: 55,
+        connectionStrength: 0,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z","NS","EW"] }
       }
     ];
     
@@ -1713,18 +1706,18 @@ const initializeDatabase = async () => {
       {
         alertType: "low_battery",
         severity: "warning",
-        message: "Low battery on ALASKA-07 station (41%)",
-        timestamp: new Date(Date.now() - 180 * 60 * 1000), // 3 hours ago
-        relatedEntityId: "ALASKA-07",
+        message: "Низкий заряд батареи на станции IRK-ST-004 (45%)",
+        timestamp: new Date(Date.now() - 180 * 60 * 1000),
+        relatedEntityId: "IRK-ST-004",
         relatedEntityType: "station",
         isRead: false
       },
       {
         alertType: "calibration_due",
-        severity: "info", 
-        message: "Calibration due for SOCAL-12 station",
-        timestamp: new Date(Date.now() - 200 * 60 * 1000), // 3 hours 20 minutes ago
-        relatedEntityId: "SOCAL-12",
+        severity: "info",
+        message: "Требуется калибровка датчиков — станция IRK-ST-008",
+        timestamp: new Date(Date.now() - 200 * 60 * 1000),
+        relatedEntityId: "IRK-ST-008",
         relatedEntityType: "station",
         isRead: false
       }
@@ -1737,97 +1730,97 @@ const initializeDatabase = async () => {
     // Sample maintenance records
     const sampleMaintenanceRecords: InsertMaintenanceRecord[] = [
       {
-        stationId: "PNWST-03",
+        stationId: "IRK-ST-001",
         maintenanceType: "calibration",
-        performedBy: "John Smith",
-        performedAt: new Date(2023, 8, 10), // September 10, 2023
+        performedBy: "Иванов А.В.",
+        performedAt: new Date(2024, 2, 10),
         status: "completed",
-        description: "Regular 6-month calibration",
-        findings: "Sensors were within acceptable parameters, minor adjustment to vertical sensor",
+        description: "Плановая калибровка датчиков (6-месячная)",
+        findings: "Все датчики в норме, незначительная коррекция вертикального компонента",
         partsReplaced: JSON.stringify([]),
         batteryReplaced: false,
         calibrationPerformed: true,
         firmwareUpdated: true,
-        nextMaintenanceDue: new Date(2024, 2, 10), // March 10, 2024
-        notes: "Station is in excellent condition, no issues found"
+        nextMaintenanceDue: new Date(2024, 8, 10),
+        notes: "Станция в отличном состоянии"
       },
       {
-        stationId: "SOCAL-12",
+        stationId: "IRK-ST-002",
         maintenanceType: "calibration",
-        performedBy: "Maria Garcia",
-        performedAt: new Date(2023, 5, 18), // June 18, 2023
+        performedBy: "Петров Д.С.",
+        performedAt: new Date(2024, 2, 15),
         status: "completed",
-        description: "Regular 6-month calibration",
-        findings: "Sensors required recalibration, horizontal sensor drift corrected",
-        partsReplaced: JSON.stringify(["Weather shield", "Communication cable"]),
+        description: "Плановая калибровка (ГЭС)",
+        findings: "Требовалась рекалибровка горизонтального компонента",
+        partsReplaced: JSON.stringify(["Кабель питания"]),
         batteryReplaced: false,
         calibrationPerformed: true,
         firmwareUpdated: true,
-        nextMaintenanceDue: new Date(2023, 11, 18), // December 18, 2023
-        notes: "Station needed cleaning due to dust accumulation"
+        nextMaintenanceDue: new Date(2024, 8, 15),
+        notes: "Очистка от пыли и влаги"
       },
       {
-        stationId: "SOCAL-12",
+        stationId: "IRK-ST-004",
         maintenanceType: "battery",
-        performedBy: "David Chen",
-        performedAt: new Date(2023, 2, 8), // March 8, 2023
+        performedBy: "Сидорова Е.Н.",
+        performedAt: new Date(2024, 1, 8),
         status: "completed",
-        description: "Scheduled battery replacement",
-        findings: "Old battery was at 40% of original capacity",
-        partsReplaced: JSON.stringify(["Main battery"]),
+        description: "Плановая замена аккумулятора",
+        findings: "Старый АКБ деградировал до 35% ёмкости",
+        partsReplaced: JSON.stringify(["Аккумулятор 12В 100Ач"]),
         batteryReplaced: true,
         calibrationPerformed: false,
         firmwareUpdated: false,
-        notes: "Replaced with higher capacity battery model"
+        notes: "Заменён на новый аккумулятор повышенной ёмкости"
       },
       {
-        stationId: "ALASKA-07",
+        stationId: "IRK-ST-008",
         maintenanceType: "repair",
-        performedBy: "Robert Johnson",
-        performedAt: new Date(2023, 4, 22), // May 22, 2023
+        performedBy: "Козлов В.М.",
+        performedAt: new Date(2024, 3, 5),
         status: "completed",
-        description: "Emergency maintenance - communication failure",
-        findings: "Communication module damaged by water ingress",
-        partsReplaced: JSON.stringify(["Communication module", "Weather seals", "External antenna"]),
+        description: "Аварийный ремонт — потеря связи",
+        findings: "Антенный модуль повреждён в результате грозового разряда",
+        partsReplaced: JSON.stringify(["Антенный модуль", "Коммуникационный кабель"]),
         batteryReplaced: false,
         calibrationPerformed: false,
         firmwareUpdated: true,
-        notes: "Additional waterproofing measures implemented"
+        notes: "Установлена дополнительная грозозащита"
       },
       {
-        stationId: "ALASKA-07",
+        stationId: "IRK-ST-004",
         maintenanceType: "calibration",
-        performedBy: "Sarah Williams",
-        performedAt: new Date(2023, 11, 15),
-        scheduledAt: new Date(2023, 11, 15), // December 15, 2023
+        performedBy: "Иванов А.В.",
+        performedAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
         status: "scheduled",
-        description: "Urgent calibration and system check",
-        notes: "Priority maintenance due to degraded performance"
+        description: "Внеплановая калибровка после замены АКБ",
+        notes: "Приоритетное ТО — деградация сигнала"
       },
       {
-        stationId: "FIJI-01",
+        stationId: "IRK-ST-007",
         maintenanceType: "upgrade",
-        performedBy: "James Taylor",
-        performedAt: new Date(2023, 7, 28), // August 28, 2023
+        performedBy: "Новиков П.Р.",
+        performedAt: new Date(2024, 4, 5),
         status: "completed",
-        description: "Hardware and firmware upgrade",
-        findings: "Successfully upgraded to latest specifications",
-        partsReplaced: JSON.stringify(["Processing unit", "Data storage module"]),
+        description: "Обновление прошивки и замена модуля хранения",
+        findings: "Успешно обновлён до v3.1.0",
+        partsReplaced: JSON.stringify(["Flash-накопитель 256 ГБ"]),
         batteryReplaced: false,
         calibrationPerformed: true,
         firmwareUpdated: true,
-        nextMaintenanceDue: new Date(2024, 1, 28), // February 28, 2024
-        notes: "Full system upgrade completed, improved data processing capabilities"
+        nextMaintenanceDue: new Date(2024, 10, 5),
+        notes: "Увеличен объём хранилища данных"
       },
       {
-        stationId: "PNWST-03", 
+        stationId: "IRK-ST-001",
         maintenanceType: "inspection",
-        performedBy: "Michelle Thompson",
+        performedBy: "Смирнов Г.Л.",
         performedAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-        scheduledAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days in the future
+        scheduledAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
         status: "scheduled",
-        description: "Routine quarterly inspection",
-        notes: "Check solar panel efficiency and network connectivity"
+        description: "Плановый квартальный осмотр",
+        notes: "Проверка герметичности корпуса и связи"
       }
     ];
     
@@ -2151,12 +2144,8 @@ const initializeDatabase = async () => {
     }
   }
 
-  // ── Seed Irkutsk stations (replace US stations with Irkutsk ones) ─────────────
-  const existingStationsAfter = await dbStorage.getStations();
-  const hasIrkutskStation = existingStationsAfter.some(s => s.stationId.startsWith('IRK-'));
-  if (!hasIrkutskStation) {
-    console.log('Seeding Irkutsk monitoring stations...');
-
+  // ── Seed Irkutsk stations (add any missing ones) ──────────────────────────────
+  {
     const irkRegion = await dbStorage.getRegionByName("Иркутск");
     let irkRegionId: number | undefined;
     if (!irkRegion) {
@@ -2266,6 +2255,100 @@ const initializeDatabase = async () => {
         sensorsCalibrated: false,
         storageRemaining: 41,
         connectionStrength: 62,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-005",
+        name: "Станция «Иркутск-Южный»",
+        location: "пос. Ново-Иркутский",
+        latitude: "52.2231",
+        longitude: "104.3012",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 82,
+        batteryVoltage: 12.5,
+        powerConsumption: 2.7,
+        serialNumber: "IRK-2024-005",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 3, 1),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 3, 15),
+        nextCalibrationDue: new Date(2024, 9, 15),
+        storageRemaining: 70,
+        connectionStrength: 90,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-006",
+        name: "Станция «Шелехов»",
+        location: "г. Шелехов",
+        latitude: "52.2090",
+        longitude: "104.1010",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 88,
+        batteryVoltage: 12.7,
+        powerConsumption: 2.6,
+        serialNumber: "IRK-2024-006",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 3, 10),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 3, 20),
+        nextCalibrationDue: new Date(2024, 9, 20),
+        storageRemaining: 78,
+        connectionStrength: 93,
+        configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-007",
+        name: "Станция «Листвянка»",
+        location: "пос. Листвянка (береговая)",
+        latitude: "51.8599",
+        longitude: "104.8736",
+        status: "online",
+        lastUpdate: new Date(),
+        dataRate: 100,
+        regionId: irkRegionId,
+        batteryLevel: 91,
+        batteryVoltage: 12.8,
+        powerConsumption: 3.0,
+        serialNumber: "IRK-2024-007",
+        firmwareVersion: "v3.1.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 4, 5),
+        sensorsCalibrated: true,
+        lastCalibrationDate: new Date(2024, 4, 15),
+        nextCalibrationDue: new Date(2024, 10, 15),
+        storageRemaining: 85,
+        connectionStrength: 96,
+        configuration: { samplingRate: 100, triggerThreshold: 0.005, channels: ["Z", "NS", "EW"] }
+      },
+      {
+        stationId: "IRK-ST-008",
+        name: "Станция «Ангарск»",
+        location: "г. Ангарск",
+        latitude: "52.5397",
+        longitude: "103.8897",
+        status: "offline",
+        lastUpdate: new Date(Date.now() - 3600000),
+        dataRate: 0,
+        regionId: irkRegionId,
+        batteryLevel: 12,
+        batteryVoltage: 10.1,
+        powerConsumption: 0,
+        serialNumber: "IRK-2024-008",
+        firmwareVersion: "v3.0.0",
+        hardwareModel: "СМ-3КВ",
+        installationDate: new Date(2024, 4, 20),
+        sensorsCalibrated: false,
+        storageRemaining: 15,
+        connectionStrength: 0,
         configuration: { samplingRate: 100, triggerThreshold: 0.01, channels: ["Z", "NS", "EW"] }
       }
     ];
