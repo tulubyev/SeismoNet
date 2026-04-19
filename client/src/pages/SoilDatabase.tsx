@@ -303,16 +303,27 @@ const SoilMap: FC<{
 
 // ─── Add Profile Dialog ────────────────────────────────────────────────────────
 
+const optionalNum = z.preprocess(
+  v => (v === '' || v === null || v === undefined) ? undefined : Number(v),
+  z.number().positive().optional()
+);
+
 const addSchema = z.object({
   profileName:         z.string().min(1, 'Введите название'),
-  latitude:            z.string().optional(),
-  longitude:           z.string().optional(),
+  latitude:            z.string().optional().refine(
+    v => !v || (!isNaN(parseFloat(v)) && parseFloat(v) >= -90 && parseFloat(v) <= 90),
+    'Недопустимое значение широты'
+  ),
+  longitude:           z.string().optional().refine(
+    v => !v || (!isNaN(parseFloat(v)) && parseFloat(v) >= -180 && parseFloat(v) <= 180),
+    'Недопустимое значение долготы'
+  ),
   soilCategory:        z.enum(['I', 'II', 'III', 'IV']),
-  avgShearVelocity:    z.coerce.number().optional(),
-  groundwaterDepth:    z.coerce.number().optional(),
-  dominantFrequency:   z.coerce.number().optional(),
-  amplificationFactor: z.coerce.number().optional(),
-  boreholeDepth:       z.coerce.number().optional(),
+  avgShearVelocity:    optionalNum,
+  groundwaterDepth:    optionalNum,
+  dominantFrequency:   optionalNum,
+  amplificationFactor: optionalNum,
+  boreholeDepth:       optionalNum,
   surveyOrganization:  z.string().optional(),
   description:         z.string().optional(),
 });
