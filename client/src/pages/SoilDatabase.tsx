@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import {
   Layers, Search, Plus, Download, MapPin, Trash2, ChevronRight,
-  Activity, Droplets, Waves, BarChart3, Info,
+  Activity, Droplets, Waves, BarChart3, Info, PlusCircle, X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -262,36 +262,88 @@ const SoilMap: FC<{
 // ─── Add Profile Dialog ────────────────────────────────────────────────────────
 
 const addSchema = z.object({
-  profileName:        z.string().min(1, 'Введите название'),
-  latitude:           z.string().optional(),
-  longitude:          z.string().optional(),
-  soilCategory:       z.enum(['I', 'II', 'III', 'IV']),
-  avgShearVelocity:   z.coerce.number().optional(),
-  groundwaterDepth:   z.coerce.number().optional(),
-  dominantFrequency:  z.coerce.number().optional(),
-  amplificationFactor:z.coerce.number().optional(),
-  boreholeDepth:      z.coerce.number().optional(),
-  surveyOrganization: z.string().optional(),
-  description:        z.string().optional(),
+  profileName:         z.string().min(1, 'Введите название'),
+  latitude:            z.string().optional(),
+  longitude:           z.string().optional(),
+  soilCategory:        z.enum(['I', 'II', 'III', 'IV']),
+  avgShearVelocity:    z.coerce.number().optional(),
+  groundwaterDepth:    z.coerce.number().optional(),
+  dominantFrequency:   z.coerce.number().optional(),
+  amplificationFactor: z.coerce.number().optional(),
+  boreholeDepth:       z.coerce.number().optional(),
+  surveyOrganization:  z.string().optional(),
+  description:         z.string().optional(),
 });
 type AddForm = z.infer<typeof addSchema>;
+type SoilCategoryEnum = 'I' | 'II' | 'III' | 'IV';
+
+type LayerEntry = {
+  soilType: string;
+  thickness: string;
+  depthFrom: string;
+  depthTo: string;
+  shearVelocity: string;
+  compressionalVelocity: string;
+  density: string;
+  description: string;
+};
+
+const SOIL_TYPES = Object.keys(SOIL_TYPE_CONFIG);
+
+const emptyLayer = (): LayerEntry => ({
+  soilType: 'sand', thickness: '', depthFrom: '', depthTo: '',
+  shearVelocity: '', compressionalVelocity: '', density: '', description: '',
+});
 
 const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [pickedCoords, setPickedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingLayers, setPendingLayers] = useState<LayerEntry[]>([]);
 
   const form = useForm<AddForm>({
     resolver: zodResolver(addSchema),
     defaultValues: { soilCategory: 'II' },
   });
 
+  const handleClose = () => {
+    form.reset();
+    setPickedCoords(null);
+    setPendingLayers([]);
+    onClose();
+  };
+
   const mutation = useMutation({
-    mutationFn: (data: AddForm) => apiRequest('POST', '/api/soil-profiles', data),
+    mutationFn: async (data: AddForm) => {
+      const profileRes = await apiRequest('POST', '/api/soil-profiles', data);
+      const profile: SoilProfile = await profileRes.json();
+      let layerNum = 1;
+      for (const layer of pendingLayers) {
+        const thickness = parseFloat(layer.thickness);
+        const depthFrom = parseFloat(layer.depthFrom);
+        const depthTo   = parseFloat(layer.depthTo);
+        const vs        = parseFloat(layer.shearVelocity);
+        if (isNaN(thickness) || isNaN(depthFrom) || isNaN(depthTo) || isNaN(vs)) continue;
+        await apiRequest('POST', '/api/soil-layers', {
+          profileId: profile.id,
+          layerNumber: layerNum++,
+          soilType: layer.soilType,
+          thickness,
+          depthFrom,
+          depthTo,
+          shearVelocity: vs,
+          compressionalVelocity: layer.compressionalVelocity ? parseFloat(layer.compressionalVelocity) : null,
+          density: layer.density ? parseFloat(layer.density) : null,
+          dampingRatio: null,
+          description: layer.description || null,
+        });
+      }
+      return profile;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['/api/soil-profiles'] });
       toast({ title: 'Профиль добавлен' });
-      form.reset(); setPickedCoords(null); onClose();
+      handleClose();
     },
     onError: () => toast({ title: 'Ошибка', description: 'Не удалось сохранить', variant: 'destructive' }),
   });
@@ -302,13 +354,18 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
     form.setValue('longitude', lng.toFixed(5));
   };
 
+  const updateLayer = (idx: number, field: keyof LayerEntry, val: string) => {
+    setPendingLayers(prev => prev.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+  };
+
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setPickedCoords(null); } }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Добавить точку наблюдения</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+        <form onSubmit={form.handleSubmit(d => mutation.mutate(d))} className="space-y-5">
+          {/* ── Profile fields ── */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>Название *</Label>
@@ -324,12 +381,12 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
               </Label>
               <Select
                 value={form.watch('soilCategory')}
-                onValueChange={v => form.setValue('soilCategory', v as any)}
+                onValueChange={v => form.setValue('soilCategory', v as SoilCategoryEnum)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(SOIL_CAT_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{k} — {v.vs}</SelectItem>
+                  {Object.entries(SOIL_CAT_CONFIG).map(([k, cfg]) => (
+                    <SelectItem key={k} value={k}>{k} — {cfg.vs}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -351,7 +408,7 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
               <Label className="mb-1 block text-xs text-slate-500">
                 Кликните на карте для выбора координат{pickedCoords && ` → ${pickedCoords.lat.toFixed(5)}, ${pickedCoords.lng.toFixed(5)}`}
               </Label>
-              <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ height: 240 }}>
+              <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ height: 220 }}>
                 <SoilMap profiles={[]} selected={null} onSelect={() => {}} onPickCoords={handlePickCoords} />
               </div>
             </div>
@@ -386,8 +443,101 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
             </div>
           </div>
 
+          {/* ── Layer table ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-sm font-semibold text-slate-700">Слои разреза (стратиграфическая колонка)</Label>
+              <Button
+                type="button" size="sm" variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => setPendingLayers(prev => [...prev, emptyLayer()])}
+              >
+                <PlusCircle className="h-3 w-3" /> Добавить слой
+              </Button>
+            </div>
+
+            {pendingLayers.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-3 border border-dashed rounded-lg">
+                Нет слоёв — нажмите «Добавить слой» для ввода стратиграфии
+              </p>
+            ) : (
+              <div className="border rounded-lg overflow-hidden text-xs">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="text-[11px] py-1 px-2 w-6">#</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Тип грунта</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Мощность (м)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">От (м)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">До (м)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Vs (м/с)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Vp (м/с)</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2">Описание</TableHead>
+                      <TableHead className="text-[11px] py-1 px-2 w-6"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingLayers.map((layer, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="py-1 px-2 text-slate-400 font-mono">{idx + 1}</TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Select
+                            value={layer.soilType}
+                            onValueChange={v => updateLayer(idx, 'soilType', v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs min-w-[110px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SOIL_TYPES.map(t => (
+                                <SelectItem key={t} value={t}>{soilTypeLabel(t)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-20" value={layer.thickness}
+                            onChange={e => updateLayer(idx, 'thickness', e.target.value)} placeholder="м" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-20" value={layer.depthFrom}
+                            onChange={e => updateLayer(idx, 'depthFrom', e.target.value)} placeholder="м" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-20" value={layer.depthTo}
+                            onChange={e => updateLayer(idx, 'depthTo', e.target.value)} placeholder="м" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-20" value={layer.shearVelocity}
+                            onChange={e => updateLayer(idx, 'shearVelocity', e.target.value)} placeholder="м/с" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-20" value={layer.compressionalVelocity}
+                            onChange={e => updateLayer(idx, 'compressionalVelocity', e.target.value)} placeholder="м/с" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <Input className="h-7 text-xs w-36" value={layer.description}
+                            onChange={e => updateLayer(idx, 'description', e.target.value)} placeholder="описание" />
+                        </TableCell>
+                        <TableCell className="py-1 px-1">
+                          <button
+                            type="button"
+                            className="text-slate-300 hover:text-red-500 transition-colors"
+                            onClick={() => setPendingLayers(prev => prev.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => { onClose(); setPickedCoords(null); }}>Отмена</Button>
+            <Button type="button" variant="ghost" onClick={handleClose}>Отмена</Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Сохранение...' : 'Сохранить профиль'}
             </Button>

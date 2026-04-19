@@ -1,0 +1,2423 @@
+{
+  "id": "144eaa2a-dd51-4e1b-b5e8-1fe95231f219",
+  "prevId": "f3f69dde-a116-4a7c-b13c-b5b3322be697",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.alerts": {
+      "name": "alerts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "alert_type": {
+          "name": "alert_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "related_entity_id": {
+          "name": "related_entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_entity_type": {
+          "name": "related_entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_read": {
+          "name": "is_read",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.building_norms": {
+      "name": "building_norms",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "short_code": {
+          "name": "short_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "adoption_year": {
+          "name": "adoption_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "supersedes": {
+          "name": "supersedes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_parameters": {
+          "name": "key_parameters",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sections": {
+          "name": "sections",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "building_norms_code_unique": {
+          "name": "building_norms_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.calibration_afc": {
+      "name": "calibration_afc",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amplitude": {
+          "name": "amplitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "calibration_afc_session_id_calibration_sessions_id_fk": {
+          "name": "calibration_afc_session_id_calibration_sessions_id_fk",
+          "tableFrom": "calibration_afc",
+          "tableTo": "calibration_sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.calibration_sessions": {
+      "name": "calibration_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "installation_id": {
+          "name": "installation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_date": {
+          "name": "session_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator": {
+          "name": "operator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sensitivity_z": {
+          "name": "sensitivity_z",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sensitivity_ns": {
+          "name": "sensitivity_ns",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sensitivity_ew": {
+          "name": "sensitivity_ew",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "damping_ratio": {
+          "name": "damping_ratio",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "natural_frequency": {
+          "name": "natural_frequency",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'complete'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "calibration_sessions_installation_id_sensor_installations_id_fk": {
+          "name": "calibration_sessions_installation_id_sensor_installations_id_fk",
+          "tableFrom": "calibration_sessions",
+          "tableTo": "sensor_installations",
+          "columnsFrom": [
+            "installation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.comparison_studies": {
+      "name": "comparison_studies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "study_id": {
+          "name": "study_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "study_type": {
+          "name": "study_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "primary_dataset": {
+          "name": "primary_dataset",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "comparison_dataset": {
+          "name": "comparison_dataset",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "comparison_results": {
+          "name": "comparison_results",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "is_public": {
+          "name": "is_public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "comparison_studies_created_by_users_id_fk": {
+          "name": "comparison_studies_created_by_users_id_fk",
+          "tableFrom": "comparison_studies",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "comparison_studies_study_id_unique": {
+          "name": "comparison_studies_study_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "study_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.developers": {
+      "name": "developers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_form": {
+          "name": "legal_form",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inn": {
+          "name": "inn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ogrn": {
+          "name": "ogrn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "legal_address": {
+          "name": "legal_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "office_address": {
+          "name": "office_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website": {
+          "name": "website",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_person": {
+          "name": "contact_person",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_area_thousand_sqm": {
+          "name": "total_area_thousand_sqm",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "licenses": {
+          "name": "licenses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_objects": {
+          "name": "completed_objects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "planned_objects": {
+          "name": "planned_objects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monitoring_status": {
+          "name": "monitoring_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'not_connected'"
+        },
+        "monitoring_connected_date": {
+          "name": "monitoring_connected_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monitoring_notes": {
+          "name": "monitoring_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.events": {
+      "name": "events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region": {
+          "name": "region",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "depth": {
+          "name": "depth",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "magnitude": {
+          "name": "magnitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'earthquake'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'detected'"
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "calculation_confidence": {
+          "name": "calculation_confidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "events_event_id_unique": {
+          "name": "events_event_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.historical_analysis": {
+      "name": "historical_analysis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "analysis_id": {
+          "name": "analysis_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analysis_type": {
+          "name": "analysis_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time_frame": {
+          "name": "time_frame",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parameters": {
+          "name": "parameters",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "results": {
+          "name": "results",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "is_public": {
+          "name": "is_public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "historical_analysis_created_by_users_id_fk": {
+          "name": "historical_analysis_created_by_users_id_fk",
+          "tableFrom": "historical_analysis",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "historical_analysis_analysis_id_unique": {
+          "name": "historical_analysis_analysis_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "analysis_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.infrastructure_objects": {
+      "name": "infrastructure_objects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "object_id": {
+          "name": "object_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "construction_year": {
+          "name": "construction_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floors": {
+          "name": "floors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district": {
+          "name": "district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "developer": {
+          "name": "developer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "structural_system": {
+          "name": "structural_system",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "foundation_type": {
+          "name": "foundation_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seismic_category": {
+          "name": "seismic_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "design_intensity": {
+          "name": "design_intensity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "technical_condition": {
+          "name": "technical_condition",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'satisfactory'"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsible_organization": {
+          "name": "responsible_organization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_person": {
+          "name": "contact_person",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_monitored": {
+          "name": "is_monitored",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "infrastructure_objects_object_id_unique": {
+          "name": "infrastructure_objects_object_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.maintenance_records": {
+      "name": "maintenance_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "maintenance_type": {
+          "name": "maintenance_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "performed_by": {
+          "name": "performed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "performed_at": {
+          "name": "performed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'completed'"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "findings": {
+          "name": "findings",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parts_replaced": {
+          "name": "parts_replaced",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "battery_replaced": {
+          "name": "battery_replaced",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "calibration_performed": {
+          "name": "calibration_performed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "firmware_updated": {
+          "name": "firmware_updated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "next_maintenance_due": {
+          "name": "next_maintenance_due",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "images": {
+          "name": "images",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "maintenance_records_station_id_stations_station_id_fk": {
+          "name": "maintenance_records_station_id_stations_station_id_fk",
+          "tableFrom": "maintenance_records",
+          "tableTo": "stations",
+          "columnsFrom": [
+            "station_id"
+          ],
+          "columnsTo": [
+            "station_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.object_categories": {
+      "name": "object_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#64748b'"
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "object_categories_slug_unique": {
+          "name": "object_categories_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.regions": {
+      "name": "regions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "center_latitude": {
+          "name": "center_latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "center_longitude": {
+          "name": "center_longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "radius_km": {
+          "name": "radius_km",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "regions_name_unique": {
+          "name": "regions_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.research_networks": {
+      "name": "research_networks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "network_id": {
+          "name": "network_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region": {
+          "name": "region",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "connection_status": {
+          "name": "connection_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'disconnected'"
+        },
+        "last_sync_timestamp": {
+          "name": "last_sync_timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "synced_data_volume": {
+          "name": "synced_data_volume",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api_endpoint": {
+          "name": "api_endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "research_networks_network_id_unique": {
+          "name": "research_networks_network_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "network_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.seismogram_records": {
+      "name": "seismogram_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_id": {
+          "name": "object_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_sec": {
+          "name": "duration_sec",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sample_rate": {
+          "name": "sample_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channels": {
+          "name": "channels",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Z,NS,EW'"
+        },
+        "peak_amplitude_z": {
+          "name": "peak_amplitude_z",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "peak_amplitude_ns": {
+          "name": "peak_amplitude_ns",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "peak_amplitude_ew": {
+          "name": "peak_amplitude_ew",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "peak_ground_acceleration": {
+          "name": "peak_ground_acceleration",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dominant_frequency": {
+          "name": "dominant_frequency",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trigger_threshold": {
+          "name": "trigger_threshold",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recording_type": {
+          "name": "recording_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'triggered'"
+        },
+        "processing_status": {
+          "name": "processing_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'raw'"
+        },
+        "data_z": {
+          "name": "data_z",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_ns": {
+          "name": "data_ns",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_ew": {
+          "name": "data_ew",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "magnitude": {
+          "name": "magnitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "magnitude_type": {
+          "name": "magnitude_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "focal_depth_km": {
+          "name": "focal_depth_km",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "epicentral_distance_km": {
+          "name": "epicentral_distance_km",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "soil_category": {
+          "name": "soil_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location_name": {
+          "name": "location_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_source": {
+          "name": "data_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_historical": {
+          "name": "is_historical",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "response_spectrum": {
+          "name": "response_spectrum",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fourier_spectrum": {
+          "name": "fourier_spectrum",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "used_for_modeling_count": {
+          "name": "used_for_modeling_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "seismogram_records_station_id_stations_station_id_fk": {
+          "name": "seismogram_records_station_id_stations_station_id_fk",
+          "tableFrom": "seismogram_records",
+          "tableTo": "stations",
+          "columnsFrom": [
+            "station_id"
+          ],
+          "columnsTo": [
+            "station_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "seismogram_records_object_id_infrastructure_objects_id_fk": {
+          "name": "seismogram_records_object_id_infrastructure_objects_id_fk",
+          "tableFrom": "seismogram_records",
+          "tableTo": "infrastructure_objects",
+          "columnsFrom": [
+            "object_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "seismogram_records_event_id_events_event_id_fk": {
+          "name": "seismogram_records_event_id_events_event_id_fk",
+          "tableFrom": "seismogram_records",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "seismogram_records_record_id_unique": {
+          "name": "seismogram_records_record_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "record_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sensor_installations": {
+      "name": "sensor_installations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_id": {
+          "name": "object_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_location": {
+          "name": "installation_location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor": {
+          "name": "floor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measurement_axes": {
+          "name": "measurement_axes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Z,NS,EW'"
+        },
+        "installation_date": {
+          "name": "installation_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "calibration_date": {
+          "name": "calibration_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sensor_type": {
+          "name": "sensor_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sensitivity": {
+          "name": "sensitivity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frequency_range": {
+          "name": "frequency_range",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trigger_threshold_z": {
+          "name": "trigger_threshold_z",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trigger_threshold_h": {
+          "name": "trigger_threshold_h",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sensor_installations_station_id_stations_station_id_fk": {
+          "name": "sensor_installations_station_id_stations_station_id_fk",
+          "tableFrom": "sensor_installations",
+          "tableTo": "stations",
+          "columnsFrom": [
+            "station_id"
+          ],
+          "columnsTo": [
+            "station_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sensor_installations_object_id_infrastructure_objects_id_fk": {
+          "name": "sensor_installations_object_id_infrastructure_objects_id_fk",
+          "tableFrom": "sensor_installations",
+          "tableTo": "infrastructure_objects",
+          "columnsFrom": [
+            "object_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.soil_layers": {
+      "name": "soil_layers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "layer_number": {
+          "name": "layer_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "soil_type": {
+          "name": "soil_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thickness": {
+          "name": "thickness",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "depth_from": {
+          "name": "depth_from",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "depth_to": {
+          "name": "depth_to",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shear_velocity": {
+          "name": "shear_velocity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compressional_velocity": {
+          "name": "compressional_velocity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "density": {
+          "name": "density",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "damping_ratio": {
+          "name": "damping_ratio",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "soil_layers_profile_id_soil_profiles_id_fk": {
+          "name": "soil_layers_profile_id_soil_profiles_id_fk",
+          "tableFrom": "soil_layers",
+          "tableTo": "soil_profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.soil_profiles": {
+      "name": "soil_profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "object_id": {
+          "name": "object_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "profile_name": {
+          "name": "profile_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_x": {
+          "name": "position_x",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_y": {
+          "name": "position_y",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "soil_category": {
+          "name": "soil_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "avg_shear_velocity": {
+          "name": "avg_shear_velocity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "groundwater_depth": {
+          "name": "groundwater_depth",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dominant_frequency": {
+          "name": "dominant_frequency",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amplification_factor": {
+          "name": "amplification_factor",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "borehole_depth": {
+          "name": "borehole_depth",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "survey_date": {
+          "name": "survey_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "survey_organization": {
+          "name": "survey_organization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "soil_profiles_object_id_infrastructure_objects_id_fk": {
+          "name": "soil_profiles_object_id_infrastructure_objects_id_fk",
+          "tableFrom": "soil_profiles",
+          "tableTo": "infrastructure_objects",
+          "columnsFrom": [
+            "object_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stations": {
+      "name": "stations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'offline'"
+        },
+        "last_update": {
+          "name": "last_update",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "data_rate": {
+          "name": "data_rate",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "battery_level": {
+          "name": "battery_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "battery_voltage": {
+          "name": "battery_voltage",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "power_consumption": {
+          "name": "power_consumption",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "solar_charging": {
+          "name": "solar_charging",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "firmware_version": {
+          "name": "firmware_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hardware_model": {
+          "name": "hardware_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_date": {
+          "name": "installation_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sensors_calibrated": {
+          "name": "sensors_calibrated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "last_calibration_date": {
+          "name": "last_calibration_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_calibration_due": {
+          "name": "next_calibration_due",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calibration_parameters": {
+          "name": "calibration_parameters",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "connection_strength": {
+          "name": "connection_strength",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storage_remaining": {
+          "name": "storage_remaining",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "stations_region_id_regions_id_fk": {
+          "name": "stations_region_id_regions_id_fk",
+          "tableFrom": "stations",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "stations_station_id_unique": {
+          "name": "stations_station_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "station_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.system_status": {
+      "name": "system_status",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "component": {
+          "name": "component",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'viewer'"
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "last_login": {
+          "name": "last_login",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "profile_image": {
+          "name": "profile_image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "organization": {
+          "name": "organization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_title": {
+          "name": "job_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "specialization": {
+          "name": "specialization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferences": {
+          "name": "preferences",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        },
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.waveform_data": {
+      "name": "waveform_data",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "station_id": {
+          "name": "station_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "data_points": {
+          "name": "data_points",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_type": {
+          "name": "data_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sample_rate": {
+          "name": "sample_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "waveform_data_station_id_stations_station_id_fk": {
+          "name": "waveform_data_station_id_stations_station_id_fk",
+          "tableFrom": "waveform_data",
+          "tableTo": "stations",
+          "columnsFrom": [
+            "station_id"
+          ],
+          "columnsTo": [
+            "station_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "waveform_data_event_id_events_event_id_fk": {
+          "name": "waveform_data_event_id_events_event_id_fk",
+          "tableFrom": "waveform_data",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "administrator",
+        "user",
+        "viewer"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
