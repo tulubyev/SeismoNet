@@ -136,7 +136,15 @@ export class MemStorage implements IStorage {
   private researchNetworks: Map<number, ResearchNetwork>;
   private systemStatuses: Map<number, SystemStatus>;
   private alerts: Map<number, Alert>;
-  
+  private regions: Map<number, Region>;
+  private maintenanceRecords: Map<number, MaintenanceRecord>;
+  private infrastructureObjects: Map<number, InfrastructureObject>;
+  private soilProfiles: Map<number, SoilProfile>;
+  private soilLayers: Map<number, SoilLayer>;
+  private sensorInstallations: Map<number, SensorInstallation>;
+  private buildingNorms: Map<number, BuildingNorm>;
+  private seismogramRecords: Map<number, SeismogramRecord>;
+
   private currentUserId: number;
   private currentStationId: number;
   private currentEventId: number;
@@ -144,7 +152,15 @@ export class MemStorage implements IStorage {
   private currentNetworkId: number;
   private currentStatusId: number;
   private currentAlertId: number;
-  
+  private currentRegionId: number;
+  private currentMaintenanceId: number;
+  private currentInfraObjectId: number;
+  private currentSoilProfileId: number;
+  private currentSoilLayerId: number;
+  private currentSensorInstId: number;
+  private currentBuildingNormId: number;
+  private currentSeismogramId: number;
+
   constructor() {
     this.users = new Map();
     this.stations = new Map();
@@ -153,7 +169,15 @@ export class MemStorage implements IStorage {
     this.researchNetworks = new Map();
     this.systemStatuses = new Map();
     this.alerts = new Map();
-    
+    this.regions = new Map();
+    this.maintenanceRecords = new Map();
+    this.infrastructureObjects = new Map();
+    this.soilProfiles = new Map();
+    this.soilLayers = new Map();
+    this.sensorInstallations = new Map();
+    this.buildingNorms = new Map();
+    this.seismogramRecords = new Map();
+
     this.currentUserId = 1;
     this.currentStationId = 1;
     this.currentEventId = 1;
@@ -161,6 +185,14 @@ export class MemStorage implements IStorage {
     this.currentNetworkId = 1;
     this.currentStatusId = 1;
     this.currentAlertId = 1;
+    this.currentRegionId = 1;
+    this.currentMaintenanceId = 1;
+    this.currentInfraObjectId = 1;
+    this.currentSoilProfileId = 1;
+    this.currentSoilLayerId = 1;
+    this.currentSensorInstId = 1;
+    this.currentBuildingNormId = 1;
+    this.currentSeismogramId = 1;
     
     // Initialize with sample data
     this.initializeData();
@@ -372,28 +404,28 @@ export class MemStorage implements IStorage {
       {
         alertType: "connection_timeout",
         severity: "warning",
-        message: "Connection timeout on SOCAL-15",
-        timestamp: new Date(Date.now() - 24 * 60 * 1000), // 24 minutes ago
-        relatedEntityId: "SOCAL-15",
+        message: "Потеря связи со станцией IRK-ST-008 (Ангарск)",
+        timestamp: new Date(Date.now() - 24 * 60 * 1000),
+        relatedEntityId: "IRK-ST-008",
         relatedEntityType: "station",
         isRead: false
       },
       {
         alertType: "station_offline",
         severity: "danger",
-        message: "ALASKA-09 station offline",
-        timestamp: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
-        relatedEntityId: "ALASKA-09",
+        message: "Станция IRK-ST-008 не отвечает более 1 часа",
+        timestamp: new Date(Date.now() - 60 * 60 * 1000),
+        relatedEntityId: "IRK-ST-008",
         relatedEntityType: "station",
         isRead: false
       },
       {
-        alertType: "scheduled_maintenance",
+        alertType: "low_battery",
         severity: "info",
-        message: "Scheduled maintenance for HAWAII cluster",
-        timestamp: new Date(Date.now() - 120 * 60 * 1000), // 2 hours ago
-        relatedEntityId: "HAWAII",
-        relatedEntityType: "cluster",
+        message: "Плановое ТО — станция IRK-ST-004 (Академгородок)",
+        timestamp: new Date(Date.now() - 120 * 60 * 1000),
+        relatedEntityId: "IRK-ST-004",
+        relatedEntityType: "station",
         isRead: true
       }
     ];
@@ -411,21 +443,9 @@ export class MemStorage implements IStorage {
   }
   
   async getUserByUsername(username: string): Promise<User | undefined> {
-    console.log(`[MemStorage] Looking for user: ${username}`);
-    console.log(`[MemStorage] Available users: ${Array.from(this.users.values()).map(u => u.username).join(', ')}`);
-    console.log(`[MemStorage] Admin user password: ${Array.from(this.users.values()).find(u => u.username === 'admin')?.password}`);
-    
-    const user = Array.from(this.users.values()).find(
+    return Array.from(this.users.values()).find(
       (user) => user.username === username
     );
-    
-    if (user) {
-      console.log(`[MemStorage] Found user: ${username}, password: ${user.password}`);
-    } else {
-      console.log(`[MemStorage] User not found: ${username}`);
-    }
-    
-    return user;
   }
   
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -639,65 +659,180 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  // ─── Stub implementations for new Irkutsk entities (MemStorage) ───────────
-
-  async getInfrastructureObjects(): Promise<InfrastructureObject[]> { return []; }
-  async getInfrastructureObject(_id: number): Promise<InfrastructureObject | undefined> { return undefined; }
-  async getInfrastructureObjectByObjectId(_objectId: string): Promise<InfrastructureObject | undefined> { return undefined; }
-  async createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject> {
-    return { ...obj, id: 1, createdAt: new Date(), updatedAt: new Date() } as unknown as InfrastructureObject;
+  // ─── Region operations ─────────────────────────────────────────────────────
+  async getRegions(): Promise<Region[]> { return Array.from(this.regions.values()); }
+  async getRegion(id: number): Promise<Region | undefined> { return this.regions.get(id); }
+  async getRegionByName(name: string): Promise<Region | undefined> {
+    return Array.from(this.regions.values()).find(r => r.name === name);
   }
-  async updateInfrastructureObject(_id: number, _data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined> { return undefined; }
-
-  async getSoilProfiles(_objectId?: number): Promise<SoilProfile[]> { return []; }
-  async getSoilProfile(_id: number): Promise<SoilProfile | undefined> { return undefined; }
-  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
-    return { ...profile, id: 1, createdAt: new Date() } as unknown as SoilProfile;
-  }
-  async getSoilLayers(_profileId: number): Promise<SoilLayer[]> { return []; }
-  async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
-    return { ...layer, id: 1 } as unknown as SoilLayer;
-  }
-
-  async getSensorInstallations(_objectId?: number): Promise<SensorInstallation[]> { return []; }
-  async getSensorInstallation(_id: number): Promise<SensorInstallation | undefined> { return undefined; }
-  async createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation> {
-    return { ...inst, id: 1 } as unknown as SensorInstallation;
-  }
-  async updateSensorInstallation(_id: number, _data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined> { return undefined; }
-
-  async getBuildingNorms(_category?: string): Promise<BuildingNorm[]> { return []; }
-  async getBuildingNorm(_id: number): Promise<BuildingNorm | undefined> { return undefined; }
-  async getBuildingNormByCode(_code: string): Promise<BuildingNorm | undefined> { return undefined; }
-  async createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm> {
-    return { ...norm, id: 1, createdAt: new Date() } as unknown as BuildingNorm;
-  }
-
-  async getSeismogramRecords(_stationId?: string, _limit?: number): Promise<SeismogramRecord[]> { return []; }
-  async getSeismogramRecord(_id: number): Promise<SeismogramRecord | undefined> { return undefined; }
-  async createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord> {
-    return { ...record, id: 1, createdAt: new Date() } as unknown as SeismogramRecord;
-  }
-  async updateSeismogramProcessingStatus(_id: number, _status: string): Promise<SeismogramRecord | undefined> { return undefined; }
-
-  async getRegions(): Promise<Region[]> { return []; }
-  async getRegion(_id: number): Promise<Region | undefined> { return undefined; }
-  async getRegionByName(_name: string): Promise<Region | undefined> { return undefined; }
   async createRegion(region: InsertRegion): Promise<Region> {
-    return { ...region, id: 1 } as unknown as Region;
+    const id = this.currentRegionId++;
+    const newRegion: Region = { ...region, id } as Region;
+    this.regions.set(id, newRegion);
+    return newRegion;
   }
 
-  async getMaintenanceRecords(_stationId?: string): Promise<MaintenanceRecord[]> { return []; }
-  async getMaintenanceRecord(_id: number): Promise<MaintenanceRecord | undefined> { return undefined; }
+  // ─── Maintenance record operations ────────────────────────────────────────
+  async getMaintenanceRecords(stationId?: string): Promise<MaintenanceRecord[]> {
+    const all = Array.from(this.maintenanceRecords.values());
+    return stationId ? all.filter(r => r.stationId === stationId) : all;
+  }
+  async getMaintenanceRecord(id: number): Promise<MaintenanceRecord | undefined> {
+    return this.maintenanceRecords.get(id);
+  }
   async createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord> {
-    return { ...record, id: 1 } as unknown as MaintenanceRecord;
+    const id = this.currentMaintenanceId++;
+    const newRecord: MaintenanceRecord = { ...record, id } as MaintenanceRecord;
+    this.maintenanceRecords.set(id, newRecord);
+    return newRecord;
   }
-  async updateMaintenanceStatus(_id: number, _status: string): Promise<MaintenanceRecord | undefined> { return undefined; }
-  async getUpcomingMaintenanceRecords(_days?: number): Promise<MaintenanceRecord[]> { return []; }
+  async updateMaintenanceStatus(id: number, status: string): Promise<MaintenanceRecord | undefined> {
+    const record = this.maintenanceRecords.get(id);
+    if (!record) return undefined;
+    const updated: MaintenanceRecord = { ...record, status };
+    this.maintenanceRecords.set(id, updated);
+    return updated;
+  }
+  async getUpcomingMaintenanceRecords(days = 30): Promise<MaintenanceRecord[]> {
+    const cutoff = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    return Array.from(this.maintenanceRecords.values()).filter(
+      r => r.status === 'scheduled' && r.scheduledAt && r.scheduledAt <= cutoff
+    );
+  }
 
-  async getStationsByRegionId(_regionId: number): Promise<Station[]> { return []; }
-  async updateStationBatteryInfo(_stationId: string, _batteryLevel: number, _batteryVoltage: number): Promise<Station | undefined> { return undefined; }
-  async updateStationStorageInfo(_stationId: string, _storageRemaining: number): Promise<Station | undefined> { return undefined; }
+  // ─── Infrastructure object operations ─────────────────────────────────────
+  async getInfrastructureObjects(): Promise<InfrastructureObject[]> {
+    return Array.from(this.infrastructureObjects.values());
+  }
+  async getInfrastructureObject(id: number): Promise<InfrastructureObject | undefined> {
+    return this.infrastructureObjects.get(id);
+  }
+  async getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined> {
+    return Array.from(this.infrastructureObjects.values()).find(o => o.objectId === objectId);
+  }
+  async createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject> {
+    const id = this.currentInfraObjectId++;
+    const now = new Date();
+    const newObj: InfrastructureObject = { ...obj, id, createdAt: now, updatedAt: now } as InfrastructureObject;
+    this.infrastructureObjects.set(id, newObj);
+    return newObj;
+  }
+  async updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined> {
+    const obj = this.infrastructureObjects.get(id);
+    if (!obj) return undefined;
+    const updated: InfrastructureObject = { ...obj, ...data, updatedAt: new Date() };
+    this.infrastructureObjects.set(id, updated);
+    return updated;
+  }
+
+  // ─── Soil profile operations ───────────────────────────────────────────────
+  async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
+    const all = Array.from(this.soilProfiles.values());
+    return objectId !== undefined ? all.filter(p => p.objectId === objectId) : all;
+  }
+  async getSoilProfile(id: number): Promise<SoilProfile | undefined> {
+    return this.soilProfiles.get(id);
+  }
+  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
+    const id = this.currentSoilProfileId++;
+    const newProfile: SoilProfile = { ...profile, id, createdAt: new Date() } as SoilProfile;
+    this.soilProfiles.set(id, newProfile);
+    return newProfile;
+  }
+
+  // ─── Soil layer operations ─────────────────────────────────────────────────
+  async getSoilLayers(profileId: number): Promise<SoilLayer[]> {
+    return Array.from(this.soilLayers.values()).filter(l => l.profileId === profileId);
+  }
+  async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
+    const id = this.currentSoilLayerId++;
+    const newLayer: SoilLayer = { ...layer, id } as SoilLayer;
+    this.soilLayers.set(id, newLayer);
+    return newLayer;
+  }
+
+  // ─── Sensor installation operations ───────────────────────────────────────
+  async getSensorInstallations(objectId?: number): Promise<SensorInstallation[]> {
+    const all = Array.from(this.sensorInstallations.values());
+    return objectId !== undefined ? all.filter(i => i.objectId === objectId) : all;
+  }
+  async getSensorInstallation(id: number): Promise<SensorInstallation | undefined> {
+    return this.sensorInstallations.get(id);
+  }
+  async createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation> {
+    const id = this.currentSensorInstId++;
+    const newInst: SensorInstallation = { ...inst, id } as SensorInstallation;
+    this.sensorInstallations.set(id, newInst);
+    return newInst;
+  }
+  async updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined> {
+    const inst = this.sensorInstallations.get(id);
+    if (!inst) return undefined;
+    const updated: SensorInstallation = { ...inst, ...data };
+    this.sensorInstallations.set(id, updated);
+    return updated;
+  }
+
+  // ─── Building norm operations ──────────────────────────────────────────────
+  async getBuildingNorms(category?: string): Promise<BuildingNorm[]> {
+    const all = Array.from(this.buildingNorms.values());
+    return category ? all.filter(n => n.category === category) : all;
+  }
+  async getBuildingNorm(id: number): Promise<BuildingNorm | undefined> {
+    return this.buildingNorms.get(id);
+  }
+  async getBuildingNormByCode(code: string): Promise<BuildingNorm | undefined> {
+    return Array.from(this.buildingNorms.values()).find(n => n.code === code);
+  }
+  async createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm> {
+    const id = this.currentBuildingNormId++;
+    const newNorm: BuildingNorm = { ...norm, id, createdAt: new Date() } as BuildingNorm;
+    this.buildingNorms.set(id, newNorm);
+    return newNorm;
+  }
+
+  // ─── Seismogram record operations ─────────────────────────────────────────
+  async getSeismogramRecords(stationId?: string, limit?: number): Promise<SeismogramRecord[]> {
+    let all = Array.from(this.seismogramRecords.values());
+    if (stationId) all = all.filter(r => r.stationId === stationId);
+    if (limit) all = all.slice(0, limit);
+    return all;
+  }
+  async getSeismogramRecord(id: number): Promise<SeismogramRecord | undefined> {
+    return this.seismogramRecords.get(id);
+  }
+  async createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord> {
+    const id = this.currentSeismogramId++;
+    const newRecord: SeismogramRecord = { ...record, id, createdAt: new Date() } as SeismogramRecord;
+    this.seismogramRecords.set(id, newRecord);
+    return newRecord;
+  }
+  async updateSeismogramProcessingStatus(id: number, status: string): Promise<SeismogramRecord | undefined> {
+    const record = this.seismogramRecords.get(id);
+    if (!record) return undefined;
+    const updated: SeismogramRecord = { ...record, processingStatus: status };
+    this.seismogramRecords.set(id, updated);
+    return updated;
+  }
+
+  // ─── Extra station operations ──────────────────────────────────────────────
+  async getStationsByRegionId(regionId: number): Promise<Station[]> {
+    return Array.from(this.stations.values()).filter(s => s.regionId === regionId);
+  }
+  async updateStationBatteryInfo(stationId: string, batteryLevel: number, batteryVoltage: number, powerConsumption: number): Promise<Station | undefined> {
+    const station = Array.from(this.stations.values()).find(s => s.stationId === stationId);
+    if (!station) return undefined;
+    const updated: Station = { ...station, batteryLevel, batteryVoltage, powerConsumption };
+    this.stations.set(station.id, updated);
+    return updated;
+  }
+  async updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined> {
+    const station = Array.from(this.stations.values()).find(s => s.stationId === stationId);
+    if (!station) return undefined;
+    const updated: Station = { ...station, storageRemaining };
+    this.stations.set(station.id, updated);
+    return updated;
+  }
 }
 
 import { db } from './db';
@@ -1679,28 +1814,28 @@ const initializeDatabase = async () => {
       {
         alertType: "connection_timeout",
         severity: "warning",
-        message: "Connection timeout on SOCAL-15",
-        timestamp: new Date(Date.now() - 24 * 60 * 1000), // 24 minutes ago
-        relatedEntityId: "SOCAL-15",
+        message: "Потеря связи со станцией IRK-ST-008 (Ангарск)",
+        timestamp: new Date(Date.now() - 24 * 60 * 1000),
+        relatedEntityId: "IRK-ST-008",
         relatedEntityType: "station",
         isRead: false
       },
       {
         alertType: "station_offline",
         severity: "danger",
-        message: "ALASKA-09 station offline",
-        timestamp: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
-        relatedEntityId: "ALASKA-09",
+        message: "Станция IRK-ST-008 не отвечает более 1 часа",
+        timestamp: new Date(Date.now() - 60 * 60 * 1000),
+        relatedEntityId: "IRK-ST-008",
         relatedEntityType: "station",
         isRead: false
       },
       {
         alertType: "scheduled_maintenance",
         severity: "info",
-        message: "Scheduled maintenance for HAWAII cluster",
-        timestamp: new Date(Date.now() - 120 * 60 * 1000), // 2 hours ago
-        relatedEntityId: "HAWAII",
-        relatedEntityType: "cluster",
+        message: "Плановое ТО — IRK-ST-004 (Академгородок)",
+        timestamp: new Date(Date.now() - 120 * 60 * 1000),
+        relatedEntityId: "IRK-ST-004",
+        relatedEntityType: "station",
         isRead: true
       },
       {

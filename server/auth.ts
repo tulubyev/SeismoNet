@@ -58,10 +58,7 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username or password" });
         }
         
-        console.log(`Found user: ${username}, active: ${user.active}, password: "${user.password}", entered password: "${password}"`);
-        
         if (!user.active) {
-          console.log(`User inactive: ${username}`);
           return done(null, false, { message: "Account is inactive" });
         }
         
@@ -71,10 +68,7 @@ export function setupAuth(app: Express) {
         const hashMatch = user.password.includes(".") && await comparePasswords(password, user.password);
         const isValidPassword = plainTextMatch || hashMatch;
         
-        console.log(`Password validation: plainText match: ${plainTextMatch}, hash match: ${hashMatch}, stored password: "${user.password}", entered password: "${password}"`);
-        
         if (!isValidPassword) {
-          console.log(`Invalid password for user: ${username}`);
           return done(null, false, { message: "Incorrect username or password" });
         }
         

@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Activity, Building2, Radio, Map, FileText,
   BookOpen, Layers, Settings, LogOut, UserCircle, Bell,
-  ChevronDown, Wifi, WifiOff
+  ChevronDown, Wifi, WifiOff, Calculator
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -16,14 +16,15 @@ import type { Alert } from '@shared/schema';
 import { useSeismicData } from '@/hooks/useSeismicData';
 
 const NAV_LINKS = [
-  { href: '/',                icon: <Home className="h-4 w-4" />,      label: 'Главная'     },
-  { href: '/monitoring',      icon: <Activity className="h-4 w-4" />,  label: 'Мониторинг'  },
-  { href: '/infrastructure',  icon: <Building2 className="h-4 w-4" />, label: 'Объекты'     },
-  { href: '/stations',        icon: <Radio className="h-4 w-4" />,     label: 'Станции'     },
-  { href: '/event-map',       icon: <Map className="h-4 w-4" />,       label: 'Карта'       },
-  { href: '/seismograms',     icon: <FileText className="h-4 w-4" />,  label: 'Сейсмограммы'},
-  { href: '/soil-profiles',   icon: <Layers className="h-4 w-4" />,    label: 'Грунты'      },
-  { href: '/building-norms',  icon: <BookOpen className="h-4 w-4" />,  label: 'Нормативы'   },
+  { href: '/',                icon: <Home className="h-4 w-4" />,       label: 'Главная'     },
+  { href: '/monitoring',      icon: <Activity className="h-4 w-4" />,   label: 'Мониторинг'  },
+  { href: '/infrastructure',  icon: <Building2 className="h-4 w-4" />,  label: 'Объекты'     },
+  { href: '/stations',        icon: <Radio className="h-4 w-4" />,      label: 'Датчики'     },
+  { href: '/event-map',       icon: <Map className="h-4 w-4" />,        label: 'Карта'       },
+  { href: '/seismograms',     icon: <FileText className="h-4 w-4" />,   label: 'Сигналы'     },
+  { href: '/soil-profiles',   icon: <Layers className="h-4 w-4" />,     label: 'Грунты'      },
+  { href: '/analysis',        icon: <Calculator className="h-4 w-4" />, label: 'Расчёты'     },
+  { href: '/building-norms',  icon: <BookOpen className="h-4 w-4" />,   label: 'Нормативы'   },
 ];
 
 const TopNav: FC = () => {
