@@ -742,6 +742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       res.json(rows);
     } catch (e) {
+      console.error('GET /api/calculations failed:', e);
       res.status(500).json({ message: 'Error fetching calculations' });
     }
   });

@@ -24,6 +24,7 @@ import Archive from "@/pages/Archive";
 import DevelopersPage from "@/pages/Developers";
 import SoilDatabase from "@/pages/SoilDatabase";
 import SystemManagement from "@/pages/SystemManagement";
+import Calculations from "@/pages/Calculations";
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
@@ -42,6 +43,7 @@ function Router() {
       <ProtectedRoute path="/stations/new"    component={withLayout(AddStation)}
         requiredRole={["administrator", "user"]} />
       <ProtectedRoute path="/analysis"        component={withLayout(Analysis)}              />
+      <ProtectedRoute path="/calculations"    component={withLayout(Calculations)}          />
       <ProtectedRoute path="/infrastructure"  component={withLayout(InfrastructureObjects)} />
       <ProtectedRoute path="/developers"      component={withLayout(DevelopersPage)}        />
       <ProtectedRoute path="/soil-database"   component={withLayout(SoilDatabase)}          />
