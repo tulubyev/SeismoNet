@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import type { SoilProfile, SoilLayer } from '@shared/schema';
+import type { SoilProfile, SoilLayer, InfrastructureObject } from '@shared/schema';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -158,17 +158,22 @@ const esc = (s: string | null | undefined) => (s ?? '').replace(/&/g, '&amp;').r
 
 const SoilMap: FC<{
   profiles: SoilProfile[];
+  infraObjects?: InfrastructureObject[];
   selected: number | null;
   onSelect: (id: number) => void;
+  onInfraClick?: (lat: number, lng: number, obj: InfrastructureObject) => void;
   onPickCoords?: (lat: number, lng: number) => void;
-}> = ({ profiles, selected, onSelect, onPickCoords }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef       = useRef<any>(null);
-  const initRef      = useRef(false);
-  const markersRef   = useRef<Map<number, any>>(new Map());
-  const pickingRef   = useRef(!!onPickCoords);
+}> = ({ profiles, infraObjects = [], selected, onSelect, onInfraClick, onPickCoords }) => {
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const mapRef         = useRef<any>(null);
+  const initRef        = useRef(false);
+  const markersRef     = useRef<Map<number, any>>(new Map());
+  const infraMarkersRef= useRef<Map<number, any>>(new Map());
+  const pickingRef     = useRef(!!onPickCoords);
+  const onInfraRef     = useRef(onInfraClick);
 
   pickingRef.current = !!onPickCoords;
+  onInfraRef.current = onInfraClick;
 
   const initMap = () => {
     if (!containerRef.current || !window.L || initRef.current) return;
@@ -191,6 +196,7 @@ const SoilMap: FC<{
 
     initRef.current = true;
     addMarkers();
+    addInfraMarkers();
   };
 
   const addMarkers = () => {
@@ -215,13 +221,48 @@ const SoilMap: FC<{
         <div style="font-family:sans-serif;min-width:160px">
           <b style="font-size:12px;color:#1e293b">${esc(p.profileName)}</b>
           <div style="margin-top:4px;font-size:11px;color:#64748b">
-            Категория <b>${esc(p.soilCategory)}</b> · Vs30=${p.avgShearVelocity ?? '—'} м/с
+            Категория грунта <b>${esc(p.soilCategory)}</b> · Vs30=${p.avgShearVelocity ?? '—'} м/с
           </div>
           ${p.amplificationFactor ? `<div style="font-size:11px;color:#64748b">Усиление: ×${p.amplificationFactor.toFixed(2)}</div>` : ''}
+          <div style="margin-top:4px;font-size:10px;color:#94a3b8">📍 Точка наблюдения</div>
         </div>`);
       marker.on('click', () => onSelect(p.id));
       marker.addTo(mapRef.current);
       markersRef.current.set(p.id, marker);
+    });
+  };
+
+  const addInfraMarkers = () => {
+    if (!mapRef.current || !window.L) return;
+    infraMarkersRef.current.forEach(m => { try { m.remove(); } catch { /* */ } });
+    infraMarkersRef.current.clear();
+
+    infraObjects.forEach(obj => {
+      const lat = parseFloat(String(obj.latitude));
+      const lng = parseFloat(String(obj.longitude));
+      if (isNaN(lat) || isNaN(lng)) return;
+      const marker = window.L.circleMarker([lat, lng], {
+        radius: 5,
+        fillColor: '#6366f1',
+        color: 'rgba(255,255,255,0.6)',
+        weight: 1,
+        opacity: 0.7, fillOpacity: 0.5,
+      });
+      marker.bindPopup(`
+        <div style="font-family:sans-serif;min-width:180px">
+          <b style="font-size:12px;color:#312e81">${esc(obj.name)}</b>
+          <div style="margin-top:3px;font-size:11px;color:#64748b">
+            ${esc(obj.objectType)} · ${esc(obj.district ?? '')}
+            ${obj.seismicCategory ? `<br>Кат. сейсмостойкости: <b>${esc(obj.seismicCategory)}</b>` : ''}
+            ${obj.designIntensity ? ` · Расч. интенсивность: ${obj.designIntensity} балл` : ''}
+          </div>
+          <div style="margin-top:4px;font-size:10px;color:#818cf8">🏗 Нажмите для поиска грунта</div>
+        </div>`);
+      marker.on('click', () => {
+        if (onInfraRef.current) onInfraRef.current(lat, lng, obj);
+      });
+      marker.addTo(mapRef.current);
+      infraMarkersRef.current.set(obj.id, marker);
     });
   };
 
@@ -243,6 +284,7 @@ const SoilMap: FC<{
   }, []);
 
   useEffect(() => { if (initRef.current) addMarkers(); }, [profiles, selected]);
+  useEffect(() => { if (initRef.current) addInfraMarkers(); }, [infraObjects]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -557,9 +599,14 @@ const SoilDatabase: FC = () => {
   const [catFilter, setCatFilter]   = useState('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addOpen, setAddOpen]       = useState(false);
+  const [infraLookup, setInfraLookup] = useState<{ obj: InfrastructureObject; soil: SoilProfile | null } | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<SoilProfile[]>({
     queryKey: ['/api/soil-profiles'],
+  });
+
+  const { data: infraObjects = [] } = useQuery<InfrastructureObject[]>({
+    queryKey: ['/api/infrastructure-objects'],
   });
 
   const { data: layers = [] } = useQuery<SoilLayer[]>({
@@ -581,6 +628,21 @@ const SoilDatabase: FC = () => {
     },
     onError: () => toast({ title: 'Ошибка удаления', variant: 'destructive' }),
   });
+
+  const handleInfraClick = async (lat: number, lng: number, obj: InfrastructureObject) => {
+    try {
+      const res = await fetch(`/api/soil-profiles/nearest?lat=${lat}&lng=${lng}`);
+      if (res.ok) {
+        const soil: SoilProfile = await res.json();
+        setInfraLookup({ obj, soil });
+        setSelectedId(soil.id);
+      } else {
+        setInfraLookup({ obj, soil: null });
+      }
+    } catch {
+      setInfraLookup({ obj, soil: null });
+    }
+  };
 
   const filteredProfiles = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -839,10 +901,42 @@ const SoilDatabase: FC = () => {
                 <div className="rounded-lg overflow-hidden border border-slate-200" style={{ height: 480 }}>
                   <SoilMap
                     profiles={filteredProfiles.filter(p => p.latitude && p.longitude)}
+                    infraObjects={infraObjects}
                     selected={selectedId}
-                    onSelect={id => setSelectedId(prev => prev === id ? null : id)}
+                    onSelect={id => { setSelectedId(prev => prev === id ? null : id); setInfraLookup(null); }}
+                    onInfraClick={handleInfraClick}
                   />
                 </div>
+
+                {/* Infrastructure object lookup result */}
+                {infraLookup && (
+                  <div className={`mt-2 rounded-lg border p-3 text-xs ${infraLookup.soil ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-700 truncate">🏗 {infraLookup.obj.name}</p>
+                        <p className="text-slate-500 mt-0.5">
+                          {infraLookup.obj.objectType} · {infraLookup.obj.district ?? ''}
+                          {infraLookup.obj.seismicCategory && <> · Кат. сейсмост.: <b>{infraLookup.obj.seismicCategory}</b></>}
+                          {infraLookup.obj.designIntensity && <> · {infraLookup.obj.designIntensity} балл</>}
+                        </p>
+                        {infraLookup.soil ? (
+                          <p className="mt-1 text-indigo-700">
+                            Ближайший грунтовый разрез: <b>{infraLookup.soil.profileName}</b>
+                            {' '}· Кат. <b>{infraLookup.soil.soilCategory}</b>
+                            {infraLookup.soil.avgShearVelocity ? ` · Vs30=${infraLookup.soil.avgShearVelocity} м/с` : ''}
+                            {infraLookup.soil.amplificationFactor ? ` · Усиление ×${parseFloat(String(infraLookup.soil.amplificationFactor)).toFixed(2)}` : ''}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-amber-600">Грунтовый разрез вблизи объекта не найден</p>
+                        )}
+                      </div>
+                      <button
+                        className="text-slate-300 hover:text-slate-500 flex-shrink-0"
+                        onClick={() => setInfraLookup(null)}
+                      ><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Map legend */}
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
@@ -852,6 +946,10 @@ const SoilDatabase: FC = () => {
                       Кат. {k} — {v.vs}
                     </span>
                   ))}
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ background: '#6366f1', opacity: 0.6 }} />
+                    Объекты инфраструктуры (нажмите для поиска грунта)
+                  </span>
                 </div>
               </CardContent>
             </Card>

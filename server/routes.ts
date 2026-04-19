@@ -785,6 +785,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/soil-profiles/nearest', async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ message: 'lat and lng query params required' });
+      const profile = await storage.getSoilProfileNearCoords(lat, lng);
+      if (!profile) return res.status(404).json({ message: 'No profile near given coordinates' });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: 'Error looking up nearest soil profile' });
+    }
+  });
+
   app.get('/api/soil-profiles/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id);

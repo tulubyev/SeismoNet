@@ -122,6 +122,7 @@ export interface IStorage {
   // Soil profile operations
   getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
   getSoilProfile(id: number): Promise<SoilProfile | undefined>;
+  getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined>;
   createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile>;
   updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined>;
   deleteSoilProfile(id: number): Promise<boolean>;
@@ -871,6 +872,18 @@ export class MemStorage implements IStorage {
   async getSoilProfile(id: number): Promise<SoilProfile | undefined> {
     return this.soilProfiles.get(id);
   }
+  async getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined> {
+    let nearest: SoilProfile | undefined;
+    let minDist = Infinity;
+    for (const p of this.soilProfiles.values()) {
+      if (!p.latitude || !p.longitude) continue;
+      const dlat = parseFloat(String(p.latitude)) - lat;
+      const dlng = parseFloat(String(p.longitude)) - lng;
+      const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+      if (dist < minDist) { minDist = dist; nearest = p; }
+    }
+    return minDist < 0.5 ? nearest : undefined;
+  }
   async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
     const id = this.currentSoilProfileId++;
     const newProfile: SoilProfile = { ...profile, id, createdAt: new Date() } as SoilProfile;
@@ -1545,6 +1558,20 @@ export class DatabaseStorage implements IStorage {
     return db.query.soilProfiles.findFirst({
       where: (t, { eq }) => eq(t.id, id)
     });
+  }
+
+  async getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined> {
+    const all = await db.query.soilProfiles.findMany();
+    let nearest: SoilProfile | undefined;
+    let minDist = Infinity;
+    for (const p of all) {
+      if (!p.latitude || !p.longitude) continue;
+      const dlat = parseFloat(String(p.latitude)) - lat;
+      const dlng = parseFloat(String(p.longitude)) - lng;
+      const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+      if (dist < minDist) { minDist = dist; nearest = p; }
+    }
+    return minDist < 0.5 ? nearest : undefined;
   }
 
   async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
