@@ -165,8 +165,9 @@ const Analysis: FC = () => {
   const [fftData,   setFftData]   = useState<FftChartPoint[] | null>(null);
   const [hvResult,  setHvResult]  = useState<HVPoint[] | null>(null);
   const [afcRows,   setAfcRows]   = useState(DEFAULT_AFC);
-  const [thresholdZMmS, setThresholdZMmS] = useState<number | null>(null);
-  const [thresholdHMmS, setThresholdHMmS] = useState<number | null>(null);
+  const [thresholdZMmS,  setThresholdZMmS]  = useState<number | null>(null);
+  const [thresholdHMmS,  setThresholdHMmS]  = useState<number | null>(null);
+  const [showSynthetic,  setShowSynthetic]  = useState(false);
   const [form, setForm] = useState({
     sessionDate: new Date().toISOString().slice(0, 10), operator: '',
     sensitivityZ: '10.0', sensitivityNS: '10.0', sensitivityEW: '10.0',
@@ -514,7 +515,7 @@ const Analysis: FC = () => {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2 pt-4 px-4 flex-row items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-sm text-slate-600">Трёхкомпонентные волновые формы</CardTitle>
-              <Select value={selectedSeismogramId?.toString() ?? ''} onValueChange={v => { setSelectedSeismogramId(parseInt(v)); setFftData(null); setHvResult(null); }}>
+              <Select value={selectedSeismogramId?.toString() ?? ''} onValueChange={v => { setSelectedSeismogramId(parseInt(v)); setFftData(null); setHvResult(null); setShowSynthetic(false); }}>
                 <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder="Выберите сейсмограмму..." /></SelectTrigger>
                 <SelectContent>
                   {seismograms.map(s => (<SelectItem key={s.id} value={s.id.toString()} className="text-xs">{s.recordId} — {s.stationId} ({new Date(s.startTime).toLocaleDateString('ru-RU')})</SelectItem>))}
@@ -525,6 +526,7 @@ const Analysis: FC = () => {
               {!selectedSeismogram
                 ? <p className="text-sm text-slate-400 py-8 text-center">Выберите запись из каталога</p>
                 : (() => {
+                  const real = hasRealData(selectedSeismogram);
                   const sr = selectedSeismogram.sampleRate || 100;
                   return (
                     <div className="space-y-3">
@@ -536,21 +538,25 @@ const Analysis: FC = () => {
                         <div><span className="font-medium">Дискр.:</span> {sr} Гц</div>
                         <div><span className="font-medium">Доминир. f:</span> {selectedSeismogram.dominantFrequency ?? '–'} Гц</div>
                       </div>
-                      {!hasRealData(selectedSeismogram) && (
-                        <div className="mx-2 px-3 py-2 rounded border bg-amber-50 border-amber-300 text-xs text-amber-800 font-medium">
-                          ⚠ Компоненты (dataZ/NS/EW) для этой записи отсутствуют в базе данных.
-                          Ниже показан ориентировочный вид сигнала, построенный по метаданным (амплитуда, частота, длительность).
-                          Для точного анализа — загрузите реальные данные записи.
-                          <strong className="block mt-0.5">FFT и H/V по этой записи недоступны.</strong>
+                      {!real && (
+                        <div className="mx-2 px-3 py-3 rounded border bg-amber-50 border-amber-300 text-xs text-amber-800 font-medium space-y-2">
+                          <p>⚠ Компоненты (dataZ/NS/EW) для этой записи отсутствуют в базе данных.
+                          Для точного анализа загрузите реальные данные. <strong>FFT и H/V недоступны.</strong></p>
+                          <Button size="sm" variant="outline" className="h-6 text-xs border-amber-400 text-amber-800"
+                            onClick={() => setShowSynthetic(v => !v)}>
+                            {showSynthetic ? 'Скрыть' : 'Показать ориентировочный вид сигнала'}
+                          </Button>
                         </div>
                       )}
-                      {(['Z', 'NS', 'EW'] as const).map(comp => {
+                      {(real || showSynthetic) && (['Z', 'NS', 'EW'] as const).map(comp => {
                         const signal = displayWaveform(selectedSeismogram, comp);
                         const color = comp === 'Z' ? '#1d4ed8' : comp === 'NS' ? '#16a34a' : '#dc2626';
                         const threshold = comp === 'Z' ? thresholdZMmS : thresholdHMmS;
                         return (
                           <div key={comp}>
-                            <p className="text-xs font-medium text-slate-600 mb-1 px-2">{comp} компонента</p>
+                            <p className="text-xs font-medium text-slate-600 mb-1 px-2">
+                              {comp} компонента{!real ? <span className="ml-1 text-amber-600">(ориент.)</span> : null}
+                            </p>
                             <ResponsiveContainer width="100%" height={120}>
                               <LineChart data={decimateForChart(signal, sr, comp)} margin={{ top: 2, right: 10, left: 30, bottom: 2 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
