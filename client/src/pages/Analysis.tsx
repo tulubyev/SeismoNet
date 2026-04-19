@@ -175,8 +175,9 @@ const Analysis: FC = () => {
   const [fftData,   setFftData]   = useState<FftChartPoint[] | null>(null);
   const [hvResult,  setHvResult]  = useState<HVPoint[] | null>(null);
   const [afcRows,   setAfcRows]   = useState(DEFAULT_AFC);
-  const [thresholdZ,   setThresholdZ]   = useState('');
-  const [thresholdH,   setThresholdH]   = useState('');
+  // Internal state is always in mm/s (null = not set)
+  const [thresholdZMmSState, setThresholdZMmSState] = useState<number | null>(null);
+  const [thresholdHMmSState, setThresholdHMmSState] = useState<number | null>(null);
   const [thresholdUnit, setThresholdUnit] = useState<ThresholdUnit>('mm_s');
   const [form, setForm] = useState({
     sessionDate: new Date().toISOString().slice(0, 10),
@@ -258,11 +259,11 @@ const Analysis: FC = () => {
   const selectedInst       = installations.find(i => i.id === selectedInstId);
   const selectedSeismogram = seismograms.find(s => s.id === selectedSeismogramId) ?? null;
 
-  // ── Load thresholds from selected installation ─────────────────────────────
+  // ── Load thresholds from selected installation (stored in mm/s) ───────────
   useEffect(() => {
     if (selectedInst) {
-      setThresholdZ(selectedInst.triggerThresholdZ != null ? String(selectedInst.triggerThresholdZ) : '');
-      setThresholdH(selectedInst.triggerThresholdH != null ? String(selectedInst.triggerThresholdH) : '');
+      setThresholdZMmSState(selectedInst.triggerThresholdZ ?? null);
+      setThresholdHMmSState(selectedInst.triggerThresholdH ?? null);
     }
   }, [selectedInst]);
 
@@ -310,22 +311,22 @@ const Analysis: FC = () => {
     }));
   };
 
-  // ── Convert threshold value for display/storage ────────────────────────────
-  const G = 9806.65; // mm/s² = 1g
-  const displayThreshold = (valMmS: string): string => {
-    if (!valMmS) return '';
-    const v = parseFloat(valMmS);
-    if (isNaN(v)) return '';
-    return thresholdUnit === 'g' ? (v / G).toExponential(3) : v.toFixed(4);
-  };
-  const parseThresholdToMmS = (input: string): number | null => {
-    const v = parseFloat(input);
-    if (isNaN(v)) return null;
-    return thresholdUnit === 'g' ? v * G : v;
+  // ── Threshold unit conversion helpers ─────────────────────────────────────
+  // Internal state always in mm/s. Conversions are only for UI display/input.
+  const G_MM_S = 9806.65; // mm/s per g (1g = 9806.65 mm/s)
+
+  const mmSToDisplayUnit = (valMmS: number | null): string => {
+    if (valMmS == null) return '';
+    return thresholdUnit === 'g'
+      ? (valMmS / G_MM_S).toExponential(3)
+      : valMmS.toFixed(4);
   };
 
-  const thresholdZMmS  = parseFloat(thresholdZ) || null;
-  const thresholdHMmS  = parseFloat(thresholdH) || null;
+  const displayUnitToMmS = (input: string): number | null => {
+    const v = parseFloat(input);
+    if (isNaN(v)) return null;
+    return thresholdUnit === 'g' ? v * G_MM_S : v;
+  };
 
   // ── Run FFT on selected seismogram ─────────────────────────────────────────
   const runFFT = () => {
@@ -452,35 +453,37 @@ const Analysis: FC = () => {
                       <div className="space-y-1">
                         <Label className="text-[11px] text-slate-500">Z ({thresholdUnit === 'g' ? 'g' : 'мм/с'})</Label>
                         <Input
-                          type="number" step={thresholdUnit === 'g' ? '0.000001' : '0.001'}
-                          value={thresholdZ}
-                          onChange={e => setThresholdZ(e.target.value)}
+                          type="number"
+                          step={thresholdUnit === 'g' ? '1e-7' : '0.001'}
+                          value={mmSToDisplayUnit(thresholdZMmSState)}
+                          onChange={e => setThresholdZMmSState(displayUnitToMmS(e.target.value))}
                           className="h-7 text-xs font-mono"
                           placeholder={thresholdUnit === 'g' ? '5.1e-7' : '0.005'} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[11px] text-slate-500">NS/EW ({thresholdUnit === 'g' ? 'g' : 'мм/с'})</Label>
                         <Input
-                          type="number" step={thresholdUnit === 'g' ? '0.000001' : '0.001'}
-                          value={thresholdH}
-                          onChange={e => setThresholdH(e.target.value)}
+                          type="number"
+                          step={thresholdUnit === 'g' ? '1e-7' : '0.001'}
+                          value={mmSToDisplayUnit(thresholdHMmSState)}
+                          onChange={e => setThresholdHMmSState(displayUnitToMmS(e.target.value))}
                           className="h-7 text-xs font-mono"
                           placeholder={thresholdUnit === 'g' ? '3.1e-7' : '0.003'} />
                       </div>
                     </div>
-                    {thresholdUnit === 'g' && (thresholdZ || thresholdH) && (
+                    {thresholdUnit === 'g' && (thresholdZMmSState != null || thresholdHMmSState != null) && (
                       <p className="text-[10px] text-slate-400 font-mono">
-                        {thresholdZ ? `Z = ${parseThresholdToMmS(thresholdZ)?.toFixed(4)} мм/с` : ''}
-                        {thresholdH ? `  NS/EW = ${parseThresholdToMmS(thresholdH)?.toFixed(4)} мм/с` : ''}
+                        {thresholdZMmSState != null ? `Z = ${thresholdZMmSState.toFixed(4)} мм/с` : ''}
+                        {thresholdHMmSState != null ? `  H = ${thresholdHMmSState.toFixed(4)} мм/с` : ''}
                       </p>
                     )}
                     <Button size="sm" className="w-full h-7 text-xs" variant="outline"
                       onClick={() => saveTriggerThresholds.mutate({
-                        triggerThresholdZ: thresholdUnit === 'g' ? parseThresholdToMmS(thresholdZ) : parseThresholdToMmS(thresholdZ),
-                        triggerThresholdH: thresholdUnit === 'g' ? parseThresholdToMmS(thresholdH) : parseThresholdToMmS(thresholdH),
+                        triggerThresholdZ: thresholdZMmSState,
+                        triggerThresholdH: thresholdHMmSState,
                       })}
                       disabled={saveTriggerThresholds.isPending}>
-                      <Save className="h-3 w-3 mr-1" /> Сохранить пороги (в мм/с)
+                      <Save className="h-3 w-3 mr-1" /> Сохранить пороги (мм/с)
                     </Button>
                   </div>
                 )}
@@ -761,9 +764,9 @@ const Analysis: FC = () => {
                         </div>
                       )}
                       {[
-                        { label: 'Z', signal: z,  color: '#1d4ed8', threshold: thresholdZMmS },
-                        { label: 'NS', signal: ns, color: '#16a34a', threshold: thresholdHMmS },
-                        { label: 'EW', signal: ew, color: '#dc2626', threshold: thresholdHMmS },
+                        { label: 'Z', signal: z,  color: '#1d4ed8', threshold: thresholdZMmSState },
+                        { label: 'NS', signal: ns, color: '#16a34a', threshold: thresholdHMmSState },
+                        { label: 'EW', signal: ew, color: '#dc2626', threshold: thresholdHMmSState },
                       ].map(({ label, signal, color, threshold }) => (
                         <div key={label}>
                           <p className="text-xs font-medium text-slate-600 mb-1 px-2">{label} компонента</p>
