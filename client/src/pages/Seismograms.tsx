@@ -383,7 +383,20 @@ const DetailPanel: FC<{ rec: SeismogramRecord & any; onSendToAnalysis: () => voi
           <Calculator className="h-4 w-4" />
           Использовать для расчёта
         </Button>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-1.5 text-xs"
+          data-testid={`button-mseed-${rec.id}`}
+          onClick={() => {
+            const a = document.createElement('a');
+            a.href = `/api/seismograms/${rec.id}/mseed`;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }}
+        >
           <Download className="h-3.5 w-3.5" />
           MiniSEED
         </Button>
