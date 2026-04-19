@@ -877,6 +877,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Calibration sessions ─────────────────────────────────────────────────
+
+  app.get('/api/calibration-sessions', async (req, res) => {
+    try {
+      const installationId = req.query.installationId ? parseInt(req.query.installationId as string) : undefined;
+      const sessions = await storage.getCalibrationSessions(installationId);
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching calibration sessions' });
+    }
+  });
+
+  app.get('/api/calibration-sessions/:id', async (req, res) => {
+    try {
+      const session = await storage.getCalibrationSession(parseInt(req.params.id));
+      if (!session) return res.status(404).json({ message: 'Session not found' });
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching calibration session' });
+    }
+  });
+
+  app.post('/api/calibration-sessions', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const session = await storage.createCalibrationSession(req.body);
+      res.status(201).json(session);
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating calibration session' });
+    }
+  });
+
+  app.patch('/api/calibration-sessions/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const updated = await storage.updateCalibrationSession(parseInt(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: 'Session not found' });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating calibration session' });
+    }
+  });
+
+  app.delete('/api/calibration-sessions/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const ok = await storage.deleteCalibrationSession(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'Session not found' });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting calibration session' });
+    }
+  });
+
+  // ─── AFC data ─────────────────────────────────────────────────────────────
+
+  app.get('/api/calibration-afc', async (req, res) => {
+    try {
+      const sessionId = parseInt(req.query.sessionId as string);
+      if (isNaN(sessionId)) return res.status(400).json({ message: 'sessionId required' });
+      const points = await storage.getCalibrationAfc(sessionId);
+      res.json(points);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching AFC data' });
+    }
+  });
+
+  app.put('/api/calibration-afc', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const { sessionId, points } = req.body;
+      if (!sessionId || !Array.isArray(points)) return res.status(400).json({ message: 'sessionId and points[] required' });
+      const result = await storage.replaceCalibrationAfc(sessionId, points.map((p: { frequency: number; amplitude: number; phase?: number }) => ({ ...p, sessionId })));
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: 'Error saving AFC data' });
+    }
+  });
+
+  app.delete('/api/calibration-afc/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const ok = await storage.deleteCalibrationAfcPoint(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'AFC point not found' });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Error deleting AFC point' });
+    }
+  });
+
   // Schedule regular earthquake data synchronization (every 30 minutes)
   const usgsEarthquakeJob = scheduleEarthquakeSyncJob(30);
   

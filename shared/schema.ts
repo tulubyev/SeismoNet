@@ -262,7 +262,35 @@ export const sensorInstallations = pgTable("sensor_installations", {
   sensorType: text("sensor_type"), // accelerometer, velocimeter, seismometer
   sensitivity: real("sensitivity"), // V/(m/s) or V/g
   frequencyRange: text("frequency_range"), // e.g., "0.1-50 Hz"
+  // Trigger thresholds for automatic event recording
+  triggerThresholdZ: real("trigger_threshold_z"),  // mm/s, vertical component
+  triggerThresholdH: real("trigger_threshold_h"),  // mm/s, horizontal components (NS, EW)
   notes: text("notes")
+});
+
+// Calibration sessions for sensor installations
+export const calibrationSessions = pgTable("calibration_sessions", {
+  id: serial("id").primaryKey(),
+  installationId: integer("installation_id").references(() => sensorInstallations.id),
+  sessionDate: timestamp("session_date").notNull(),
+  operator: text("operator").notNull(),
+  sensitivityZ: real("sensitivity_z"),   // V/(m/s) vertical
+  sensitivityNS: real("sensitivity_ns"), // V/(m/s) north-south
+  sensitivityEW: real("sensitivity_ew"), // V/(m/s) east-west
+  dampingRatio: real("damping_ratio"),   // % (критическое затухание)
+  naturalFrequency: real("natural_frequency"), // Hz (собственная частота датчика)
+  status: text("status").notNull().default("complete"), // pending, complete, expired
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// AFC (amplitude-frequency response) data points for a calibration session
+export const calibrationAfc = pgTable("calibration_afc", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => calibrationSessions.id),
+  frequency: real("frequency").notNull(), // Hz
+  amplitude: real("amplitude").notNull(), // dB (relative to 1 V/(m/s))
+  phase: real("phase")                   // degrees
 });
 
 // Russian Building Norms and Standards reference
@@ -344,6 +372,8 @@ export const insertSoilLayerSchema = createInsertSchema(soilLayers).omit({ id: t
 export const insertSensorInstallationSchema = createInsertSchema(sensorInstallations).omit({ id: true });
 export const insertBuildingNormSchema = createInsertSchema(buildingNorms).omit({ id: true, createdAt: true });
 export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords).omit({ id: true, createdAt: true });
+export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true });
+export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -397,6 +427,12 @@ export type InsertBuildingNorm = z.infer<typeof insertBuildingNormSchema>;
 
 export type SeismogramRecord = typeof seismogramRecords.$inferSelect;
 export type InsertSeismogramRecord = z.infer<typeof insertSeismogramRecordSchema>;
+
+export type CalibrationSession = typeof calibrationSessions.$inferSelect;
+export type InsertCalibrationSession = z.infer<typeof insertCalibrationSessionSchema>;
+
+export type CalibrationAfc = typeof calibrationAfc.$inferSelect;
+export type InsertCalibrationAfc = z.infer<typeof insertCalibrationAfcSchema>;
 
 // ─── WebSocket / API types ─────────────────────────────────────────────────────
 

@@ -19,7 +19,9 @@ const {
   soilLayers,
   sensorInstallations,
   buildingNorms,
-  seismogramRecords
+  seismogramRecords,
+  calibrationSessions,
+  calibrationAfc
 } = schemaImport;
 
 export const schema = {
@@ -37,7 +39,9 @@ export const schema = {
   soilLayers,
   sensorInstallations,
   buildingNorms,
-  seismogramRecords
+  seismogramRecords,
+  calibrationSessions,
+  calibrationAfc
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

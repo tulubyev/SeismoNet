@@ -28,7 +28,11 @@ import {
   BuildingNorm,
   InsertBuildingNorm,
   SeismogramRecord,
-  InsertSeismogramRecord
+  InsertSeismogramRecord,
+  CalibrationSession,
+  InsertCalibrationSession,
+  CalibrationAfc,
+  InsertCalibrationAfc
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -132,6 +136,19 @@ export interface IStorage {
   getSeismogramRecord(id: number): Promise<SeismogramRecord | undefined>;
   createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord>;
   updateSeismogramProcessingStatus(id: number, status: string): Promise<SeismogramRecord | undefined>;
+
+  // Calibration session operations
+  getCalibrationSessions(installationId?: number): Promise<CalibrationSession[]>;
+  getCalibrationSession(id: number): Promise<CalibrationSession | undefined>;
+  createCalibrationSession(session: InsertCalibrationSession): Promise<CalibrationSession>;
+  updateCalibrationSession(id: number, data: Partial<InsertCalibrationSession>): Promise<CalibrationSession | undefined>;
+  deleteCalibrationSession(id: number): Promise<boolean>;
+
+  // AFC data operations
+  getCalibrationAfc(sessionId: number): Promise<CalibrationAfc[]>;
+  createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc>;
+  deleteCalibrationAfcPoint(id: number): Promise<boolean>;
+  replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]>;
 }
 
 // In-memory storage implementation
@@ -151,6 +168,8 @@ export class MemStorage implements IStorage {
   private sensorInstallations: Map<number, SensorInstallation>;
   private buildingNorms: Map<number, BuildingNorm>;
   private seismogramRecords: Map<number, SeismogramRecord>;
+  private calibrationSessions: Map<number, CalibrationSession>;
+  private calibrationAfcPoints: Map<number, CalibrationAfc>;
 
   private currentUserId: number;
   private currentStationId: number;
@@ -167,6 +186,8 @@ export class MemStorage implements IStorage {
   private currentSensorInstId: number;
   private currentBuildingNormId: number;
   private currentSeismogramId: number;
+  private currentCalibrationSessionId: number;
+  private currentCalibrationAfcId: number;
 
   constructor() {
     this.users = new Map();
@@ -184,6 +205,8 @@ export class MemStorage implements IStorage {
     this.sensorInstallations = new Map();
     this.buildingNorms = new Map();
     this.seismogramRecords = new Map();
+    this.calibrationSessions = new Map();
+    this.calibrationAfcPoints = new Map();
 
     this.currentUserId = 1;
     this.currentStationId = 1;
@@ -200,6 +223,8 @@ export class MemStorage implements IStorage {
     this.currentSensorInstId = 1;
     this.currentBuildingNormId = 1;
     this.currentSeismogramId = 1;
+    this.currentCalibrationSessionId = 1;
+    this.currentCalibrationAfcId = 1;
     
     // Initialize with sample data
     this.initializeData();
@@ -859,6 +884,54 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  // ─── Calibration operations ───────────────────────────────────────────────
+  async getCalibrationSessions(installationId?: number): Promise<CalibrationSession[]> {
+    const all = Array.from(this.calibrationSessions.values());
+    if (installationId !== undefined) return all.filter(s => s.installationId === installationId);
+    return all;
+  }
+  async getCalibrationSession(id: number): Promise<CalibrationSession | undefined> {
+    return this.calibrationSessions.get(id);
+  }
+  async createCalibrationSession(session: InsertCalibrationSession): Promise<CalibrationSession> {
+    const id = this.currentCalibrationSessionId++;
+    const newSession: CalibrationSession = { ...session, id, createdAt: new Date() } as CalibrationSession;
+    this.calibrationSessions.set(id, newSession);
+    return newSession;
+  }
+  async updateCalibrationSession(id: number, data: Partial<InsertCalibrationSession>): Promise<CalibrationSession | undefined> {
+    const session = this.calibrationSessions.get(id);
+    if (!session) return undefined;
+    const updated: CalibrationSession = { ...session, ...data };
+    this.calibrationSessions.set(id, updated);
+    return updated;
+  }
+  async deleteCalibrationSession(id: number): Promise<boolean> {
+    return this.calibrationSessions.delete(id);
+  }
+  async getCalibrationAfc(sessionId: number): Promise<CalibrationAfc[]> {
+    return Array.from(this.calibrationAfcPoints.values()).filter(p => p.sessionId === sessionId);
+  }
+  async createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc> {
+    const id = this.currentCalibrationAfcId++;
+    const newPoint: CalibrationAfc = { ...point, id, phase: point.phase ?? null };
+    this.calibrationAfcPoints.set(id, newPoint);
+    return newPoint;
+  }
+  async deleteCalibrationAfcPoint(id: number): Promise<boolean> {
+    return this.calibrationAfcPoints.delete(id);
+  }
+  async replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]> {
+    for (const [id, p] of this.calibrationAfcPoints.entries()) {
+      if (p.sessionId === sessionId) this.calibrationAfcPoints.delete(id);
+    }
+    const created: CalibrationAfc[] = [];
+    for (const pt of points) {
+      created.push(await this.createCalibrationAfcPoint({ ...pt, sessionId }));
+    }
+    return created;
+  }
+
   // ─── Extra station operations ──────────────────────────────────────────────
   async getStationsByRegionId(regionId: number): Promise<Station[]> {
     return Array.from(this.stations.values()).filter(s => s.regionId === regionId);
@@ -1453,6 +1526,74 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.seismogramRecords.id, id))
       .returning();
     return updated;
+  }
+
+  // ─── Calibration session operations ────────────────────────────────────────
+
+  async getCalibrationSessions(installationId?: number): Promise<CalibrationSession[]> {
+    if (installationId !== undefined) {
+      return db.query.calibrationSessions.findMany({
+        where: (t, { eq }) => eq(t.installationId, installationId),
+        orderBy: (t, { desc }) => [desc(t.sessionDate)]
+      });
+    }
+    return db.query.calibrationSessions.findMany({
+      orderBy: (t, { desc }) => [desc(t.sessionDate)]
+    });
+  }
+
+  async getCalibrationSession(id: number): Promise<CalibrationSession | undefined> {
+    return db.query.calibrationSessions.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  }
+
+  async createCalibrationSession(session: InsertCalibrationSession): Promise<CalibrationSession> {
+    const [newSession] = await db.insert(schema.calibrationSessions).values(session).returning();
+    return newSession;
+  }
+
+  async updateCalibrationSession(id: number, data: Partial<InsertCalibrationSession>): Promise<CalibrationSession | undefined> {
+    const [updated] = await db
+      .update(schema.calibrationSessions)
+      .set(data)
+      .where(eq(schema.calibrationSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCalibrationSession(id: number): Promise<boolean> {
+    await db.delete(schema.calibrationAfc).where(eq(schema.calibrationAfc.sessionId, id));
+    const result = await db.delete(schema.calibrationSessions).where(eq(schema.calibrationSessions.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ─── AFC operations ─────────────────────────────────────────────────────────
+
+  async getCalibrationAfc(sessionId: number): Promise<CalibrationAfc[]> {
+    return db.query.calibrationAfc.findMany({
+      where: (t, { eq }) => eq(t.sessionId, sessionId),
+      orderBy: (t, { asc }) => [asc(t.frequency)]
+    });
+  }
+
+  async createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc> {
+    const [newPoint] = await db.insert(schema.calibrationAfc).values(point).returning();
+    return newPoint;
+  }
+
+  async deleteCalibrationAfcPoint(id: number): Promise<boolean> {
+    const result = await db.delete(schema.calibrationAfc).where(eq(schema.calibrationAfc.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]> {
+    await db.delete(schema.calibrationAfc).where(eq(schema.calibrationAfc.sessionId, sessionId));
+    if (points.length === 0) return [];
+    const inserted = await db.insert(schema.calibrationAfc)
+      .values(points.map(p => ({ ...p, sessionId })))
+      .returning();
+    return inserted;
   }
 }
 
