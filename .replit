@@ -37,3 +37,7 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_slack:1.0.0", "javascript_sendgrid:1.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
