@@ -160,10 +160,17 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // DEV MODE — авторизация отключена для разработки
+  const DEV_MODE = true;
+  const DEV_USER = {
+    id: 1, username: "dev_superadmin", fullName: "Dev SuperAdmin",
+    email: "dev@seismonet.local", role: "administrator", active: true,
+    organization: "ИЗК СО РАН", lastLogin: new Date(), createdAt: new Date()
+  };
+
   app.get("/api/user", (req, res) => {
+    if (DEV_MODE) return res.json(DEV_USER);
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
-    
-    // Don't send the password back to the client
     const { password, ...userWithoutPassword } = req.user as SelectUser;
     res.json(userWithoutPassword);
   });
@@ -247,6 +254,9 @@ export function setupAuth(app: Express) {
 // Middleware to require a specific role or array of roles
 export function requireRole(role: string | string[]) {
   return (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+    // DEV MODE — пропускаем проверку ролей
+    if (process.env.NODE_ENV !== 'production') return next();
+
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
