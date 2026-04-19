@@ -882,7 +882,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/calibration-sessions', async (req, res) => {
     try {
-      const installationId = req.query.installationId ? parseInt(req.query.installationId as string) : undefined;
+      let installationId: number | undefined;
+      if (req.query.installationId !== undefined) {
+        installationId = parseInt(req.query.installationId as string);
+        if (isNaN(installationId) || installationId <= 0) return res.status(400).json({ message: 'installationId must be a positive integer' });
+      }
       const sessions = await storage.getCalibrationSessions(installationId);
       res.json(sessions);
     } catch (error) {
@@ -902,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const calibrationSessionSchema = z.object({
     installationId: z.number().int().positive(),
-    sessionDate:    z.string().min(1),
+    sessionDate:    z.coerce.date().transform(d => d.toISOString()),
     operator:       z.string().min(1).max(200),
     sensitivityZ:   z.number().finite().optional(),
     sensitivityNS:  z.number().finite().optional(),
@@ -951,7 +955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/calibration-afc', async (req, res) => {
     try {
       const sessionId = parseInt(req.query.sessionId as string);
-      if (isNaN(sessionId)) return res.status(400).json({ message: 'sessionId required' });
+      if (isNaN(sessionId) || sessionId <= 0) return res.status(400).json({ message: 'sessionId must be a positive integer' });
       const points = await storage.getCalibrationAfc(sessionId);
       res.json(points);
     } catch (error) {
@@ -975,6 +979,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!parsed.success) return res.status(400).json({ message: 'Invalid AFC data', errors: parsed.error.flatten() });
     try {
       const { sessionId, points } = parsed.data;
+      const session = await storage.getCalibrationSession(sessionId);
+      if (!session) return res.status(404).json({ message: `Calibration session ${sessionId} not found` });
       const result = await storage.replaceCalibrationAfc(sessionId, points.map(p => ({ ...p, sessionId })));
       res.json(result);
     } catch (error) {
