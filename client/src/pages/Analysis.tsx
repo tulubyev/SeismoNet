@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, useCallback } from 'react';
+import { FC, useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +11,8 @@ import {
   SP14_ACCELEROGRAMS,
   SP14_BY_INTENSITY,
   SP14_SOIL_K_TABLE4,
+  SP14_PGA_TABLE3,
+  sp14DesignSpectrum,
   synthesizeSP14Accelerogram,
   type NormativeAccelerogram,
   type SeismicIntensity,
@@ -1235,6 +1237,17 @@ const ResponseTab: FC<RespTabProps> = ({
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
+  // Нормативный проектный спектр β(T)·A0·g·K_грунт по СП 14.13330.2018 §5,
+  // совмещённый с сеткой периодов вычисленного Sa(T) для прямого сравнения.
+  const chartData = useMemo(() => {
+    if (!respResult) return [];
+    const periods = respResult.map(p => p.T);
+    const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, 1.0);
+    return respResult.map((p, i) => ({ ...p, Sa_design: design[i].Sa_design }));
+  }, [respResult, sp14Intensity, sp14SoilCategory]);
+
+  const designPeak = SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665 * 2.5;
+
   return (
     <>
       <Card className="border-0 shadow-sm">
@@ -1399,7 +1412,7 @@ const ResponseTab: FC<RespTabProps> = ({
           </CardHeader>
           <CardContent className="px-2 pb-4">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={respResult} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis
                   dataKey="T" scale="log" type="number" domain={[0.05, 3]}
@@ -1411,7 +1424,7 @@ const ResponseTab: FC<RespTabProps> = ({
                   tick={{ fontSize: 9 }} tickFormatter={v => v.toFixed(2)}
                 />
                 <Tooltip
-                  formatter={(v: number, name: string) => [v.toFixed(4), name]}
+                  formatter={(v: number, name: string) => [Number(v).toFixed(4), name]}
                   labelFormatter={v => `T=${Number(v).toFixed(3)} с`}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -1419,9 +1432,19 @@ const ResponseTab: FC<RespTabProps> = ({
                   <ReferenceLine x={peakSa.T} stroke="#7c3aed" strokeDasharray="4 2"
                     label={{ value: `T=${peakSa.T.toFixed(2)}с`, fontSize: 9, fill: '#7c3aed', position: 'top' }} />
                 )}
-                <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa, ζ=${respDamping}%`} />
+                <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa расч., ζ=${respDamping}%`} />
+                <Line type="monotone" dataKey="Sa_design" stroke="#0369a1" strokeWidth={1.6} strokeDasharray="6 4" dot={false}
+                  name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory})`} />
               </LineChart>
             </ResponsiveContainer>
+            <div className="px-4 pt-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-md mx-3 py-1.5">
+              <strong>Норм. спектр СП 14.13330.2018 §5:</strong>{' '}
+              Sa<sub>норм</sub>(T) = A<sub>0</sub>·g·K<sub>гр</sub>·K<sub>1</sub>·β(T) ={' '}
+              {SP14_PGA_TABLE3[sp14Intensity].toFixed(2)}·9.81·{SP14_SOIL_K_TABLE4[sp14SoilCategory]}·1.0·β(T) ={' '}
+              {(SP14_PGA_TABLE3[sp14Intensity] * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)}·β(T) м/с²
+              {' · '}пик плато {designPeak.toFixed(2)} м/с² @ T ≤ {sp14SoilCategory === 'III' ? '0.8' : '0.4'} с
+              {' · '}I={sp14Intensity}, грунт {sp14SoilCategory}, K<sub>1</sub>=1.0 (упругий)
+            </div>
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
               {inputMode === 'catalog' && (

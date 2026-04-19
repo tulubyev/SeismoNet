@@ -174,6 +174,66 @@ export const SP14_SOIL_K_TABLE4: Record<'I' | 'II' | 'III', number> = {
   I: 0.8, II: 1.0, III: 1.4,
 };
 
+// ─── Нормативный спектр динамичности β(T) по СП 14.13330.2018, §5.5 ──────────
+// Зависит от категории грунта по сейсмическим свойствам (Табл. 4).
+//   I, II категории: плато до T = 0.4 с, далее β = 2.5·(0.4/T)^0.5
+//   III категория  : плато до T = 0.8 с, далее β = 2.5·(0.8/T)^0.5
+// На малых периодах (T < 0.1 с) — линейный подъём от 1.0 до 2.5.
+// Минимально β_min = 0.8 (нормативное ограничение снизу).
+export function sp14BetaT(T: number, soilCategory: 'I' | 'II' | 'III'): number {
+  const Tplato = soilCategory === 'III' ? 0.8 : 0.4;
+  const BETA_MAX = 2.5, BETA_MIN = 0.8;
+  let beta: number;
+  if (T <= 0.1) beta = 1.0 + (BETA_MAX - 1.0) * (T / 0.1);
+  else if (T <= Tplato) beta = BETA_MAX;
+  else beta = BETA_MAX * Math.sqrt(Tplato / T);
+  return Math.max(BETA_MIN, beta);
+}
+
+// K1 — коэффициент допускаемых повреждений (СП 14.13330.2018, Табл. 5).
+// Используется при формировании расчётных нагрузок (Sa_design = A·β·K_грунт·K1).
+// По умолчанию K1 = 1.0 — упругий «огибающий» спектр без снижения.
+//   1.0  — для сооружений, где повреждения недопустимы
+//   0.35 — типовые здания I уровня ответственности
+//   0.25 — гражданские здания
+export const SP14_K1_TABLE5: Record<'elastic' | 'critical' | 'normal' | 'residential', number> = {
+  elastic:    1.00,
+  critical:   1.00,
+  normal:     0.35,
+  residential:0.25,
+};
+
+// K2 — коэффициент, учитывающий конструктивное решение здания
+// (СП 14.13330.2018, Табл. 6). Применяется при формировании сейсмических
+// нагрузок: S = K1·K2·A·β·...
+//   1.5 — каркасные здания без диафрагм/связей
+//   1.3 — каркасные с диафрагмами/связями
+//   1.0 — стеновые системы из крупных блоков, монолитные ж/б
+//   0.8 — деревянные здания
+//   0.7 — здания из кирпичной/каменной кладки специальной комплексной защиты
+export const SP14_K2_TABLE6: Record<'frame_no_braces' | 'frame_braced' | 'wall_monolithic' | 'timber' | 'masonry_protected', number> = {
+  frame_no_braces:    1.5,
+  frame_braced:       1.3,
+  wall_monolithic:    1.0,
+  timber:             0.8,
+  masonry_protected:  0.7,
+};
+
+// Полный нормативный спектр Sa_design(T), м/с² по СП 14.13330.2018, §5:
+//   Sa = A0 · g · K_грунт · K1 · β(T)
+export function sp14DesignSpectrum(
+  periods: number[],
+  intensity: SeismicIntensity,
+  soilCategory: 'I' | 'II' | 'III',
+  K1: number = 1.0,
+): { T: number; Sa_design: number }[] {
+  const g = 9.80665;
+  const A0 = SP14_PGA_TABLE3[intensity];
+  const Ksoil = SP14_SOIL_K_TABLE4[soilCategory];
+  const A = A0 * Ksoil * K1 * g;
+  return periods.map(T => ({ T, Sa_design: A * sp14BetaT(T, soilCategory) }));
+}
+
 // Синтез временной формы сигнала по параметрам прототипа.
 // Узкополосный отфильтрованный шум вокруг T_dom + трапециевидная огибающая,
 // затем нормировка к (PGA_g × K_грунт) × g, м/с².
