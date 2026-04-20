@@ -790,6 +790,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/calculations/:id/note-history', requireRole(['administrator', 'user', 'viewer']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const history = await storage.getCalculationNoteHistory(id);
+      res.json(history);
+    } catch (e) {
+      console.error('GET /api/calculations/:id/note-history failed:', e);
+      res.status(500).json({ message: 'Error fetching note history' });
+    }
+  });
+
+  app.post('/api/calculations/:id/note-history/revert', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const { historyId } = req.body as { historyId?: number };
+      if (typeof historyId !== 'number') return res.status(400).json({ message: 'historyId required' });
+      const history = await storage.getCalculationNoteHistory(id);
+      const entry = history.find(h => h.id === historyId);
+      if (!entry) return res.status(404).json({ message: 'History entry not found' });
+      const editor = (req.user as { username?: string } | undefined)?.username ?? null;
+      const row = await storage.updateSeismicCalculation(id, { notes: entry.previousText, notesUpdatedBy: editor });
+      if (!row) return res.status(404).json({ message: 'Calculation not found' });
+      res.json(row);
+    } catch (e) {
+      console.error('POST /api/calculations/:id/note-history/revert failed:', e);
+      res.status(500).json({ message: 'Error reverting note' });
+    }
+  });
+
   app.delete('/api/calculations/:id', requireRole(['administrator']), async (req, res) => {
     try {
       const id = parseInt(req.params.id);

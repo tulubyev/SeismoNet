@@ -39,6 +39,8 @@ import {
   InsertDeveloper,
   SeismicCalculation,
   InsertSeismicCalculation,
+  CalculationNoteHistory,
+  InsertCalculationNoteHistory,
   ComparisonSet,
   InsertComparisonSet
 } from "@shared/schema";
@@ -181,6 +183,10 @@ export interface IStorage {
   createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
   updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined>;
   deleteSeismicCalculation(id: number): Promise<boolean>;
+
+  // Calculation note history
+  getCalculationNoteHistory(calculationId: number): Promise<CalculationNoteHistory[]>;
+  createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory>;
 
   // Saved comparison set operations
   getComparisonSets(): Promise<ComparisonSet[]>;
@@ -872,6 +878,14 @@ export class MemStorage implements IStorage {
     const existing = this.seismicCalculationsMap.get(id);
     if (!existing) return undefined;
     const notesChanged = data.notes !== undefined;
+    if (notesChanged) {
+      await this.createCalculationNoteHistory({
+        calculationId: id,
+        previousText: existing.notes ?? null,
+        editedBy: data.notesUpdatedBy ?? null,
+        editedAt: new Date(),
+      });
+    }
     const updated: SeismicCalculation = {
       ...existing,
       notes: notesChanged ? (data.notes ?? null) : existing.notes,
@@ -883,6 +897,22 @@ export class MemStorage implements IStorage {
   }
   async deleteSeismicCalculation(id: number): Promise<boolean> {
     return this.seismicCalculationsMap.delete(id);
+  }
+
+  // ─── Calculation note history ───────────────────────────────────────────────
+  private noteHistoryMap: Map<number, CalculationNoteHistory> = new Map();
+  private currentNoteHistoryId = 1;
+
+  async getCalculationNoteHistory(calculationId: number): Promise<CalculationNoteHistory[]> {
+    return Array.from(this.noteHistoryMap.values())
+      .filter(e => e.calculationId === calculationId)
+      .sort((a, b) => new Date(a.editedAt).getTime() - new Date(b.editedAt).getTime());
+  }
+
+  async createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory> {
+    const row: CalculationNoteHistory = { id: this.currentNoteHistoryId++, ...entry, editedAt: entry.editedAt ?? new Date() };
+    this.noteHistoryMap.set(row.id, row);
+    return row;
   }
 
   // ─── Comparison set operations ─────────────────────────────────────────────
@@ -1619,6 +1649,14 @@ export class DatabaseStorage implements IStorage {
   async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined> {
     const patch: Record<string, unknown> = {};
     if (data.notes !== undefined) {
+      const existing = await db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+      if (!existing) return undefined;
+      await this.createCalculationNoteHistory({
+        calculationId: id,
+        previousText: existing.notes ?? null,
+        editedBy: data.notesUpdatedBy ?? null,
+        editedAt: new Date(),
+      });
       patch.notes = data.notes ?? null;
       patch.notesUpdatedAt = new Date();
       patch.notesUpdatedBy = data.notesUpdatedBy ?? null;
@@ -1637,6 +1675,18 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.seismicCalculations.id, id))
       .returning({ id: schema.seismicCalculations.id });
     return res.length > 0;
+  }
+
+  // ─── Calculation note history ────────────────────────────────────────────────
+  async getCalculationNoteHistory(calculationId: number): Promise<CalculationNoteHistory[]> {
+    return db.query.calculationNoteHistory.findMany({
+      where: (t, { eq }) => eq(t.calculationId, calculationId),
+      orderBy: (t, { asc }) => [asc(t.editedAt)],
+    });
+  }
+  async createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory> {
+    const [row] = await db.insert(schema.calculationNoteHistory).values(entry).returning();
+    return row;
   }
 
   // ─── Comparison set operations ───────────────────────────────────────────────

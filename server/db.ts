@@ -23,7 +23,8 @@ const {
   seismogramRecords,
   calibrationSessions,
   calibrationAfc,
-  seismicCalculations
+  seismicCalculations,
+  calculationNoteHistory,
 } = schemaImport;
 
 export const schema = {
@@ -47,6 +48,7 @@ export const schema = {
   calibrationAfc,
   developers: schemaImport.developers,
   seismicCalculations,
+  calculationNoteHistory,
   comparisonSets: schemaImport.comparisonSets,
 };
 

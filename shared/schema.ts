@@ -419,6 +419,19 @@ export const seismicCalculations = pgTable("seismic_calculations", {
   notesUpdatedBy: text("notes_updated_by")
 });
 
+// ─── Edit history for calculation notes ──────────────────────────────────────
+export const calculationNoteHistory = pgTable("calculation_note_history", {
+  id: serial("id").primaryKey(),
+  calculationId: integer("calculation_id").notNull().references(() => seismicCalculations.id, { onDelete: 'cascade' }),
+  previousText: text("previous_text"),
+  editedBy: text("edited_by"),
+  editedAt: timestamp("edited_at").notNull().defaultNow(),
+});
+
+export const insertCalculationNoteHistorySchema = createInsertSchema(calculationNoteHistory).omit({ id: true });
+export type CalculationNoteHistory = typeof calculationNoteHistory.$inferSelect;
+export type InsertCalculationNoteHistory = z.infer<typeof insertCalculationNoteHistorySchema>;
+
 // ─── Saved comparison sets (named selections of seismic_calculations) ────────
 export const comparisonSets = pgTable("comparison_sets", {
   id: serial("id").primaryKey(),

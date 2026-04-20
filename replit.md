@@ -47,6 +47,12 @@ Preferred communication style: Simple, everyday language.
 - User profile management with organization details
 - Protected routes based on user roles
 
+### Calculation Note History
+- Each save to a calculation note creates a row in the `calculation_note_history` table (`calculation_id`, `previous_text`, `edited_by`, `edited_at`)
+- The NotesEditor component in Calculations.tsx has an "История" toggle that shows past versions with user and timestamp
+- Each history entry has a "Восстановить" (Revert) button to restore a prior version
+- API endpoints: `GET /api/calculations/:id/note-history`, `POST /api/calculations/:id/note-history/revert`
+
 ### Seismic Data Processing
 - Real-time station monitoring with WebSocket connections
 - Event detection algorithms (STA/LTA mentioned in specifications)

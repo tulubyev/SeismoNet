@@ -26,7 +26,7 @@ import {
   StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check,
 } from 'lucide-react';
 import type {
-  SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet,
+  SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet, CalculationNoteHistory,
 } from '@shared/schema';
 
 type CalcType = 'mtsm' | 'response_spectrum' | 'resonance';
@@ -668,12 +668,23 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
     at: calc.notesUpdatedAt ?? null,
     by: calc.notesUpdatedBy ?? null,
   });
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     setSavedNotes(calc.notes ?? '');
     setValue(calc.notes ?? '');
     setAudit({ at: calc.notesUpdatedAt ?? null, by: calc.notesUpdatedBy ?? null });
   }, [calc.id, calc.notes, calc.notesUpdatedAt, calc.notesUpdatedBy]);
+
+  const historyQuery = useQuery<CalculationNoteHistory[]>({
+    queryKey: ['/api/calculations', calc.id, 'note-history'],
+    queryFn: async () => {
+      const r = await fetch(`/api/calculations/${calc.id}/note-history`, { credentials: 'include' });
+      if (!r.ok) throw new Error('Failed to fetch history');
+      return r.json();
+    },
+    enabled: showHistory,
+  });
 
   const saveMut = useMutation({
     mutationFn: async (notes: string) => {
@@ -686,9 +697,27 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       setValue(next);
       setAudit({ at: row?.notesUpdatedAt ?? new Date(), by: row?.notesUpdatedBy ?? null });
       queryClient.invalidateQueries({ queryKey: ['/api/calculations', { limit: 500 }] });
+      queryClient.invalidateQueries({ queryKey: ['/api/calculations', calc.id, 'note-history'] });
       toast({ title: 'Заметка сохранена' });
     },
     onError: () => toast({ title: 'Не удалось сохранить заметку', variant: 'destructive' }),
+  });
+
+  const revertMut = useMutation({
+    mutationFn: async (historyId: number) => {
+      const r = await apiRequest('POST', `/api/calculations/${calc.id}/note-history/revert`, { historyId });
+      return r.json() as Promise<SeismicCalculation>;
+    },
+    onSuccess: (row) => {
+      const next = row?.notes ?? '';
+      setSavedNotes(next);
+      setValue(next);
+      setAudit({ at: row?.notesUpdatedAt ?? new Date(), by: row?.notesUpdatedBy ?? null });
+      queryClient.invalidateQueries({ queryKey: ['/api/calculations', { limit: 500 }] });
+      queryClient.invalidateQueries({ queryKey: ['/api/calculations', calc.id, 'note-history'] });
+      toast({ title: 'Заметка восстановлена' });
+    },
+    onError: () => toast({ title: 'Не удалось восстановить заметку', variant: 'destructive' }),
   });
 
   const dirty = (value ?? '') !== (savedNotes ?? '');
@@ -699,7 +728,52 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
         <StickyNote className="h-3.5 w-3.5" />
         Заметки инженера
         {savedNotes && !dirty && <span className="text-[10px] text-amber-600 font-normal">· сохранено</span>}
+        <button
+          type="button"
+          className="ml-auto flex items-center gap-1 text-[10px] font-normal text-amber-700 hover:text-amber-900 transition-colors"
+          onClick={() => setShowHistory(v => !v)}
+          data-testid={`btn-notes-history-toggle-${calc.id}`}
+        >
+          <History className="h-3 w-3" />
+          {showHistory ? 'Скрыть историю' : 'История'}
+        </button>
       </div>
+
+      {showHistory && (
+        <div className="border rounded bg-white p-2 space-y-1.5 max-h-48 overflow-y-auto" data-testid={`notes-history-panel-${calc.id}`}>
+          {historyQuery.isLoading && (
+            <div className="flex items-center gap-2 text-[10px] text-amber-700">
+              <Loader2 className="h-3 w-3 animate-spin" /> Загрузка…
+            </div>
+          )}
+          {historyQuery.isSuccess && historyQuery.data.length === 0 && (
+            <p className="text-[10px] text-muted-foreground italic">История изменений пуста</p>
+          )}
+          {historyQuery.isSuccess && historyQuery.data.map((entry) => (
+            <div key={entry.id} className="border rounded p-2 space-y-1 bg-amber-50/30">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-amber-800 font-medium">
+                  {entry.editedBy ? <>пользователь <strong>{entry.editedBy}</strong></> : 'неизвестный'}
+                  {' · '}{new Date(entry.editedAt).toLocaleString('ru-RU')}
+                </span>
+                <button
+                  type="button"
+                  className="text-[10px] text-blue-600 hover:underline disabled:opacity-50"
+                  disabled={revertMut.isPending}
+                  onClick={() => revertMut.mutate(entry.id)}
+                  data-testid={`btn-notes-revert-${calc.id}-${entry.id}`}
+                >
+                  Восстановить
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground whitespace-pre-wrap break-words">
+                {entry.previousText?.trim() || <em className="italic">пустая заметка</em>}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <Textarea
         value={value}
         onChange={e => setValue(e.target.value)}
