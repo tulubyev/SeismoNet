@@ -82,6 +82,50 @@ const StationList: FC<StationListProps> = ({ stations }) => {
     <>
       <div className="space-y-4">
 
+        {/* ── Network summary ───────────────────────────────────────────── */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-slate-700">Обзор сети</h2>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400">
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-slate-400 mb-1">Всего станций</div>
+                <div className="text-2xl font-semibold">{stations.length}</div>
+                <div className="text-xs text-slate-400 mt-1">Сеть г. Иркутск</div>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-slate-400 mb-1">Онлайн</div>
+                <div className="text-2xl font-semibold text-green-700">
+                  {stations.filter(s => s.status === 'online').length}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  {stations.length > 0
+                    ? ((stations.filter(s => s.status === 'online').length / stations.length) * 100).toFixed(0)
+                    : 0}% от сети
+                </div>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-slate-400 mb-1">Деградация</div>
+                <div className="text-2xl font-semibold text-amber-700">
+                  {stations.filter(s => s.status === 'degraded').length}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">Проблемы связи / питания</div>
+              </div>
+              <div className="bg-red-50 rounded-lg p-3">
+                <div className="text-xs font-medium text-slate-400 mb-1">Оффлайн</div>
+                <div className="text-2xl font-semibold text-red-700">
+                  {stations.filter(s => s.status === 'offline').length}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">Требует обслуживания</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ── Filter block ───────────────────────────────────────────────── */}
         <Card className="border-0 shadow-sm bg-white">
           <CardHeader className="pb-2 pt-4">
@@ -263,49 +307,6 @@ const StationList: FC<StationListProps> = ({ stations }) => {
           </CardContent>
         </Card>
 
-        {/* ── Network summary ───────────────────────────────────────────── */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-700">Обзор сети</h2>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400">
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-slate-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-slate-400 mb-1">Всего станций</div>
-                <div className="text-2xl font-semibold">{stations.length}</div>
-                <div className="text-xs text-slate-400 mt-1">Сеть г. Иркутск</div>
-              </div>
-              <div className="bg-green-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-slate-400 mb-1">Онлайн</div>
-                <div className="text-2xl font-semibold text-green-700">
-                  {stations.filter(s => s.status === 'online').length}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  {stations.length > 0
-                    ? ((stations.filter(s => s.status === 'online').length / stations.length) * 100).toFixed(0)
-                    : 0}% от сети
-                </div>
-              </div>
-              <div className="bg-amber-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-slate-400 mb-1">Деградация</div>
-                <div className="text-2xl font-semibold text-amber-700">
-                  {stations.filter(s => s.status === 'degraded').length}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">Проблемы связи / питания</div>
-              </div>
-              <div className="bg-red-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-slate-400 mb-1">Оффлайн</div>
-                <div className="text-2xl font-semibold text-red-700">
-                  {stations.filter(s => s.status === 'offline').length}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">Требует обслуживания</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <StationDetailModal
