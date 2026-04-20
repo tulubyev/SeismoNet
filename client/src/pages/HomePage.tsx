@@ -2,9 +2,9 @@ import { FC } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
-import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
+import type { SeismogramRecord } from '@shared/schema';
 import {
-  BarChart2, Building2, Radio, Map,
+  BarChart2, Map,
   ArrowRight, AlertTriangle, CheckCircle2,
   Settings as SettingsIcon, Globe,
 } from 'lucide-react';
@@ -29,9 +29,6 @@ const HomePage: FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'administrator';
 
-  const { data: objects = [] } = useQuery<InfrastructureObject[]>({
-    queryKey: ['/api/infrastructure-objects'],
-  });
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
     queryKey: ['/api/seismograms'],
   });
@@ -39,28 +36,15 @@ const HomePage: FC = () => {
     queryKey: ['/api/alerts'],
   });
 
-  const unreadAlerts    = alerts.filter(a => !a.isRead).length;
-  const onlineStations  = stations.filter(s => s.status === 'online').length;
-  const monitoredObjs   = objects.filter(o => o.isMonitored).length;
-  const last24hEvents   = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
-  const offlineStations = stations.filter(s => s.status === 'offline').length;
+  const unreadAlerts   = alerts.filter(a => !a.isRead).length;
+  const onlineStations = stations.filter(s => s.status === 'online').length;
+  const last24hEvents  = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
 
   const blocks: BlockDef[] = [
     {
-      href:       '/infrastructure',
-      title:      'Объекты инфраструктуры',
-      subtitle:   'Здания, мосты, ГЭС, 3D-схемы, датчики',
-      icon:       Building2,
-      gradient:   'from-emerald-500 to-emerald-700',
-      shadow:     'shadow-emerald-900/40',
-      badge:      monitoredObjs,
-      badgeLabel: 'объектов под наблюдением',
-      status:     monitoredObjs > 0 ? 'ok' : 'warn',
-    },
-    {
-      href:       '/monitoring',
+      href:       '/monitoring-hub',
       title:      'Карта и мониторинг',
-      subtitle:   'Интерактивная карта событий и состояние сети',
+      subtitle:   'Карта событий, объекты инфраструктуры, сейсмические станции',
       icon:       Map,
       gradient:   'from-teal-500 to-teal-700',
       shadow:     'shadow-teal-900/40',
@@ -78,17 +62,6 @@ const HomePage: FC = () => {
       badge:      seismograms.length,
       badgeLabel: 'записей в архиве',
       status:     'ok',
-    },
-    {
-      href:       '/stations',
-      title:      'Станции сети',
-      subtitle:   'Управление, параметры, батарея, качество сигнала',
-      icon:       Radio,
-      gradient:   'from-cyan-600 to-cyan-800',
-      shadow:     'shadow-cyan-900/40',
-      badge:      offlineStations > 0 ? offlineStations : stations.length,
-      badgeLabel: offlineStations > 0 ? 'станций офлайн' : 'станций в сети',
-      status:     offlineStations > 0 ? 'warn' : 'ok',
     },
     {
       href:       '/system-management',
@@ -159,10 +132,10 @@ const HomePage: FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
-              { label: 'Датчиков онлайн',  value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
-              { label: 'Под наблюдением',  value: monitoredObjs,                           color: 'text-blue-400'    },
-              { label: 'События 24 ч',     value: last24hEvents,                            color: 'text-orange-400'  },
-              { label: 'Записей архива',   value: seismograms.length,                       color: 'text-violet-400'  },
+              { label: 'Датчиков онлайн', value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
+              { label: 'События 24 ч',    value: last24hEvents,                           color: 'text-orange-400'  },
+              { label: 'Записей архива',  value: seismograms.length,                      color: 'text-violet-400'  },
+              { label: 'Оповещений',      value: unreadAlerts,                            color: unreadAlerts > 0 ? 'text-red-400' : 'text-slate-400' },
             ].map(s => (
               <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
                 <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>

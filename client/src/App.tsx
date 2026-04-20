@@ -27,6 +27,7 @@ import SystemManagement from "@/pages/SystemManagement";
 import Calculations from "@/pages/Calculations";
 import SeismoNetProject from "@/pages/SeismoNetProject";
 import DataAnalysis from "@/pages/DataAnalysis";
+import MonitoringHub from "@/pages/MonitoringHub";
 import AboutProject from "@/pages/AboutProject";
 import Partners from "@/pages/Partners";
 import AboutEarthquakes from "@/pages/AboutEarthquakes";
@@ -62,7 +63,8 @@ function Router() {
         requiredRole="administrator" />
       <ProtectedRoute path="/system-management"   component={withLayout(SystemManagement)}   />
       <ProtectedRoute path="/seismonet-project"  component={withLayout(SeismoNetProject)}   />
-      <ProtectedRoute path="/data-analysis"      component={withLayout(DataAnalysis)}      />
+      <ProtectedRoute path="/monitoring-hub"     component={withLayout(MonitoringHub)}     />
+      <ProtectedRoute path="/data-analysis"     component={withLayout(DataAnalysis)}      />
       <ProtectedRoute path="/about-project"     component={withLayout(AboutProject)}      />
       <ProtectedRoute path="/partners"          component={withLayout(Partners)}          />
       <ProtectedRoute path="/about-earthquakes" component={withLayout(AboutEarthquakes)}  />
