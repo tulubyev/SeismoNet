@@ -1329,6 +1329,82 @@ const ResponseTab: FC<RespTabProps> = ({
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
+  const peakIdx = useMemo(() => {
+    if (!respResult) return -1;
+    return respResult.reduce((bi, p, i) => p.Sa > respResult[bi].Sa ? i : bi, 0);
+  }, [respResult]);
+
+  const COMP_META: Record<string, { label: string; color: string }> = {
+    Z:  { label: 'Z',  color: '#94a3b8' },
+    NS: { label: 'NS', color: '#65a30d' },
+    EW: { label: 'EW', color: '#d97706' },
+    H1: { label: 'H1', color: '#65a30d' },
+    H2: { label: 'H2', color: '#d97706' },
+  };
+
+  const dominantComp = useMemo(() => {
+    if (peakIdx < 0 || !componentSpectra) return null;
+    const entries: { key: string; sa: number }[] = [];
+    if (componentSpectra.Z)  entries.push({ key: 'Z',  sa: componentSpectra.Z[peakIdx]?.Sa  ?? 0 });
+    if (componentSpectra.NS) entries.push({ key: 'NS', sa: componentSpectra.NS[peakIdx]?.Sa ?? 0 });
+    if (componentSpectra.EW) entries.push({ key: 'EW', sa: componentSpectra.EW[peakIdx]?.Sa ?? 0 });
+    if (componentSpectra.H1) entries.push({ key: 'H1', sa: componentSpectra.H1[peakIdx]?.Sa ?? 0 });
+    if (componentSpectra.H2) entries.push({ key: 'H2', sa: componentSpectra.H2[peakIdx]?.Sa ?? 0 });
+    if (entries.length === 0) return null;
+    return entries.reduce((best, c) => c.sa > best.sa ? c : best);
+  }, [peakIdx, componentSpectra]);
+
+  const COMPONENT_KEYS = new Set(['Sa_Z', 'Sa_NS', 'Sa_EW', 'Sa_H1', 'Sa_H2']);
+  const AGGREGATE_KEYS = new Set(['Sa', 'Sa_design']);
+
+  const CustomRespTooltip = useCallback(({ active, payload, label }: {
+    active?: boolean; label?: unknown;
+    payload?: { name: string; value: number; color: string; dataKey: string }[];
+  }) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const validRows = payload.filter(p => p.value != null && isFinite(p.value));
+    const compRows = validRows
+      .filter(p => COMPONENT_KEYS.has(p.dataKey))
+      .sort((a, b) => b.value - a.value);
+    const aggRows = validRows.filter(p => AGGREGATE_KEYS.has(p.dataKey));
+    const hasComp = compRows.length > 0;
+    return (
+      <div className="bg-white border border-slate-200 rounded shadow-lg px-3 py-2 text-xs min-w-[180px]">
+        <div className="font-medium text-slate-600 border-b pb-1 mb-1.5">T = {Number(label).toFixed(3)} с</div>
+        {hasComp && (
+          <>
+            <div className="text-[10px] text-slate-400 mb-0.5 uppercase tracking-wide">Компоненты (↓ по убыванию)</div>
+            {compRows.map((item, i) => (
+              <div key={item.dataKey} className="flex justify-between gap-4 items-center py-0.5">
+                <span className="flex items-center gap-1" style={{ color: item.color }}>
+                  {i === 0 && <span className="text-[10px] font-bold">▲</span>}
+                  <span className={i === 0 ? 'font-bold' : ''}>{item.name}</span>
+                </span>
+                <span className="font-mono text-slate-700">{item.value.toFixed(4)}</span>
+              </div>
+            ))}
+          </>
+        )}
+        {aggRows.length > 0 && (
+          <div className={`space-y-0.5 ${hasComp ? 'mt-1.5 pt-1.5 border-t border-slate-100' : ''}`}>
+            {aggRows.map(item => (
+              <div key={item.dataKey} className="flex justify-between gap-4 items-center py-0.5">
+                <span style={{ color: item.color }}>{item.name}</span>
+                <span className="font-mono text-slate-700">{item.value.toFixed(4)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!hasComp && aggRows.length === 0 && validRows.map(item => (
+          <div key={item.dataKey} className="flex justify-between gap-4 items-center py-0.5">
+            <span style={{ color: item.color }}>{item.name}</span>
+            <span className="font-mono text-slate-700">{item.value.toFixed(4)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }, []);
+
   // Нормативный проектный спектр β(T)·A0·g·K_грунт по СП 14.13330.2018 §5,
   // совмещённый с сеткой периодов вычисленного Sa(T) для прямого сравнения.
   const chartData = useMemo(() => {
@@ -1546,11 +1622,20 @@ const ResponseTab: FC<RespTabProps> = ({
       {respResult && (
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm text-slate-600">
+            <CardTitle className="text-sm text-slate-600 flex flex-wrap items-center gap-2">
               Спектр отклика конструкций · SDOF · Newmark-β (β=¼, γ=½)
               {peakSa && peakSa.T > 0 && (
-                <span className="ml-2 text-purple-600 font-normal text-xs">
+                <span className="text-purple-600 font-normal text-xs">
                   Пик Sa @ T = {peakSa.T.toFixed(2)} с · Sa = {peakSa.Sa.toFixed(3)} м/с²
+                </span>
+              )}
+              {dominantComp && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold text-white"
+                  style={{ backgroundColor: COMP_META[dominantComp.key]?.color ?? '#64748b' }}
+                  title={`Компонента ${dominantComp.key} доминирует в пике спектра (Sa = ${dominantComp.sa.toFixed(3)} м/с²)`}
+                >
+                  ▲ {COMP_META[dominantComp.key]?.label ?? dominantComp.key} @ T={peakSa?.T.toFixed(2)}с
                 </span>
               )}
             </CardTitle>
@@ -1568,10 +1653,7 @@ const ResponseTab: FC<RespTabProps> = ({
                   label={{ value: 'Sa (м/с²)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
                   tick={{ fontSize: 9 }} tickFormatter={v => v.toFixed(2)}
                 />
-                <Tooltip
-                  formatter={(v: number, name: string) => [Number(v).toFixed(4), name]}
-                  labelFormatter={v => `T=${Number(v).toFixed(3)} с`}
-                />
+                <Tooltip content={<CustomRespTooltip />} />
                 <Legend
                   wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
                   onClick={(data) => {
