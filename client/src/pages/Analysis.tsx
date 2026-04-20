@@ -1409,9 +1409,9 @@ const ResponseTab: FC<RespTabProps> = ({
   }, [peakIdx, componentSpectra]);
 
   const h1h2ScatterStats = useMemo(() => {
-    if (!componentSpectra?.H1 || !componentSpectra?.H2) return null;
-    const H1 = componentSpectra.H1;
-    const H2 = componentSpectra.H2;
+    const H1 = componentSpectra?.H1 ?? (componentSpectra?.NS && componentSpectra?.EW ? componentSpectra.NS : null);
+    const H2 = componentSpectra?.H2 ?? (componentSpectra?.NS && componentSpectra?.EW ? componentSpectra.EW : null);
+    if (!H1 || !H2) return null;
     const ratios: number[] = [];
     for (let i = 0; i < H1.length; i++) {
       const h1 = H1[i]?.Sa ?? 0;
@@ -1440,17 +1440,22 @@ const ResponseTab: FC<RespTabProps> = ({
     return respResult.map((p, i) => {
       const h1 = componentSpectra?.H1?.[i]?.Sa;
       const h2 = componentSpectra?.H2?.[i]?.Sa;
-      const h1h2Ratio = (h1 != null && h2 != null && Math.min(h1, h2) > 0)
-        ? Math.max(h1, h2) / Math.min(h1, h2)
+      const ns = componentSpectra?.NS?.[i]?.Sa;
+      const ew = componentSpectra?.EW?.[i]?.Sa;
+      // Use H1/H2 pair when available (catalog/sp14 GMH), fall back to NS/EW pair (seismogram GMH/AVG3)
+      const pairA = h1 ?? (ns != null && ew != null ? ns : undefined);
+      const pairB = h2 ?? (ns != null && ew != null ? ew : undefined);
+      const h1h2Ratio = (pairA != null && pairB != null && Math.min(pairA, pairB) > 0)
+        ? Math.max(pairA, pairB) / Math.min(pairA, pairB)
         : undefined;
-      const ribbonLow  = (h1 != null && h2 != null) ? Math.min(h1, h2) : undefined;
-      const ribbonHigh = (h1 != null && h2 != null) ? Math.max(h1, h2) : undefined;
+      const ribbonLow  = (pairA != null && pairB != null) ? Math.min(pairA, pairB) : undefined;
+      const ribbonHigh = (pairA != null && pairB != null) ? Math.max(pairA, pairB) : undefined;
       return {
         ...p,
         Sa_design: design[i].Sa_design,
         Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
-        Sa_NS: componentSpectra?.NS?.[i]?.Sa,
-        Sa_EW: componentSpectra?.EW?.[i]?.Sa,
+        Sa_NS: ns,
+        Sa_EW: ew,
         Sa_H1: h1,
         Sa_H2: h2,
         H1_H2_ratio: h1h2Ratio,
@@ -1886,7 +1891,7 @@ const ResponseTab: FC<RespTabProps> = ({
                     </linearGradient>
                   </defs>
                 )}
-                {componentSpectra?.H1 && componentSpectra?.H2 && (
+                {((componentSpectra?.H1 && componentSpectra?.H2) || (componentSpectra?.NS && componentSpectra?.EW)) && (
                   <Area
                     type="monotone"
                     dataKey="Sa_H1H2_ribbon"
@@ -1894,7 +1899,10 @@ const ResponseTab: FC<RespTabProps> = ({
                     fill={h1h2GradientStops ? 'url(#h1h2RibbonGradient)' : '#6366f1'}
                     fillOpacity={h1h2GradientStops ? 1 : 0.13}
                     legendType="none"
-                    hide={hiddenSeries.has('Sa_H1') || hiddenSeries.has('Sa_H2')}
+                    hide={
+                      hiddenSeries.has('Sa_H1') || hiddenSeries.has('Sa_H2') ||
+                      hiddenSeries.has('Sa_NS') || hiddenSeries.has('Sa_EW')
+                    }
                     isAnimationActive={false}
                     dot={false}
                     activeDot={false}
