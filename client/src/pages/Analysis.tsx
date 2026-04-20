@@ -1832,6 +1832,10 @@ const ResponseTab: FC<RespTabProps> = ({
                   <ReferenceLine x={peakSa.T} stroke="#7c3aed" strokeDasharray="4 2"
                     label={{ value: `T=${peakSa.T.toFixed(2)}с`, fontSize: 9, fill: '#7c3aed', position: 'top' }} />
                 )}
+                {peakSa && peakSa.T > 0 && dominantComp && (
+                  <ReferenceLine x={peakSa.T} stroke="none"
+                    label={{ value: `${COMP_META[dominantComp.key]?.label ?? dominantComp.key} @ пик`, fontSize: 9, fill: COMP_META[dominantComp.key]?.color ?? '#64748b', position: 'insideTop' }} />
+                )}
                 {componentSpectra?.Z && (
                   <Line type="monotone" dataKey="Sa_Z" stroke="#94a3b8" strokeWidth={1} dot={false}
                     hide={hiddenSeries.has('Sa_Z')} name="Sa Z (вертик.)" isAnimationActive={false} />
