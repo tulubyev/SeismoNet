@@ -15,6 +15,7 @@ interface SubLink {
   href: string;
   label: string;
   icon: FC<{ className?: string }>;
+  gradient: string;
 }
 
 interface BlockDef {
@@ -86,8 +87,8 @@ const HomePage: FC = () => {
       badgeLabel: 'записей в архиве',
       status:     'ok',
       subLinks: [
-        { href: '/seismograms', label: 'Сейсмограммы',      icon: FileText  },
-        { href: '/analysis',    label: 'Спектральный анализ', icon: BarChart2 },
+        { href: '/seismograms', label: 'Сейсмограммы',       icon: FileText,  gradient: 'from-violet-500 to-violet-700' },
+        { href: '/analysis',    label: 'Спектральный анализ', icon: BarChart2, gradient: 'from-rose-500   to-rose-700'   },
       ],
     },
     {
@@ -122,11 +123,11 @@ const HomePage: FC = () => {
       status:     null,
       colSpan:    'lg:col-span-3',
       subLinks: [
-        { href: '/building-norms',     label: 'Нормативная база',            icon: BookOpen  },
-        { href: '/partners',           label: 'Партнёры',                    icon: Users2    },
-        { href: '/about-earthquakes',  label: 'О землетрясениях',            icon: Waves     },
-        { href: '/seismic-basics',     label: 'Основы наблюдений',           icon: Compass   },
-        { href: '/interesting',        label: 'Это интересно',               icon: Lightbulb },
+        { href: '/building-norms',    label: 'Нормативная база',    icon: BookOpen,  gradient: 'from-indigo-500 to-indigo-700' },
+        { href: '/partners',          label: 'Партнёры',            icon: Users2,    gradient: 'from-sky-500    to-sky-700'    },
+        { href: '/about-earthquakes', label: 'О землетрясениях',   icon: Waves,     gradient: 'from-orange-500 to-orange-700' },
+        { href: '/seismic-basics',    label: 'Основы наблюдений',  icon: Compass,   gradient: 'from-lime-500   to-lime-700'   },
+        { href: '/interesting',       label: 'Это интересно',      icon: Lightbulb, gradient: 'from-amber-500  to-amber-700'  },
       ],
     },
   ];
@@ -172,27 +173,29 @@ const HomePage: FC = () => {
         )}
 
         {isCompound && (
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className={`grid gap-3 mt-2 ${block.subLinks!.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'}`}>
             {block.subLinks!.map(link => {
               const LinkIcon = link.icon;
               return (
                 <button
                   key={link.href}
                   onClick={e => { e.stopPropagation(); navigate(link.href); }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25
-                    text-white text-sm font-medium transition-all hover:scale-[1.03] cursor-pointer border border-white/10"
+                  className={`group/sub relative flex flex-col items-start gap-2 p-4 rounded-xl
+                    bg-gradient-to-br ${link.gradient} shadow-lg
+                    border border-white/10 hover:border-white/25
+                    text-left transition-all duration-150 hover:scale-[1.04] hover:shadow-xl cursor-pointer overflow-hidden`}
                 >
-                  <LinkIcon className="h-4 w-4 text-white/80" />
-                  {link.label}
+                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
+                    <LinkIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-white text-sm font-bold leading-tight">
+                    {link.label}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-white/40 group-hover/sub:text-white/90 group-hover/sub:translate-x-0.5 transition-all absolute bottom-3 right-3" />
+                  <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-5 -mb-5" />
                 </button>
               );
             })}
-            {block.badge !== null && block.badge !== undefined && (
-              <span className="ml-auto flex items-baseline gap-1.5 self-center">
-                <span className="text-2xl font-bold text-white">{block.badge}</span>
-                <span className="text-white/60 text-xs">{block.badgeLabel}</span>
-              </span>
-            )}
           </div>
         )}
 
