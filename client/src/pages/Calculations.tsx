@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -1156,6 +1156,7 @@ const MtsmCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
 }> = ({ calcs, labelFor }) => {
+  const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
     label: labelFor(c),
@@ -1166,11 +1167,20 @@ const MtsmCompareChart: FC<{
   if (series.every(s => s.points.length === 0)) {
     return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
   }
+  const baseStat = stats[0];
   return (
     <div className="space-y-2">
     <CompareStatsBar stats={stats} xLabel="f₀" xUnit="Гц" yLabel="A" xFractionDigits={2} />
+    <div className="flex justify-end">
+      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
+        data-testid="toggle-annotations-mtsm">
+        <Checkbox checked={showAnnotations} onCheckedChange={v => setShowAnnotations(!!v)}
+          className="h-3.5 w-3.5" id="annot-mtsm" />
+        <span>Аннотации пиков</span>
+      </label>
+    </div>
     <ResponsiveContainer width="100%" height={380}>
-      <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+      <LineChart margin={{ top: 16, right: 20, left: 0, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
         <XAxis dataKey="freq" type="number" scale="log" domain={[0.1, 25]} allowDuplicatedCategory={false}
           label={{ value: 'Частота (Гц)', position: 'insideBottom', offset: -5, fontSize: 10 }}
@@ -1181,6 +1191,25 @@ const MtsmCompareChart: FC<{
           labelFormatter={v => `f=${Number(v).toFixed(3)} Гц`} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <ReferenceLine y={1} stroke="#94a3b8" strokeDasharray="3 3" />
+        {showAnnotations && baseStat && stats.slice(1).map((s, idx) => {
+          if (!s) return null;
+          const i = idx + 1;
+          const x1 = Math.min(baseStat.peakX, s.peakX);
+          const x2 = Math.max(baseStat.peakX, s.peakX);
+          if (x1 === x2) return null;
+          return (
+            <ReferenceArea key={`shade-${i}`} x1={x1} x2={x2}
+              fill={COMPARE_COLORS[i]} fillOpacity={0.07} stroke="none" />
+          );
+        })}
+        {showAnnotations && stats.map((s, i) => {
+          if (!s) return null;
+          return (
+            <ReferenceLine key={`peak-${i}`} x={s.peakX} stroke={COMPARE_COLORS[i]}
+              strokeDasharray="4 3" strokeWidth={1.5}
+              label={{ value: `f₀=${s.peakX.toFixed(2)}`, position: 'top', fontSize: 9, fill: COMPARE_COLORS[i] }} />
+          );
+        })}
         {series.map((s, i) => (
           <Line key={s.id} data={s.points} type="monotone" dataKey="amp"
             name={s.label}
@@ -1196,6 +1225,7 @@ const RespCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
 }> = ({ calcs, labelFor }) => {
+  const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
     label: labelFor(c),
@@ -1205,11 +1235,20 @@ const RespCompareChart: FC<{
   if (series.every(s => s.points.length === 0)) {
     return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
   }
+  const baseStat = stats[0];
   return (
     <div className="space-y-2">
     <CompareStatsBar stats={stats} xLabel="T_peak" xUnit="с" yLabel="Sa" xFractionDigits={3} />
+    <div className="flex justify-end">
+      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
+        data-testid="toggle-annotations-resp">
+        <Checkbox checked={showAnnotations} onCheckedChange={v => setShowAnnotations(!!v)}
+          className="h-3.5 w-3.5" id="annot-resp" />
+        <span>Аннотации пиков</span>
+      </label>
+    </div>
     <ResponsiveContainer width="100%" height={380}>
-      <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+      <LineChart margin={{ top: 16, right: 20, left: 0, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
         <XAxis dataKey="T" type="number" scale="log" domain={[0.05, 3]} allowDuplicatedCategory={false}
           label={{ value: 'Период T (с)', position: 'insideBottom', offset: -5, fontSize: 10 }}
@@ -1219,6 +1258,25 @@ const RespCompareChart: FC<{
         <Tooltip formatter={(v: number) => v.toFixed(4)}
           labelFormatter={v => `T=${Number(v).toFixed(3)} с`} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
+        {showAnnotations && baseStat && stats.slice(1).map((s, idx) => {
+          if (!s) return null;
+          const i = idx + 1;
+          const x1 = Math.min(baseStat.peakX, s.peakX);
+          const x2 = Math.max(baseStat.peakX, s.peakX);
+          if (x1 === x2) return null;
+          return (
+            <ReferenceArea key={`shade-${i}`} x1={x1} x2={x2}
+              fill={COMPARE_COLORS[i]} fillOpacity={0.07} stroke="none" />
+          );
+        })}
+        {showAnnotations && stats.map((s, i) => {
+          if (!s) return null;
+          return (
+            <ReferenceLine key={`peak-${i}`} x={s.peakX} stroke={COMPARE_COLORS[i]}
+              strokeDasharray="4 3" strokeWidth={1.5}
+              label={{ value: `T=${s.peakX.toFixed(3)}с`, position: 'top', fontSize: 9, fill: COMPARE_COLORS[i] }} />
+          );
+        })}
         {series.map((s, i) => (
           <Line key={s.id} data={s.points} type="monotone" dataKey="Sa"
             name={s.label}
