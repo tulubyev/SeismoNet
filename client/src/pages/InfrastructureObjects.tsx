@@ -893,8 +893,8 @@ const InfrastructureObjects: FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Object list */}
-              <div className="space-y-2">
+              {/* Object list — fixed height, scrollable */}
+              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                 {isLoading ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="py-12 text-center text-slate-400 text-sm">Загрузка...</CardContent>
