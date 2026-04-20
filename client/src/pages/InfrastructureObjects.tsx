@@ -22,6 +22,7 @@ import DeveloperObjectFilter, {
   DEVELOPER_FILTER_DEFAULT,
 } from '@/components/DeveloperObjectFilter';
 import { apiRequest } from '@/lib/queryClient';
+import { SP14_K1_TABLE5, SP14_K2_TABLE6 } from '@/data/sp14-accelerograms';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
 
@@ -113,6 +114,26 @@ const installationLocationLabel = (loc: string | null) => {
   return loc ? (labels[loc] ?? loc) : '—';
 };
 
+// ─── K₁ / K₂ labels ──────────────────────────────────────────────────────────
+
+const K1_OPTIONS: { value: keyof typeof SP14_K1_TABLE5; label: string }[] = [
+  { value: 'elastic',     label: `Упругий (K₁ = ${SP14_K1_TABLE5.elastic})` },
+  { value: 'critical',    label: `Критически важный (K₁ = ${SP14_K1_TABLE5.critical})` },
+  { value: 'normal',      label: `Нормальный (K₁ = ${SP14_K1_TABLE5.normal})` },
+  { value: 'residential', label: `Жилой (K₁ = ${SP14_K1_TABLE5.residential})` },
+];
+
+const K2_OPTIONS: { value: keyof typeof SP14_K2_TABLE6; label: string }[] = [
+  { value: 'frame_no_braces',   label: `Каркас без связей (K₂ = ${SP14_K2_TABLE6.frame_no_braces})` },
+  { value: 'frame_braced',      label: `Каркас со связями (K₂ = ${SP14_K2_TABLE6.frame_braced})` },
+  { value: 'wall_monolithic',   label: `Стеновой / монолит (K₂ = ${SP14_K2_TABLE6.wall_monolithic})` },
+  { value: 'timber',            label: `Деревянный (K₂ = ${SP14_K2_TABLE6.timber})` },
+  { value: 'masonry_protected', label: `Кирпич с защитой (K₂ = ${SP14_K2_TABLE6.masonry_protected})` },
+];
+
+const k1Label = (key: string | null) => K1_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
+const k2Label = (key: string | null) => K2_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
+
 // ─── Blank sensor form ─────────────────────────────────────────────────────────
 
 const BLANK_SENSOR = {
@@ -147,6 +168,11 @@ const SENSOR_TYPE_OPTS = [
 const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[] }> = ({ obj, sensors, categories }) => {
   const cond    = conditionInfo(obj.technicalCondition);
   const queryClient = useQueryClient();
+
+  // K₁/K₂ edit state
+  const [showK1K2Edit, setShowK1K2Edit] = useState(false);
+  const [editK1, setEditK1] = useState(obj.k1Key ?? 'elastic');
+  const [editK2, setEditK2] = useState(obj.k2Key ?? 'wall_monolithic');
 
   // Sensor form state
   const [showSensorForm, setShowSensorForm] = useState(false);
@@ -228,6 +254,12 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
     updateMutation2.mutate({ floors: params.floors, structuralSystem: params.structuralSystem });
   };
 
+  const handleSaveK1K2 = () => {
+    updateMutation2.mutate({ k1Key: editK1, k2Key: editK2 }, {
+      onSuccess: () => setShowK1K2Edit(false),
+    });
+  };
+
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-2">
@@ -306,6 +338,87 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                   </Badge>
                 </div>
               </div>
+            </div>
+
+            {/* K₁/K₂ section */}
+            <div className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold">
+                  Коэфф. нагрузки (СП14)
+                </p>
+                <button
+                  className="text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5"
+                  onClick={() => {
+                    setEditK1(obj.k1Key ?? 'elastic');
+                    setEditK2(obj.k2Key ?? 'wall_monolithic');
+                    setShowK1K2Edit(v => !v);
+                  }}
+                >
+                  <Pencil className="h-2.5 w-2.5" />
+                  {showK1K2Edit ? 'Отмена' : 'Изменить'}
+                </button>
+              </div>
+
+              {!showK1K2Edit ? (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div>
+                    <p className="text-[10px] text-slate-400">K₁ (уровень отв.)</p>
+                    <p className="text-xs font-medium text-slate-700 mt-0.5">{k1Label(obj.k1Key)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">K₂ (конструктив)</p>
+                    <p className="text-xs font-medium text-slate-700 mt-0.5">{k2Label(obj.k2Key)}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-slate-500">K₁ — Уровень ответственности (Табл. 5)</Label>
+                    <Select value={editK1} onValueChange={setEditK1}>
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {K1_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-slate-500">K₂ — Конструктивное решение (Табл. 6)</Label>
+                    <Select value={editK2} onValueChange={setEditK2}>
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {K2_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setShowK1K2Edit(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                      onClick={handleSaveK1K2}
+                      disabled={updateMutation2.isPending}
+                    >
+                      <Save className="h-3 w-3" />
+                      Сохранить
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {obj.description && (
@@ -635,6 +748,10 @@ const InfrastructureObjects: FC = () => {
     enabled: !!selectedObj
   });
 
+  const currentSelectedObj = selectedObj
+    ? (objects.find(o => o.id === selectedObj.id) ?? selectedObj)
+    : null;
+
   const filtered = objects.filter(obj => {
     const q = search.toLowerCase();
     const matchSearch = q === '' ||
@@ -862,9 +979,9 @@ const InfrastructureObjects: FC = () => {
 
             {/* Detail panel */}
             <div className="lg:col-span-1">
-              {selectedObj ? (
+              {currentSelectedObj ? (
                 <div className="sticky top-4">
-                  <DetailPanel obj={selectedObj} sensors={sensorInstallations} categories={categories} />
+                  <DetailPanel obj={currentSelectedObj} sensors={sensorInstallations} categories={categories} />
                 </div>
               ) : (
                 <Card className="border-0 shadow-sm bg-slate-50 border-dashed border border-slate-200">
