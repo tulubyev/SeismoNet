@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
@@ -200,12 +200,12 @@ const Calculations: FC = () => {
     if (valid.length >= 2) {
       const firstType = calcMap.get(valid[0])?.calcType;
       const sameType = valid.every(id => calcMap.get(id)?.calcType === firstType);
-      if (sameType && (firstType === 'mtsm' || firstType === 'response_spectrum')) {
+      if (sameType && (firstType === 'mtsm' || firstType === 'response_spectrum' || firstType === 'resonance')) {
         setSelected(valid);
         setCompareOpen(true);
       } else {
         toast({ title: 'Не удалось открыть сравнение из ссылки',
-          description: 'Расчёты должны быть одного типа (МТСМ или спектр отклика).',
+          description: 'Расчёты должны быть одного типа (МТСМ, спектр отклика или резонанс).',
           variant: 'destructive' });
       }
     } else if (raw) {
@@ -253,7 +253,7 @@ const Calculations: FC = () => {
   };
 
   const canCompare = selectedCalcs.length >= 2 &&
-    (selectionType === 'mtsm' || selectionType === 'response_spectrum');
+    (selectionType === 'mtsm' || selectionType === 'response_spectrum' || selectionType === 'resonance');
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest('DELETE', `/api/calculations/${id}`),
@@ -418,9 +418,6 @@ const Calculations: FC = () => {
             )}
             {selectedCalcs.length === 1 && (
               <span className="ml-2 text-indigo-600">— выберите ещё минимум один расчёт того же типа</span>
-            )}
-            {selectedCalcs.length >= 2 && selectionType === 'resonance' && (
-              <span className="ml-2 text-amber-700">— оверлей графика недоступен для резонанса</span>
             )}
           </div>
           <Button size="sm" variant="default" className="h-7 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700"
@@ -1170,6 +1167,12 @@ const CompareDialog: FC<CompareDialogProps> = ({
     if (calcType === 'response_spectrum') {
       return calcs.some(c => (((c.results ?? {}) as RespResults).points ?? []).length > 0);
     }
+    if (calcType === 'resonance') {
+      return calcs.some(c => {
+        const inp = (c.inputParams ?? {}) as Record<string, unknown>;
+        return inp.T_building != null || inp.T_hv != null || inp.T_mtsm != null;
+      });
+    }
     return false;
   }, [calcs, calcType]);
 
@@ -1285,12 +1288,15 @@ const CompareDialog: FC<CompareDialogProps> = ({
             Сравнение расчётов{meta ? ` · ${meta.label}` : ''}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Наложение {calcs.length} сохранённых кривых на один график
+            {calcType === 'resonance'
+              ? `Сравнение периодов резонанса · ${calcs.length} расчёта`
+              : `Наложение ${calcs.length} сохранённых кривых на один график`}
           </DialogDescription>
         </DialogHeader>
 
         {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
         {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
+        {calcType === 'resonance' && <ResonanceCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
 
         <div className="border rounded p-3 bg-slate-50 space-y-2">
           <div className="text-xs font-semibold text-slate-600">Выбранные расчёты</div>
@@ -1496,6 +1502,81 @@ const RespCompareChart: FC<{
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
+  );
+};
+
+const ResonanceCompareChart: FC<{
+  calcs: SeismicCalculation[];
+  labelFor: (c: SeismicCalculation) => string;
+  containerRef?: RefObject<HTMLDivElement | null>;
+}> = ({ calcs, labelFor, containerRef }) => {
+  const PERIOD_KEYS: { key: 'T_building' | 'T_hv' | 'T_mtsm'; label: string }[] = [
+    { key: 'T_building', label: 'T зд.' },
+    { key: 'T_hv',       label: 'T H/V' },
+    { key: 'T_mtsm',     label: 'T МТСМ' },
+  ];
+
+  const chartData = PERIOD_KEYS.map(({ key, label }) => {
+    const row: Record<string, string | number> = { name: label };
+    calcs.forEach(c => {
+      const inp = (c.inputParams ?? {}) as Record<string, number | undefined>;
+      const v = inp[key];
+      if (v != null) row[`calc_${c.id}`] = v;
+    });
+    return row;
+  });
+
+  const RISK_LABEL: Record<string, string> = {
+    red: 'Высокий риск',
+    yellow: 'Умеренный риск',
+    green: 'Низкий риск',
+  };
+
+  return (
+    <div className="space-y-3" ref={containerRef}>
+      <div className="text-xs text-slate-500 text-center">Сравнение периодов резонанса (с)</div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 16, right: 20, left: 0, bottom: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+          <YAxis
+            label={{ value: 'Период T (с)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
+            tick={{ fontSize: 9 }}
+            tickFormatter={v => v.toFixed(2)}
+          />
+          <Tooltip formatter={(v: number) => [`${v.toFixed(2)} с`, 'T']} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {calcs.map((c, i) => (
+            <Bar key={c.id} dataKey={`calc_${c.id}`} name={labelFor(c)}
+              fill={COMPARE_COLORS[i]} opacity={0.85} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        {calcs.map((c, i) => {
+          const r = (c.results ?? {}) as ResoResults;
+          const inp = (c.inputParams ?? {}) as Record<string, number | undefined>;
+          return (
+            <div key={c.id} className="border rounded p-2.5 bg-slate-50 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold" style={{ color: COMPARE_COLORS[i] }}>
+                <span className="inline-block w-2.5 h-2.5 rounded" style={{ background: COMPARE_COLORS[i] }} />
+                {labelFor(c)}
+              </div>
+              <div className="text-slate-600 space-y-0.5">
+                {inp.T_building != null && <div>T зд. = <b>{inp.T_building.toFixed(2)} с</b></div>}
+                {inp.T_hv       != null && <div>T H/V = <b>{inp.T_hv.toFixed(2)} с</b></div>}
+                {inp.T_mtsm     != null && <div>T МТСМ = <b>{inp.T_mtsm.toFixed(2)} с</b></div>}
+              </div>
+              {r.overallRisk && (
+                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${RISK_BADGE[r.overallRisk] ?? ''}`}>
+                  {RISK_LABEL[r.overallRisk] ?? r.overallRisk.toUpperCase()}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
