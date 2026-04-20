@@ -29,6 +29,7 @@ import {
 import html2canvas from 'html2canvas';
 import type {
   SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet, CalculationNoteHistory,
+  KeyPeriodTableRow, RespSpectrumResults, MtsmAmplResults, ResonanceResults,
 } from '@shared/schema';
 
 type CalcType = 'mtsm' | 'response_spectrum' | 'resonance';
@@ -39,9 +40,10 @@ const TYPE_META: Record<CalcType, { label: string; icon: JSX.Element; color: str
   resonance:         { label: 'Анализ резонанса',            icon: <TriangleAlert className="h-3.5 w-3.5" />, color: 'bg-amber-100 text-amber-700 border-amber-300' },
 };
 
-interface MtsmResults  { points?: { freq: number; amp: number }[]; peakFreq?: number; peakAmp?: number }
-interface RespResults  { points?: { T: number; Sa: number; Sv: number; Sd: number }[]; peakT?: number; peakSa?: number; inputMode?: string }
-interface ResoResults  { overallRisk?: 'red'|'yellow'|'green'; hvLabel?: string; mtsmLabel?: string; hvRisk?: string; mtsmRisk?: string }
+type MtsmResults = MtsmAmplResults;
+type RespResults = RespSpectrumResults;
+type ResoResults = ResonanceResults;
+type KeyPeriodRow = KeyPeriodTableRow;
 
 const RISK_BADGE: Record<string, string> = {
   red: 'bg-red-600 text-white',
@@ -934,6 +936,42 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
           <span className="font-normal opacity-75">{scatter.peak < 1.3 ? '✓ хороший' : scatter.peak < 1.6 ? '⚠ умеренный' : '✗ высокий'}</span>
         </div>
       )}
+      {r.keyPeriodTable && r.keyPeriodTable.length > 0 && (() => {
+        const compKeys = Object.keys(r.keyPeriodTable[0]).filter(k => k !== 'T' && k !== 'Sa');
+        return (
+          <div className="border border-slate-200 rounded-md overflow-hidden text-xs">
+            <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 font-medium text-slate-600">
+              Таблица Sa по ключевым периодам (T = 0.1, 0.2, 0.5, 1.0, 2.0 с)
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-3 py-1 text-left font-medium text-slate-500">T (с)</th>
+                    {compKeys.map(k => (
+                      <th key={k} className="px-3 py-1 text-right font-medium text-slate-500">{k.replace('Sa_', 'Sa ')} (м/с²)</th>
+                    ))}
+                    <th className="px-3 py-1 text-right font-medium text-slate-500">Sa расч. (м/с²)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.keyPeriodTable!.map((row, ri) => (
+                    <tr key={row.T} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
+                      <td className="px-3 py-1 font-mono text-slate-600">{row.T.toFixed(1)}</td>
+                      {compKeys.map(k => (
+                        <td key={k} className="px-3 py-1 text-right font-mono text-slate-700">
+                          {row[k] != null ? (row[k] as number).toFixed(4) : '—'}
+                        </td>
+                      ))}
+                      <td className="px-3 py-1 text-right font-mono font-semibold text-slate-800">{row.Sa.toFixed(4)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={points} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />

@@ -559,6 +559,39 @@ export type InsertCalibrationAfc = z.infer<typeof insertCalibrationAfcSchema>;
 export type SeismicCalculation = typeof seismicCalculations.$inferSelect;
 export type InsertSeismicCalculation = z.infer<typeof insertSeismicCalculationSchema>;
 
+export interface KeyPeriodTableRow {
+  T: number;
+  Sa: number;
+  Sa_Z?: number;
+  Sa_NS?: number;
+  Sa_EW?: number;
+  Sa_H1?: number;
+  Sa_H2?: number;
+  [key: string]: number | undefined;
+}
+
+export interface RespSpectrumResults {
+  points?: { T: number; Sa: number; Sv: number; Sd: number }[];
+  peakT?: number;
+  peakSa?: number;
+  inputMode?: string;
+  keyPeriodTable?: KeyPeriodTableRow[];
+}
+
+export interface MtsmAmplResults {
+  points?: { freq: number; amp: number }[];
+  peakFreq?: number;
+  peakAmp?: number;
+}
+
+export interface ResonanceResults {
+  overallRisk?: 'red' | 'yellow' | 'green';
+  hvRisk?: string;
+  mtsmRisk?: string;
+  hvLabel?: string;
+  mtsmLabel?: string;
+}
+
 export type ComparisonSet = typeof comparisonSets.$inferSelect;
 export type InsertComparisonSet = z.infer<typeof insertComparisonSetSchema>;
 
