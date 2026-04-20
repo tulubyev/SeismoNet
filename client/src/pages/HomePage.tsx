@@ -76,7 +76,7 @@ const HomePage: FC = () => {
     },
     {
       href:       '/seismonet-project',
-      title:      'Проект SeismoNet',
+      title:      'WiKi SeismoNet',
       subtitle:   'Нормативная база, партнёры, публикации и просветительские материалы',
       icon:       Globe,
       gradient:   'from-indigo-600 to-indigo-800',
