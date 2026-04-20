@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Building2, Radio, FileText,
   Settings, LogOut, UserCircle, Bell,
-  ChevronDown, Wifi, WifiOff, Calculator, Activity, Mountain, History,
+  ChevronDown, Calculator, Activity, Mountain, History,
   ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
   WifiOff as StationOfflineIcon, Info, CheckCheck, ExternalLink,
 } from 'lucide-react';
@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { Alert } from '@shared/schema';
-import { useSeismicData } from '@/hooks/useSeismicData';
 
 const NAV_LINKS = [
   { href: '/',               icon: <Home className="h-4 w-4" />,       label: 'Обзор'               },
@@ -192,7 +191,6 @@ const AlertsPanel: FC = () => {
 const TopNav: FC = () => {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
-  const { isConnected } = useSeismicData();
   const { data: alerts = [] } = useQuery<Alert[]>({ queryKey: ['/api/alerts'] });
   const unread = alerts.filter(a => !a.isRead).length;
 
@@ -246,14 +244,6 @@ const TopNav: FC = () => {
       </nav>
 
       <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-        <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-          isConnected ? 'bg-emerald-900/60 text-emerald-400' : 'bg-red-900/60 text-red-400'
-        }`}>
-          {isConnected
-            ? <><Wifi className="h-3 w-3" /> Онлайн</>
-            : <><WifiOff className="h-3 w-3" /> Нет связи</>}
-        </div>
-
         <Popover>
           <PopoverTrigger asChild>
             <div className="relative cursor-pointer">
