@@ -1,4 +1,5 @@
 import { FC, RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import * as Diff from 'diff';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -661,6 +662,32 @@ const CalcDetailDialog: FC<DetailDialogProps> = ({ calc, profile, object, onClos
   );
 };
 
+const DiffView: FC<{ oldText: string; newText: string }> = ({ oldText, newText }) => {
+  const parts = Diff.diffWords(oldText, newText);
+  if (parts.length === 0) return <em className="italic text-muted-foreground">пустая заметка</em>;
+  return (
+    <span className="text-[10px] whitespace-pre-wrap break-words leading-relaxed">
+      {parts.map((part, i) => {
+        if (part.added) {
+          return (
+            <mark key={i} className="bg-green-100 text-green-800 rounded-sm px-0.5 not-italic">
+              {part.value}
+            </mark>
+          );
+        }
+        if (part.removed) {
+          return (
+            <del key={i} className="bg-red-100 text-red-700 rounded-sm px-0.5 line-through opacity-80">
+              {part.value}
+            </del>
+          );
+        }
+        return <span key={i} className="text-muted-foreground">{part.value}</span>;
+      })}
+    </span>
+  );
+};
+
 const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const { toast } = useToast();
   const [savedNotes, setSavedNotes] = useState<string>(calc.notes ?? '');
@@ -750,28 +777,30 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
           {historyQuery.isSuccess && historyQuery.data.length === 0 && (
             <p className="text-[10px] text-muted-foreground italic">История изменений пуста</p>
           )}
-          {historyQuery.isSuccess && historyQuery.data.map((entry) => (
-            <div key={entry.id} className="border rounded p-2 space-y-1 bg-amber-50/30">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-amber-800 font-medium">
-                  {entry.editedBy ? <>пользователь <strong>{entry.editedBy}</strong></> : 'неизвестный'}
-                  {' · '}{new Date(entry.editedAt).toLocaleString('ru-RU')}
-                </span>
-                <button
-                  type="button"
-                  className="text-[10px] text-blue-600 hover:underline disabled:opacity-50"
-                  disabled={revertMut.isPending}
-                  onClick={() => revertMut.mutate(entry.id)}
-                  data-testid={`btn-notes-revert-${calc.id}-${entry.id}`}
-                >
-                  Восстановить
-                </button>
+          {historyQuery.isSuccess && historyQuery.data.map((entry, idx, arr) => {
+            const beforeText = entry.previousText ?? '';
+            const afterText = idx === arr.length - 1 ? savedNotes : (arr[idx + 1].previousText ?? '');
+            return (
+              <div key={entry.id} className="border rounded p-2 space-y-1 bg-amber-50/30">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-amber-800 font-medium">
+                    {entry.editedBy ? <>пользователь <strong>{entry.editedBy}</strong></> : 'неизвестный'}
+                    {' · '}{new Date(entry.editedAt).toLocaleString('ru-RU')}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[10px] text-blue-600 hover:underline disabled:opacity-50"
+                    disabled={revertMut.isPending}
+                    onClick={() => revertMut.mutate(entry.id)}
+                    data-testid={`btn-notes-revert-${calc.id}-${entry.id}`}
+                  >
+                    Восстановить
+                  </button>
+                </div>
+                <DiffView oldText={beforeText} newText={afterText} />
               </div>
-              <p className="text-[10px] text-muted-foreground whitespace-pre-wrap break-words">
-                {entry.previousText?.trim() || <em className="italic">пустая заметка</em>}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
