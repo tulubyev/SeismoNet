@@ -116,13 +116,13 @@ const TopNav: FC = () => {
 
 const AppFooter: FC = () => (
   <footer className="fixed bottom-0 left-0 right-0 z-40 h-10 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-6">
-    <span className="text-slate-400 text-xs">
+    <span className="text-slate-400 text-sm">
       SeismoNet Irkutsk Центр сейсмического мониторинга
     </span>
-    <span className="absolute left-1/2 -translate-x-1/2 text-slate-300 text-xs font-medium hidden md:inline whitespace-nowrap">
+    <span className="absolute left-1/2 -translate-x-1/2 text-slate-300 text-sm font-medium hidden md:inline whitespace-nowrap">
       ЕЦСЭМ
     </span>
-    <div className="flex items-center gap-4 text-slate-500 text-xs">
+    <div className="flex items-center gap-4 text-slate-500 text-sm">
       <span>v2.0.0</span>
       <span className="hidden sm:inline">© 2026 Байкальская Инновационная Компания</span>
     </div>
