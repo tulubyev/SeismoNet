@@ -887,6 +887,84 @@ const ResoDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
 
 const COMPARE_COLORS = ['#0891b2', '#dc2626', '#7c3aed'];
 
+interface CurveStats { peakX: number; peakY: number; area: number }
+
+function computeCurveStats<T extends Record<string, number>>(
+  pts: T[], xKey: keyof T, yKey: keyof T,
+): CurveStats | null {
+  if (!pts || pts.length === 0) return null;
+  let bestI = 0;
+  for (let i = 1; i < pts.length; i++) {
+    if ((pts[i][yKey] as number) > (pts[bestI][yKey] as number)) bestI = i;
+  }
+  const sorted = [...pts].sort((a, b) => (a[xKey] as number) - (b[xKey] as number));
+  let area = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const dx = (sorted[i][xKey] as number) - (sorted[i - 1][xKey] as number);
+    area += (dx * ((sorted[i][yKey] as number) + (sorted[i - 1][yKey] as number))) / 2;
+  }
+  return {
+    peakX: pts[bestI][xKey] as number,
+    peakY: pts[bestI][yKey] as number,
+    area,
+  };
+}
+
+const CompareStatsBar: FC<{
+  stats: (CurveStats | null)[];
+  xLabel: string;
+  xUnit: string;
+  yLabel: string;
+  xFractionDigits?: number;
+}> = ({ stats, xLabel, xUnit, yLabel, xFractionDigits = 3 }) => {
+  const base = stats[0];
+  if (!base) return null;
+  const others = stats.slice(1);
+  if (others.every(s => s == null)) return null;
+  return (
+    <div className="border rounded p-2 bg-indigo-50/60 flex flex-wrap gap-3 text-xs"
+      data-testid="compare-stats-bar">
+      <div className="text-slate-500 font-semibold whitespace-nowrap">
+        Δ vs #{/* first calc id is shown via legend */}первый:
+      </div>
+      {others.map((s, idx) => {
+        const i = idx + 1;
+        if (!s) {
+          return (
+            <div key={i} className="text-slate-400" data-testid={`compare-stats-${i}`}>
+              <span className="inline-block w-2.5 h-2.5 rounded mr-1 align-middle"
+                style={{ background: COMPARE_COLORS[i] }} />
+              нет данных
+            </div>
+          );
+        }
+        const dX = s.peakX - base.peakX;
+        const ratioY = base.peakY !== 0 ? s.peakY / base.peakY : NaN;
+        const ratioA = base.area !== 0 ? s.area / base.area : NaN;
+        const fmt = (v: number, d = 3) => Number.isFinite(v) ? v.toFixed(d) : '—';
+        return (
+          <div key={i} className="flex items-center gap-2 px-2 py-0.5 rounded bg-white border"
+            data-testid={`compare-stats-${i}`}>
+            <span className="inline-block w-2.5 h-2.5 rounded"
+              style={{ background: COMPARE_COLORS[i] }} />
+            <span title={`${xLabel} сдвиг пика`}>
+              Δ{xLabel}=<b>{dX >= 0 ? '+' : ''}{fmt(dX, xFractionDigits)}</b> {xUnit}
+            </span>
+            <span className="text-slate-300">·</span>
+            <span title="Отношение пиковой амплитуды">
+              {yLabel}_ratio=<b>{fmt(ratioY, 2)}</b>
+            </span>
+            <span className="text-slate-300">·</span>
+            <span title="Отношение интегральной площади под кривой">
+              ∫ratio=<b>{fmt(ratioA, 2)}</b>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 interface CompareDialogProps {
   open: boolean;
   onClose: () => void;
@@ -923,18 +1001,48 @@ const CompareDialog: FC<CompareDialogProps> = ({
 
   const exportCombinedCsv = () => {
     if (!calcType) return;
+    const buildStatsRows = (
+      stats: (CurveStats | null)[], peakXLabel: string, peakYLabel: string,
+    ): string[] => {
+      const base = stats[0];
+      const fmt = (v: number | null | undefined, d = 6) =>
+        v != null && Number.isFinite(v) ? v.toFixed(d) : '';
+      const cell = (s: CurveStats | null, getter: (x: CurveStats) => number, d = 6) =>
+        s ? fmt(getter(s), d) : '';
+      const ratio = (s: CurveStats | null, getter: (x: CurveStats) => number) => {
+        if (!s || !base) return '';
+        const a = getter(s), b = getter(base);
+        return b !== 0 && Number.isFinite(a / b) ? (a / b).toFixed(6) : '';
+      };
+      const delta = (s: CurveStats | null, getter: (x: CurveStats) => number) => {
+        if (!s || !base) return '';
+        return (getter(s) - getter(base)).toFixed(6);
+      };
+      return [
+        '',
+        `"${peakXLabel}",` + stats.map(s => cell(s, x => x.peakX)).join(','),
+        `"${peakYLabel}",` + stats.map(s => cell(s, x => x.peakY)).join(','),
+        `"integrated_area",` + stats.map(s => cell(s, x => x.area)).join(','),
+        `"delta_${peakXLabel}_vs_first",` + stats.map(s => delta(s, x => x.peakX)).join(','),
+        `"${peakYLabel}_ratio_vs_first",` + stats.map(s => ratio(s, x => x.peakY)).join(','),
+        `"integrated_ratio_vs_first",` + stats.map(s => ratio(s, x => x.area)).join(','),
+      ];
+    };
     if (calcType === 'mtsm') {
       const xs = new Set<number>();
       const series = calcs.map(c => {
         const pts = ((c.results ?? {}) as MtsmResults).points ?? [];
         const m = new Map(pts.map(p => [p.freq, p.amp]));
         m.forEach((_v, f) => xs.add(f));
-        return { label: labelFor(c), m };
+        return { label: labelFor(c), m, pts };
       });
       const xsSorted = Array.from(xs).sort((a, b) => a - b);
       const header = 'freq_hz,' + series.map(s => `"A · ${s.label.replace(/"/g, '""')}"`).join(',');
       const rows = xsSorted.map(f => [f.toFixed(4), ...series.map(s => s.m.get(f)?.toFixed(6) ?? '')].join(','));
-      downloadCsv(`compare_mtsm_${calcs.map(c => c.id).join('_')}.csv`, [header, ...rows].join('\n'));
+      const stats = series.map(s => computeCurveStats(s.pts, 'freq', 'amp'));
+      const statRows = buildStatsRows(stats, 'peak_freq_hz', 'peak_amp');
+      downloadCsv(`compare_mtsm_${calcs.map(c => c.id).join('_')}.csv`,
+        [header, ...rows, ...statRows].join('\n'));
       return;
     }
     if (calcType === 'response_spectrum') {
@@ -943,12 +1051,15 @@ const CompareDialog: FC<CompareDialogProps> = ({
         const pts = ((c.results ?? {}) as RespResults).points ?? [];
         const m = new Map(pts.map(p => [p.T, p.Sa]));
         m.forEach((_v, T) => xs.add(T));
-        return { label: labelFor(c), m };
+        return { label: labelFor(c), m, pts };
       });
       const xsSorted = Array.from(xs).sort((a, b) => a - b);
       const header = 'period_s,' + series.map(s => `"Sa · ${s.label.replace(/"/g, '""')}"`).join(',');
       const rows = xsSorted.map(T => [T.toFixed(4), ...series.map(s => s.m.get(T)?.toFixed(6) ?? '')].join(','));
-      downloadCsv(`compare_response_${calcs.map(c => c.id).join('_')}.csv`, [header, ...rows].join('\n'));
+      const stats = series.map(s => computeCurveStats(s.pts, 'T', 'Sa'));
+      const statRows = buildStatsRows(stats, 'peak_period_s', 'peak_Sa');
+      downloadCsv(`compare_response_${calcs.map(c => c.id).join('_')}.csv`,
+        [header, ...rows, ...statRows].join('\n'));
     }
   };
 
@@ -1039,10 +1150,13 @@ const MtsmCompareChart: FC<{
     points: ((c.results ?? {}) as MtsmResults).points ?? [],
     peakFreq: ((c.results ?? {}) as MtsmResults).peakFreq,
   }));
+  const stats = series.map(s => computeCurveStats(s.points, 'freq', 'amp'));
   if (series.every(s => s.points.length === 0)) {
     return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
   }
   return (
+    <div className="space-y-2">
+    <CompareStatsBar stats={stats} xLabel="f₀" xUnit="Гц" yLabel="A" xFractionDigits={2} />
     <ResponsiveContainer width="100%" height={380}>
       <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1062,6 +1176,7 @@ const MtsmCompareChart: FC<{
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
   );
 };
 
@@ -1074,10 +1189,13 @@ const RespCompareChart: FC<{
     label: labelFor(c),
     points: ((c.results ?? {}) as RespResults).points ?? [],
   }));
+  const stats = series.map(s => computeCurveStats(s.points, 'T', 'Sa'));
   if (series.every(s => s.points.length === 0)) {
     return <div className="text-sm text-slate-500 py-8 text-center">У выбранных расчётов нет точек графика.</div>;
   }
   return (
+    <div className="space-y-2">
+    <CompareStatsBar stats={stats} xLabel="T_peak" xUnit="с" yLabel="Sa" xFractionDigits={3} />
     <ResponsiveContainer width="100%" height={380}>
       <LineChart margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1096,6 +1214,7 @@ const RespCompareChart: FC<{
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
   );
 };
 
