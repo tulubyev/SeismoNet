@@ -134,7 +134,7 @@ interface AppLayoutProps {
 }
 
 const AppLayout: FC<AppLayoutProps> = ({ children }) => (
-  <div className="min-h-screen bg-slate-50 flex flex-col">
+  <div className="min-h-screen bg-slate-900 flex flex-col">
     <TopNav />
     <main className="flex-1 overflow-y-auto pt-14 pb-10">
       {children}
