@@ -1382,6 +1382,29 @@ const ResponseTab: FC<RespTabProps> = ({
     return entries.reduce((best, c) => c.sa > best.sa ? c : best);
   }, [peakIdx, componentSpectra]);
 
+  const h1h2ScatterStats = useMemo(() => {
+    if (!componentSpectra?.H1 || !componentSpectra?.H2) return null;
+    const H1 = componentSpectra.H1;
+    const H2 = componentSpectra.H2;
+    const ratios: number[] = [];
+    for (let i = 0; i < H1.length; i++) {
+      const h1 = H1[i]?.Sa ?? 0;
+      const h2 = H2[i]?.Sa ?? 0;
+      const mn = Math.min(h1, h2);
+      const mx = Math.max(h1, h2);
+      if (mn > 0) ratios.push(mx / mn);
+    }
+    if (ratios.length === 0) return null;
+    const sorted = [...ratios].sort((a, b) => a - b);
+    const peak   = sorted[sorted.length - 1];
+    const mid    = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 1
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+    const mean   = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    return { peak, median, mean, ratios };
+  }, [componentSpectra]);
+
   const COMPONENT_KEYS = new Set(['Sa_Z', 'Sa_NS', 'Sa_EW', 'Sa_H1', 'Sa_H2']);
   const AGGREGATE_KEYS = new Set(['Sa', 'Sa_design']);
 
@@ -1439,15 +1462,23 @@ const ResponseTab: FC<RespTabProps> = ({
     if (!respResult) return [];
     const periods = respResult.map(p => p.T);
     const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2);
-    return respResult.map((p, i) => ({
-      ...p,
-      Sa_design: design[i].Sa_design,
-      Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
-      Sa_NS: componentSpectra?.NS?.[i]?.Sa,
-      Sa_EW: componentSpectra?.EW?.[i]?.Sa,
-      Sa_H1: componentSpectra?.H1?.[i]?.Sa,
-      Sa_H2: componentSpectra?.H2?.[i]?.Sa,
-    }));
+    return respResult.map((p, i) => {
+      const h1 = componentSpectra?.H1?.[i]?.Sa;
+      const h2 = componentSpectra?.H2?.[i]?.Sa;
+      const h1h2Ratio = (h1 != null && h2 != null && Math.min(h1, h2) > 0)
+        ? Math.max(h1, h2) / Math.min(h1, h2)
+        : undefined;
+      return {
+        ...p,
+        Sa_design: design[i].Sa_design,
+        Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
+        Sa_NS: componentSpectra?.NS?.[i]?.Sa,
+        Sa_EW: componentSpectra?.EW?.[i]?.Sa,
+        Sa_H1: h1,
+        Sa_H2: h2,
+        H1_H2_ratio: h1h2Ratio,
+      };
+    });
   }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2, componentSpectra]);
 
   const toggleSeries = useCallback((dataKey: string) => {
@@ -1732,6 +1763,43 @@ const ResponseTab: FC<RespTabProps> = ({
                   name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory}, K₁=${sp14K1.toFixed(2)}, K₂=${sp14K2.toFixed(2)})`} />
               </LineChart>
             </ResponsiveContainer>
+            {h1h2ScatterStats && (
+              <div className="mx-3 mt-2 mb-1 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 shrink-0">
+                    Разброс H1/H2 · max/min Sa(T):
+                  </span>
+                  {[
+                    { label: 'Пиковый', value: h1h2ScatterStats.peak,   title: 'Максимальный разброс по всем периодам' },
+                    { label: 'Медиана',  value: h1h2ScatterStats.median, title: 'Медианный разброс по всем периодам' },
+                    { label: 'Среднее', value: h1h2ScatterStats.mean,   title: 'Среднеарифметический разброс по всем периодам' },
+                  ].map(({ label, value, title }) => {
+                    const color =
+                      value < 1.3 ? 'bg-green-100 text-green-800 border-green-300' :
+                      value < 1.6 ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                    'bg-red-100  text-red-800  border-red-300';
+                    return (
+                      <span key={label} title={title}
+                        className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-mono ${color}`}>
+                        <span className="font-sans font-medium">{label}:</span>
+                        {value.toFixed(2)}×
+                      </span>
+                    );
+                  })}
+                  <span className="text-[10px] text-slate-400 ml-1">
+                    {h1h2ScatterStats.peak < 1.3
+                      ? '✓ Малый разброс — геом. среднее хорошо представляет оба направления'
+                      : h1h2ScatterStats.peak < 1.6
+                      ? '△ Умеренный разброс — горизонтали заметно отличаются'
+                      : '⚠ Высокий разброс — один из горизонталей существенно превышает другой'}
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-400">
+                  Разброс = max(Sa<sub>H1</sub>, Sa<sub>H2</sub>) / min(Sa<sub>H1</sub>, Sa<sub>H2</sub>) по каждому периоду T; значение 1.0 означает идеальное совпадение.
+                  {' '}Поэкспортируется в CSV как столбец <code>H1_H2_ratio</code>.
+                </div>
+              </div>
+            )}
             <div className="px-4 pt-1 text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-md mx-3 py-1.5">
               <strong>Норм. спектр СП 14.13330.2018 §5:</strong>{' '}
               Sa<sub>норм</sub>(T) = A<sub>0</sub>·g·K<sub>гр</sub>·K<sub>1</sub>·K<sub>2</sub>·β(T) ={' '}
@@ -1771,6 +1839,8 @@ const ResponseTab: FC<RespTabProps> = ({
                   if (cs?.EW) extraCols.push('Sa_EW_m_s2');
                   if (cs?.H1) extraCols.push('Sa_H1_m_s2');
                   if (cs?.H2) extraCols.push('Sa_H2_m_s2');
+                  const hasH1H2 = !!(cs?.H1 && cs?.H2);
+                  if (hasH1H2) extraCols.push('H1_H2_ratio');
                   const header = ['period_s,Sa_m_s2,Sv_m_s,Sd_m', ...extraCols].join(',');
                   const rows = [header].concat(
                     respResult!.map((p, i) => {
@@ -1781,6 +1851,12 @@ const ResponseTab: FC<RespTabProps> = ({
                       if (cs?.EW) extras.push((cs.EW[i]?.Sa ?? 0).toFixed(6));
                       if (cs?.H1) extras.push((cs.H1[i]?.Sa ?? 0).toFixed(6));
                       if (cs?.H2) extras.push((cs.H2[i]?.Sa ?? 0).toFixed(6));
+                      if (hasH1H2) {
+                        const h1v = cs!.H1![i]?.Sa ?? 0;
+                        const h2v = cs!.H2![i]?.Sa ?? 0;
+                        const mn = Math.min(h1v, h2v);
+                        extras.push(mn > 0 ? (Math.max(h1v, h2v) / mn).toFixed(4) : '');
+                      }
                       return extras.length ? `${base},${extras.join(',')}` : base;
                     })
                   );
