@@ -1,4 +1,4 @@
-import { FC, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -748,10 +748,6 @@ const InfrastructureObjects: FC = () => {
     enabled: !!selectedObj
   });
 
-  const currentSelectedObj = selectedObj
-    ? (objects.find(o => o.id === selectedObj.id) ?? selectedObj)
-    : null;
-
   const filtered = objects.filter(obj => {
     const q = search.toLowerCase();
     const matchSearch = q === '' ||
@@ -775,6 +771,16 @@ const InfrastructureObjects: FC = () => {
     return matchSearch && matchDistrict && matchConstruction &&
            matchDeveloper && matchComplex && matchObject;
   });
+
+  const currentSelectedObj = selectedObj
+    ? (objects.find(o => o.id === selectedObj.id) ?? selectedObj)
+    : (filtered[0] ?? null);
+
+  useEffect(() => {
+    if (selectedObj === null && filtered.length > 0) {
+      setSelectedObj(filtered[0]);
+    }
+  }, [objects.length]);
 
   const activeFilterCount = [
     districtFilter !== 'all',
@@ -822,8 +828,8 @@ const InfrastructureObjects: FC = () => {
             ))}
           </div>
 
-          {/* Filters + Object list — side by side, 50/50 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+          {/* Filters + Object list — side by side, 50/50, equal height */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
 
             {/* Filters */}
             <Card className="border-0 shadow-sm bg-white">
@@ -893,8 +899,19 @@ const InfrastructureObjects: FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Object list — fixed height, scrollable */}
-              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              {/* Object list — same height as filter card, scrollable 2-item window */}
+              <Card className="border-0 shadow-sm bg-white h-full flex flex-col">
+                <CardHeader className="pb-2 pt-4 flex-shrink-0">
+                  <CardTitle className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-slate-400" />
+                      Объекты
+                    </span>
+                    <span className="text-xs font-normal text-slate-400">{filtered.length} из {objects.length}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 pb-3 flex-shrink-0">
+                  <div className="space-y-2 h-[300px] overflow-y-auto pr-1">
                 {isLoading ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="py-12 text-center text-slate-400 text-sm">Загрузка...</CardContent>
@@ -911,7 +928,7 @@ const InfrastructureObjects: FC = () => {
                       <Card
                         key={obj.id}
                         className={`border-0 shadow-sm cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:shadow-md'}`}
-                        onClick={() => setSelectedObj(isSelected ? null : obj)}
+                        onClick={() => setSelectedObj(obj)}
                       >
                         <CardContent className="pt-4 pb-3">
                           <div className="flex items-start justify-between gap-3">
@@ -978,7 +995,9 @@ const InfrastructureObjects: FC = () => {
                     );
                   })
                 )}
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
           </div>
 
           {/* Detail panel — full width below filters/list */}
