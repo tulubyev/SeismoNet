@@ -68,7 +68,7 @@ const SystemManagement: FC = () => {
   return (
     <div className="min-h-full bg-slate-900">
       <div className="px-6 pt-8 pb-10">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-blue-600/20 border border-blue-500/30">
@@ -89,7 +89,7 @@ const SystemManagement: FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {items.map(item => {
               const Icon = item.icon;
               return (
