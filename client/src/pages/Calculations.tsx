@@ -664,6 +664,8 @@ const CalcDetailDialog: FC<DetailDialogProps> = ({ calc, profile, object, onClos
 const DiffView: FC<{ oldText: string; newText: string }> = ({ oldText, newText }) => {
   const parts = Diff.diffWords(oldText, newText);
   if (parts.length === 0) return <em className="italic text-muted-foreground">пустая заметка</em>;
+  const hasChanges = parts.some(p => p.added || p.removed);
+  if (!hasChanges) return <em className="italic text-muted-foreground">(без изменений)</em>;
   return (
     <span className="text-[10px] whitespace-pre-wrap break-words leading-relaxed">
       {parts.map((part, i) => {
