@@ -220,17 +220,19 @@ export const SP14_K2_TABLE6: Record<'frame_no_braces' | 'frame_braced' | 'wall_m
 };
 
 // Полный нормативный спектр Sa_design(T), м/с² по СП 14.13330.2018, §5:
-//   Sa = A0 · g · K_грунт · K1 · β(T)
+//   Sa = A0 · g · K_грунт · K1 · K2 · β(T)
+// K2 — коэффициент конструктивного решения здания (Табл. 6); по умолчанию 1.0.
 export function sp14DesignSpectrum(
   periods: number[],
   intensity: SeismicIntensity,
   soilCategory: 'I' | 'II' | 'III',
   K1: number = 1.0,
+  K2: number = 1.0,
 ): { T: number; Sa_design: number }[] {
   const g = 9.80665;
   const A0 = SP14_PGA_TABLE3[intensity];
   const Ksoil = SP14_SOIL_K_TABLE4[soilCategory];
-  const A = A0 * Ksoil * K1 * g;
+  const A = A0 * Ksoil * K1 * K2 * g;
   return periods.map(T => ({ T, Sa_design: A * sp14BetaT(T, soilCategory) }));
 }
 
