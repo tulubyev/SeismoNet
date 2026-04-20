@@ -210,6 +210,8 @@ export const infrastructureObjects = pgTable("infrastructure_objects", {
   contactPerson: text("contact_person"),
   contactPhone: text("contact_phone"),
   isMonitored: boolean("is_monitored").notNull().default(false),
+  k1Key: text("k1_key").default('elastic'),
+  k2Key: text("k2_key").default('wall_monolithic'),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   metadata: jsonb("metadata")

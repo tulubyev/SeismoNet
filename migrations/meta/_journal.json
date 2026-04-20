@@ -29,6 +29,13 @@
       "when": 1776649394710,
       "tag": "0003_wide_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776654283738,
+      "tag": "0004_add_k1_k2_to_infrastructure_objects",
+      "breakpoints": true
     }
   ]
 }

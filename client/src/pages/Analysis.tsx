@@ -876,6 +876,7 @@ const Analysis: FC = () => {
         <TabsContent value="response" className="space-y-4">
           <ResponseTab
             seismograms={seismograms}
+            objects={objects}
             selectedSeismogramId={selectedSeismogramId}
             setSelectedSeismogramId={setSelectedSeismogramId}
             respDamping={respDamping} setRespDamping={setRespDamping}
@@ -1229,6 +1230,7 @@ function generateSyntheticAccelerogramPair(
 
 interface RespTabProps {
   seismograms: SeismogramRecord[];
+  objects: InfrastructureObject[];
   selectedSeismogramId: number | null;
   setSelectedSeismogramId: (id: number | null) => void;
   respDamping: string;   setRespDamping: (v: string) => void;
@@ -1238,7 +1240,7 @@ interface RespTabProps {
 }
 
 const ResponseTab: FC<RespTabProps> = ({
-  seismograms, selectedSeismogramId, setSelectedSeismogramId,
+  seismograms, objects, selectedSeismogramId, setSelectedSeismogramId,
   respDamping, setRespDamping, respComponent, setRespComponent,
   respResult, setRespResult, toast,
 }) => {
@@ -1247,12 +1249,31 @@ const ResponseTab: FC<RespTabProps> = ({
   const [sp14Intensity, setSp14Intensity] = useState<SeismicIntensity>('VIII');
   const [sp14SoilCategory, setSp14SoilCategory] = useState<'I'|'II'|'III'>('II');
   const [sp14RecordId, setSp14RecordId] = useState<string>(SP14_BY_INTENSITY['VIII'][0].id);
+  const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
   const [sp14K1Key, setSp14K1Key] = useState<keyof typeof SP14_K1_TABLE5>('elastic');
   const [sp14K2Key, setSp14K2Key] = useState<keyof typeof SP14_K2_TABLE6>('wall_monolithic');
   const [sp14Component, setSp14Component] = useState<'single' | 'GMH'>('single');
   const [catalogComponent, setCatalogComponent] = useState<'single' | 'GMH'>('single');
   const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[]; H1?: SpecPoint[]; H2?: SpecPoint[] } | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (selectedObjectId === null) return;
+    const obj = objects.find(o => o.id === selectedObjectId);
+    if (!obj) return;
+    if (obj.k1Key && obj.k1Key in SP14_K1_TABLE5) setSp14K1Key(obj.k1Key as keyof typeof SP14_K1_TABLE5);
+    if (obj.k2Key && obj.k2Key in SP14_K2_TABLE6) setSp14K2Key(obj.k2Key as keyof typeof SP14_K2_TABLE6);
+  }, [selectedObjectId, objects]);
+
+  const saveObjectKeys = useCallback(async (k1: keyof typeof SP14_K1_TABLE5, k2: keyof typeof SP14_K2_TABLE6) => {
+    if (selectedObjectId === null) return;
+    try {
+      await apiRequest('PATCH', `/api/infrastructure-objects/${selectedObjectId}`, { k1Key: k1, k2Key: k2 });
+      queryClient.invalidateQueries({ queryKey: ['/api/infrastructure-objects'] });
+    } catch {
+      toast({ title: 'Ошибка сохранения K₁/K₂', variant: 'destructive' });
+    }
+  }, [selectedObjectId, toast]);
+
   const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
   const sp14K2 = SP14_K2_TABLE6[sp14K2Key];
   const SP14_K1_LABEL: Record<keyof typeof SP14_K1_TABLE5, string> = {
@@ -1495,6 +1516,34 @@ const ResponseTab: FC<RespTabProps> = ({
     <>
       <Card className="border-0 shadow-sm">
         <CardContent className="pt-4 pb-3 px-4">
+          {objects.length > 0 && (
+            <div className="flex items-end gap-3 mb-3 pb-3 border-b border-slate-100">
+              <div className="flex-1 min-w-0">
+                <Label className="text-xs text-slate-500">Объект мониторинга (K₁/K₂ сохраняются по объекту)</Label>
+                <Select
+                  value={selectedObjectId !== null ? String(selectedObjectId) : '__none__'}
+                  onValueChange={v => setSelectedObjectId(v === '__none__' ? null : parseInt(v))}
+                >
+                  <SelectTrigger className="h-8 w-full text-xs mt-0.5" data-testid="select-resp-object">
+                    <SelectValue placeholder="— выбрать объект —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__" className="text-xs text-slate-400">— без объекта —</SelectItem>
+                    {objects.map(obj => (
+                      <SelectItem key={obj.id} value={String(obj.id)} className="text-xs">
+                        {obj.name}{obj.address ? ` · ${obj.address}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedObjectId !== null && (
+                <div className="text-[11px] text-slate-400 leading-tight pb-1 flex-shrink-0">
+                  K₁/K₂ автосохраняются
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 mb-3">
             <Button size="sm" variant={inputMode === 'sp14' ? 'default' : 'outline'} className="h-7 text-xs"
               onClick={() => { setInputMode('sp14'); setRespResult(null); }}>
@@ -1650,7 +1699,11 @@ const ResponseTab: FC<RespTabProps> = ({
             </div>
             <div>
               <Label className="text-xs">K₁ — допуск. поврежд. (Табл. 5)</Label>
-              <Select value={sp14K1Key} onValueChange={v => setSp14K1Key(v as keyof typeof SP14_K1_TABLE5)}>
+              <Select value={sp14K1Key} onValueChange={v => {
+                const k = v as keyof typeof SP14_K1_TABLE5;
+                setSp14K1Key(k);
+                saveObjectKeys(k, sp14K2Key);
+              }}>
                 <SelectTrigger className="h-8 w-64 text-xs" data-testid="select-sp14-k1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="elastic" className="text-xs">Упругий — 1.00</SelectItem>
@@ -1662,7 +1715,11 @@ const ResponseTab: FC<RespTabProps> = ({
             </div>
             <div>
               <Label className="text-xs">K₂ — конструктив. решение (Табл. 6)</Label>
-              <Select value={sp14K2Key} onValueChange={v => setSp14K2Key(v as keyof typeof SP14_K2_TABLE6)}>
+              <Select value={sp14K2Key} onValueChange={v => {
+                const k = v as keyof typeof SP14_K2_TABLE6;
+                setSp14K2Key(k);
+                saveObjectKeys(sp14K1Key, k);
+              }}>
                 <SelectTrigger className="h-8 w-72 text-xs" data-testid="select-sp14-k2"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="frame_no_braces" className="text-xs">Каркас без связей — 1.50</SelectItem>
@@ -1873,14 +1930,17 @@ const ResponseTab: FC<RespTabProps> = ({
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                 onClick={async () => {
                   try {
+                    const selectedObj = selectedObjectId !== null ? objects.find(o => o.id === selectedObjectId) ?? null : null;
+                    const objectInputMeta = selectedObj ? { objectExternalId: selectedObj.objectId, objectName: selectedObj.name } : {};
                     const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'response_spectrum',
+                        objectId: selectedObj?.id ?? null,
                         inputParams:
                           inputMode === 'catalog'
-                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), component: catalogComponent === 'GMH' ? 'H1⊕H2_geomean' : 'single', K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key }
+                            ? { ...objectInputMeta, scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), component: catalogComponent === 'GMH' ? 'H1⊕H2_geomean' : 'single', K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key }
                             : inputMode === 'sp14'
-                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single' }
-                              : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key },
+                              ? { ...objectInputMeta, sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single' }
+                              : { ...objectInputMeta, seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key },
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
