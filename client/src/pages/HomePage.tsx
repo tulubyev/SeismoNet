@@ -5,7 +5,7 @@ import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
   Activity, Building2, Radio, Map, FileText,
-  BookOpen, ArrowRight,
+  BookOpen, ArrowRight, Users2, Waves, Compass, Lightbulb,
   AlertTriangle, CheckCircle2, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -92,17 +92,6 @@ const HomePage: FC = () => {
       status:     null,
     },
     {
-      href:       '/building-norms',
-      title:      'Нормативная база',
-      subtitle:   'СП, СНиП, ГОСТ — требования сейсмостойкости',
-      icon:       BookOpen,
-      gradient:   'from-indigo-600 to-indigo-800',
-      shadow:     'shadow-indigo-900/40',
-      badge:      null,
-      badgeLabel: '',
-      status:     null,
-    },
-    {
       href:       '/stations',
       title:      'Станции сети',
       subtitle:   'Управление, параметры, батарея, качество сигнала',
@@ -126,6 +115,114 @@ const HomePage: FC = () => {
     },
   ];
 
+  const projectBlocks: BlockDef[] = [
+    {
+      href:       '/building-norms',
+      title:      'Нормативная база',
+      subtitle:   'СП, СНиП, ГОСТ — требования сейсмостойкости',
+      icon:       BookOpen,
+      gradient:   'from-indigo-600 to-indigo-800',
+      shadow:     'shadow-indigo-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/partners',
+      title:      'Партнёры',
+      subtitle:   'Организации и учреждения, участвующие в проекте',
+      icon:       Users2,
+      gradient:   'from-sky-600 to-sky-800',
+      shadow:     'shadow-sky-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/about-earthquakes',
+      title:      'О землетрясениях',
+      subtitle:   'Природа, причины и последствия сейсмических событий',
+      icon:       Waves,
+      gradient:   'from-orange-600 to-orange-800',
+      shadow:     'shadow-orange-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/seismic-basics',
+      title:      'Основы сейсмических наблюдений',
+      subtitle:   'Принципы, методы и оборудование сейсмометрии',
+      icon:       Compass,
+      gradient:   'from-lime-600 to-lime-800',
+      shadow:     'shadow-lime-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+    {
+      href:       '/interesting',
+      title:      'Это интересно',
+      subtitle:   'Факты, исследования и занимательная сейсмология',
+      icon:       Lightbulb,
+      gradient:   'from-amber-500 to-amber-700',
+      shadow:     'shadow-amber-900/40',
+      badge:      null,
+      badgeLabel: '',
+      status:     null,
+    },
+  ];
+
+  const renderBlock = (block: BlockDef) => {
+    const Icon = block.icon;
+    return (
+      <button
+        key={block.title}
+        onClick={() => navigate(block.href)}
+        className={`group relative bg-gradient-to-br ${block.gradient} rounded-2xl p-6 text-left
+          shadow-xl ${block.shadow} hover:scale-[1.02] hover:shadow-2xl
+          transition-all duration-200 cursor-pointer border border-white/10 overflow-hidden`}
+      >
+        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
+
+        <div className="flex items-start justify-between mb-4">
+          <div className="p-3 rounded-xl bg-white/15 backdrop-blur-sm">
+            <Icon className="h-7 w-7 text-white" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            {block.status === 'ok' && (
+              <CheckCircle2 className="h-4 w-4 text-white/70" />
+            )}
+            {block.status === 'warn' && (
+              <AlertTriangle className="h-4 w-4 text-yellow-300" />
+            )}
+            {block.status === 'error' && (
+              <AlertTriangle className="h-4 w-4 text-red-300" />
+            )}
+            <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
+          </div>
+        </div>
+
+        <h2 className="text-white font-bold text-lg leading-tight mb-1">
+          {block.title}
+        </h2>
+        <p className="text-white/65 text-sm leading-snug mb-4">
+          {block.subtitle}
+        </p>
+
+        {block.badge !== null && block.badge !== undefined && (
+          <div className="flex items-baseline gap-2 mt-auto">
+            <span className="text-3xl font-bold text-white">{block.badge}</span>
+            <span className="text-white/60 text-xs">{block.badgeLabel}</span>
+          </div>
+        )}
+
+        <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-white/5 -mr-8 -mb-8" />
+        <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-2 -mb-2" />
+      </button>
+    );
+  };
+
   return (
     <div className="min-h-full bg-slate-900">
       <div className="px-6 pt-8 pb-4">
@@ -148,58 +245,24 @@ const HomePage: FC = () => {
 
       <div className="px-6 pb-4">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {blocks.map(block => {
-            const Icon = block.icon;
-            return (
-              <button
-                key={block.title}
-                onClick={() => navigate(block.href)}
-                className={`group relative bg-gradient-to-br ${block.gradient} rounded-2xl p-6 text-left
-                  shadow-xl ${block.shadow} hover:scale-[1.02] hover:shadow-2xl
-                  transition-all duration-200 cursor-pointer border border-white/10 overflow-hidden`}
-              >
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
-
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-white/15 backdrop-blur-sm">
-                    <Icon className="h-7 w-7 text-white" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {block.status === 'ok' && (
-                      <CheckCircle2 className="h-4 w-4 text-white/70" />
-                    )}
-                    {block.status === 'warn' && (
-                      <AlertTriangle className="h-4 w-4 text-yellow-300" />
-                    )}
-                    {block.status === 'error' && (
-                      <AlertTriangle className="h-4 w-4 text-red-300" />
-                    )}
-                    <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
-                  </div>
-                </div>
-
-                <h2 className="text-white font-bold text-lg leading-tight mb-1">
-                  {block.title}
-                </h2>
-                <p className="text-white/65 text-sm leading-snug mb-4">
-                  {block.subtitle}
-                </p>
-
-                {block.badge !== null && block.badge !== undefined && (
-                  <div className="flex items-baseline gap-2 mt-auto">
-                    <span className="text-3xl font-bold text-white">{block.badge}</span>
-                    <span className="text-white/60 text-xs">{block.badgeLabel}</span>
-                  </div>
-                )}
-
-                <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-white/5 -mr-8 -mb-8" />
-                <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-2 -mb-2" />
-              </button>
-            );
-          })}
+          {blocks.map(renderBlock)}
         </div>
       </div>
 
+      <div className="px-6 pb-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-px flex-1 bg-slate-700" />
+            <span className="text-slate-400 text-sm font-semibold tracking-wide uppercase px-2">
+              Проект SeismoNet
+            </span>
+            <div className="h-px flex-1 bg-slate-700" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {projectBlocks.map(renderBlock)}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
