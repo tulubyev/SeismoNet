@@ -1153,6 +1153,8 @@ const CompareDialog: FC<CompareDialogProps> = ({
 }) => {
   const [setName, setSetName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(false);
+  const [exportedAt, setExportedAt] = useState('');
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   // Reset the name input whenever the dialog opens or the selection changes.
@@ -1183,6 +1185,9 @@ const CompareDialog: FC<CompareDialogProps> = ({
       return;
     }
     setIsExporting(true);
+    setExportedAt(new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' }));
+    setShowWatermark(true);
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
       const canvas = await html2canvas(el, {
         backgroundColor: '#ffffff',
@@ -1198,6 +1203,7 @@ const CompareDialog: FC<CompareDialogProps> = ({
       toast({ title: 'Ошибка экспорта', description: 'Не удалось создать изображение.', variant: 'destructive' });
     } finally {
       setIsExporting(false);
+      setShowWatermark(false);
     }
   };
 
@@ -1294,9 +1300,26 @@ const CompareDialog: FC<CompareDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
-        {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
-        {calcType === 'resonance' && <ResonanceCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
+        <div ref={chartContainerRef} className="bg-white">
+          {showWatermark && (
+            <div className="px-3 py-2 border-b border-slate-200 bg-white space-y-0.5">
+              <div className="text-sm font-semibold text-slate-800">
+                {meta?.label ?? calcType} · Сравнение расчётов
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Расчёты: {calcs.map(c => `#${c.id}`).join(', ')} · Экспортировано: {exportedAt}
+              </div>
+            </div>
+          )}
+          {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} />}
+          {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} />}
+          {calcType === 'resonance' && <ResonanceCompareChart calcs={calcs} labelFor={labelFor} />}
+          {showWatermark && (
+            <div className="px-3 py-1.5 border-t border-slate-200 bg-slate-50 text-[10px] text-slate-400 text-right">
+              Сейсмический мониторинг — автоматически создано системой
+            </div>
+          )}
+        </div>
 
         <div className="border rounded p-3 bg-slate-50 space-y-2">
           <div className="text-xs font-semibold text-slate-600">Выбранные расчёты</div>
@@ -1371,8 +1394,7 @@ const CompareDialog: FC<CompareDialogProps> = ({
 const MtsmCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
-  containerRef?: RefObject<HTMLDivElement | null>;
-}> = ({ calcs, labelFor, containerRef }) => {
+}> = ({ calcs, labelFor }) => {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
@@ -1386,7 +1408,7 @@ const MtsmCompareChart: FC<{
   }
   const baseStat = stats[0];
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-2">
     <CompareStatsBar stats={stats} xLabel="f₀" xUnit="Гц" yLabel="A" xFractionDigits={2} />
     <div className="flex justify-end">
       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
@@ -1441,8 +1463,7 @@ const MtsmCompareChart: FC<{
 const RespCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
-  containerRef?: RefObject<HTMLDivElement | null>;
-}> = ({ calcs, labelFor, containerRef }) => {
+}> = ({ calcs, labelFor }) => {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
@@ -1455,7 +1476,7 @@ const RespCompareChart: FC<{
   }
   const baseStat = stats[0];
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-2">
     <CompareStatsBar stats={stats} xLabel="T_peak" xUnit="с" yLabel="Sa" xFractionDigits={3} />
     <div className="flex justify-end">
       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
@@ -1509,8 +1530,7 @@ const RespCompareChart: FC<{
 const ResonanceCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
-  containerRef?: RefObject<HTMLDivElement | null>;
-}> = ({ calcs, labelFor, containerRef }) => {
+}> = ({ calcs, labelFor }) => {
   const PERIOD_KEYS: { key: 'T_building' | 'T_hv' | 'T_mtsm'; label: string }[] = [
     { key: 'T_building', label: 'T зд.' },
     { key: 'T_hv',       label: 'T H/V' },
@@ -1534,7 +1554,7 @@ const ResonanceCompareChart: FC<{
   };
 
   return (
-    <div className="space-y-3" ref={containerRef}>
+    <div className="space-y-3">
       <div className="text-xs text-slate-500 text-center">Сравнение периодов резонанса (с)</div>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 16, right: 20, left: 0, bottom: 10 }}>
