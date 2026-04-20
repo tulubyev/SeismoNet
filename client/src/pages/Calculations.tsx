@@ -880,6 +880,7 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const r = (calc.results ?? {}) as RespResults;
   const points = r.points ?? [];
   const inp = (calc.inputParams ?? {}) as Record<string, unknown>;
+  const scatter = inp.h1h2Scatter as { peak: number; median: number; mean: number } | undefined;
   if (points.length === 0) {
     return <div className="text-sm text-slate-500 py-8 text-center">Нет точек графика в сохранённом результате.</div>;
   }
@@ -888,6 +889,19 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       {r.peakT != null && (
         <div className="text-xs text-rose-600 font-medium">
           Пик Sa @ T = {r.peakT.toFixed(2)} с · Sa = {r.peakSa?.toFixed(3) ?? '—'} м/с² · ζ = {String(inp.damping ?? '—')}%
+        </div>
+      )}
+      {scatter && (
+        <div className={`flex flex-wrap gap-3 px-3 py-2 rounded-md border text-xs font-medium ${
+          scatter.peak < 1.3 ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+          : scatter.peak < 1.6 ? 'bg-amber-50 border-amber-200 text-amber-700'
+          : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          <span className="text-slate-500 font-normal">Разброс H1/H2:</span>
+          <span title="Максимальный разброс по всем периодам">Пиковый: <strong>{scatter.peak.toFixed(2)}×</strong></span>
+          <span title="Медианный разброс по всем периодам">Медиана: <strong>{scatter.median.toFixed(2)}×</strong></span>
+          <span title="Среднеарифметический разброс по всем периодам">Среднее: <strong>{scatter.mean.toFixed(2)}×</strong></span>
+          <span className="font-normal opacity-75">{scatter.peak < 1.3 ? '✓ хороший' : scatter.peak < 1.6 ? '⚠ умеренный' : '✗ высокий'}</span>
         </div>
       )}
       <ResponsiveContainer width="100%" height={320}>

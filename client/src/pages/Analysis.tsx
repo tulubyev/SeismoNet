@@ -2071,12 +2071,16 @@ const ResponseTab: FC<RespTabProps> = ({
                     const r = await fetch('/api/calculations', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ calcType: 'response_spectrum',
                         objectId: selectedObj?.id ?? null,
-                        inputParams:
-                          inputMode === 'catalog'
-                            ? { ...objectInputMeta, scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), component: catalogComponent === 'GMH' ? 'H1⊕H2_geomean' : 'single', K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key }
+                        inputParams: (() => {
+                          const scatterMeta = h1h2ScatterStats
+                            ? { h1h2Scatter: { peak: h1h2ScatterStats.peak, median: h1h2ScatterStats.median, mean: h1h2ScatterStats.mean } }
+                            : {};
+                          return inputMode === 'catalog'
+                            ? { ...objectInputMeta, scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), component: catalogComponent === 'GMH' ? 'H1⊕H2_geomean' : 'single', K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, ...scatterMeta }
                             : inputMode === 'sp14'
-                              ? { ...objectInputMeta, sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single' }
-                              : { ...objectInputMeta, seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key },
+                              ? { ...objectInputMeta, sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single', ...scatterMeta }
+                              : { ...objectInputMeta, seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, ...scatterMeta };
+                        })(),
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     toast({ title: 'Спектр отклика сохранён в БД' });
