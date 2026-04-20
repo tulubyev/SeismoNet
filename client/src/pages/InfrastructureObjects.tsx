@@ -911,7 +911,7 @@ const InfrastructureObjects: FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3 flex-shrink-0">
-                  <div className="space-y-2 h-[300px] overflow-y-auto pr-1">
+                  <div className="space-y-2 h-[300px] overflow-y-auto p-1">
                 {isLoading ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="py-12 text-center text-slate-400 text-sm">Загрузка...</CardContent>
@@ -932,11 +932,8 @@ const InfrastructureObjects: FC = () => {
                       >
                         <CardContent className="pt-4 pb-3">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              <div className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${obj.isMonitored ? 'bg-purple-100' : 'bg-slate-100'}`}>
-                                <Building2 className={`h-4 w-4 ${obj.isMonitored ? 'text-purple-600' : 'text-slate-400'}`} />
-                              </div>
-                              <div className="min-w-0">
+                            <div className="flex items-start min-w-0 flex-1">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="text-sm font-semibold text-slate-800">{obj.name}</p>
                                   {obj.isMonitored
