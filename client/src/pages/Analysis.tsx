@@ -23,7 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  ComposedChart, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2, Download, BookOpen, TriangleAlert, Copy } from 'lucide-react';
 import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, SoilLayer, InfrastructureObject, SeismicCalculation } from '@shared/schema';
@@ -1489,6 +1489,8 @@ const ResponseTab: FC<RespTabProps> = ({
       const h1h2Ratio = (h1 != null && h2 != null && Math.min(h1, h2) > 0)
         ? Math.max(h1, h2) / Math.min(h1, h2)
         : undefined;
+      const ribbonLow  = (h1 != null && h2 != null) ? Math.min(h1, h2) : undefined;
+      const ribbonHigh = (h1 != null && h2 != null) ? Math.max(h1, h2) : undefined;
       return {
         ...p,
         Sa_design: design[i].Sa_design,
@@ -1498,6 +1500,7 @@ const ResponseTab: FC<RespTabProps> = ({
         Sa_H1: h1,
         Sa_H2: h2,
         H1_H2_ratio: h1h2Ratio,
+        Sa_H1H2_ribbon: (ribbonLow != null && ribbonHigh != null) ? [ribbonLow, ribbonHigh] as [number, number] : undefined,
       };
     });
   }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2, componentSpectra]);
@@ -1809,7 +1812,7 @@ const ResponseTab: FC<RespTabProps> = ({
           </CardHeader>
           <CardContent className="px-2 pb-4">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis
                   dataKey="T" scale="log" type="number" domain={[0.05, 3]}
@@ -1836,6 +1839,20 @@ const ResponseTab: FC<RespTabProps> = ({
                   <ReferenceLine x={peakSa.T} stroke="none"
                     label={{ value: `${COMP_META[dominantComp.key]?.label ?? dominantComp.key} @ пик`, fontSize: 9, fill: COMP_META[dominantComp.key]?.color ?? '#64748b', position: 'insideTop' }} />
                 )}
+                {componentSpectra?.H1 && componentSpectra?.H2 && (
+                  <Area
+                    type="monotone"
+                    dataKey="Sa_H1H2_ribbon"
+                    stroke="none"
+                    fill="#6366f1"
+                    fillOpacity={0.13}
+                    legendType="none"
+                    hide={hiddenSeries.has('Sa_H1') || hiddenSeries.has('Sa_H2')}
+                    isAnimationActive={false}
+                    dot={false}
+                    activeDot={false}
+                  />
+                )}
                 {componentSpectra?.Z && (
                   <Line type="monotone" dataKey="Sa_Z" stroke="#94a3b8" strokeWidth={1} dot={false}
                     hide={hiddenSeries.has('Sa_Z')} name="Sa Z (вертик.)" isAnimationActive={false} />
@@ -1861,7 +1878,7 @@ const ResponseTab: FC<RespTabProps> = ({
                 <Line type="monotone" dataKey="Sa_design" stroke="#0369a1" strokeWidth={1.6} strokeDasharray="6 4" dot={false}
                   hide={hiddenSeries.has('Sa_design')}
                   name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory}, K₁=${sp14K1.toFixed(2)}, K₂=${sp14K2.toFixed(2)})`} />
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
             {h1h2ScatterStats && (
               <div className="mx-3 mt-2 mb-1 rounded-md border border-slate-200 bg-white px-3 py-2">
