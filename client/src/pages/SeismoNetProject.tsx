@@ -1,7 +1,7 @@
 import { FC } from 'react';
 import { useLocation } from 'wouter';
 import {
-  BookOpen, Users2, Waves, Compass, Lightbulb, ArrowRight, CheckCircle2,
+  BookOpen, Users2, Waves, Compass, Lightbulb, ArrowRight, CheckCircle2, Info,
 } from 'lucide-react';
 
 interface BlockDef {
@@ -15,6 +15,15 @@ interface BlockDef {
 }
 
 const blocks: BlockDef[] = [
+  {
+    href:        '/about-project',
+    title:       'О проекте',
+    subtitle:    'Цели, задачи и история сети сейсмических наблюдений Иркутска',
+    icon:        Info,
+    gradient:    'from-blue-600 to-blue-800',
+    shadow:      'shadow-blue-900/40',
+    description: 'Зачем создана сеть, кто её развивает, какие задачи решает сейсмический мониторинг объектов гражданской и промышленной инфраструктуры',
+  },
   {
     href:        '/building-norms',
     title:       'Нормативная база',
