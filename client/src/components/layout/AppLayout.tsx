@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Building2, Radio, FileText,
   Settings, LogOut, UserCircle, Bell,
-  ChevronDown, Wifi, WifiOff, Calculator, Activity, Mountain, History
+  ChevronDown, Wifi, WifiOff, Calculator, Activity, Mountain, History, ChevronLeft
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -26,6 +26,52 @@ const NAV_LINKS = [
   { href: '/settings',       icon: <Settings className="h-4 w-4" />,   label: 'Настройки'           },
 ];
 
+const PARENT_ROUTES: Record<string, string> = {
+  '/monitoring-hub':     '/',
+  '/data-analysis':      '/',
+  '/system-management':  '/',
+  '/seismonet-project':  '/',
+  '/infrastructure':     '/',
+  '/stations':           '/',
+  '/seismograms':        '/',
+  '/analysis':           '/',
+  '/calculations':       '/',
+  '/soil-database':      '/',
+  '/settings':           '/',
+  '/building-norms':     '/',
+  '/archive':            '/',
+  '/developers':         '/',
+  '/seismo-live':        '/',
+  '/monitoring':         '/',
+  '/network-status':     '/',
+  '/live-waveforms':     '/',
+  '/status-detail':      '/',
+  '/data-exchange':      '/',
+  '/alerts':             '/',
+  '/stations/new':       '/stations',
+  '/about-project':      '/seismonet-project',
+  '/partners':           '/seismonet-project',
+  '/about-earthquakes':  '/seismonet-project',
+  '/seismic-basics':     '/seismonet-project',
+  '/interesting':        '/seismonet-project',
+};
+
+const ROUTE_LABELS: Record<string, string> = {
+  '/':                  'Обзор',
+  '/stations':          'Датчики',
+  '/seismonet-project': 'WiKi SeismoNet',
+};
+
+function getParent(location: string): string | null {
+  if (location === '/') return null;
+  if (PARENT_ROUTES[location]) return PARENT_ROUTES[location];
+  const segments = location.split('/').filter(Boolean);
+  if (segments.length > 1) {
+    return '/' + segments.slice(0, -1).join('/');
+  }
+  return '/';
+}
+
 const TopNav: FC = () => {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
@@ -33,10 +79,13 @@ const TopNav: FC = () => {
   const { data: alerts = [] } = useQuery<Alert[]>({ queryKey: ['/api/alerts'] });
   const unread = alerts.filter(a => !a.isRead).length;
 
+  const parentHref = getParent(location);
+  const parentLabel = parentHref ? (ROUTE_LABELS[parentHref] ?? 'Назад') : null;
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-slate-900 border-b border-slate-700 flex items-center px-4 gap-2 shadow-lg">
       <Link href="/">
-        <div className="flex items-center gap-2 mr-4 cursor-pointer flex-shrink-0">
+        <div className="flex items-center gap-2 mr-2 cursor-pointer flex-shrink-0">
           <div className="w-7 h-7 rounded bg-blue-500 flex items-center justify-center">
             <Activity className="h-4 w-4 text-white" />
           </div>
@@ -46,6 +95,18 @@ const TopNav: FC = () => {
           </span>
         </div>
       </Link>
+
+      {parentHref && (
+        <>
+          <Link href={parentHref}>
+            <div className="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-slate-400 hover:text-white hover:bg-slate-700 transition-colors flex-shrink-0">
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span className="text-xs hidden sm:inline">{parentLabel}</span>
+            </div>
+          </Link>
+          <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
+        </>
+      )}
 
       <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
         {NAV_LINKS.map(link => {
