@@ -117,7 +117,7 @@ const TopNav: FC = () => {
 const AppFooter: FC = () => (
   <footer className="fixed bottom-0 left-0 right-0 z-40 h-10 bg-slate-900 border-t border-slate-700 flex items-center justify-between px-6">
     <span className="text-slate-400 text-xs">
-      SeismoNet Irkutsk Сеть сейсмических станций
+      SeismoNet Irkutsk Центр сейсмического мониторинга
     </span>
     <div className="flex items-center gap-4 text-slate-500 text-xs">
       <span>v2.0.0</span>
