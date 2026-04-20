@@ -46,7 +46,13 @@ import {
 } from "@shared/schema";
 
 // Maximum number of note history entries to keep per calculation
-export const NOTE_HISTORY_LIMIT = 50;
+// Can be overridden via the NOTE_HISTORY_LIMIT environment variable (must be a positive integer).
+// Values that are missing, non-integer, zero, or negative fall back to 50.
+const _rawNoteHistoryLimit = Number(process.env.NOTE_HISTORY_LIMIT);
+export const NOTE_HISTORY_LIMIT =
+  Number.isInteger(_rawNoteHistoryLimit) && _rawNoteHistoryLimit >= 1
+    ? _rawNoteHistoryLimit
+    : 50;
 
 // Interface for storage operations
 export interface IStorage {
