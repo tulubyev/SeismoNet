@@ -5,7 +5,7 @@ import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
   Activity, Building2, Radio, Map, FileText,
-  BookOpen, Layers, History, ArrowRight,
+  BookOpen, ArrowRight,
   AlertTriangle, CheckCircle2, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -70,17 +70,6 @@ const HomePage: FC = () => {
       status:     last24hEvents > 5 ? 'warn' : 'ok',
     },
     {
-      href:       '/analysis',
-      title:      'Расчёты и усиление',
-      subtitle:   'Каталог событий, МТСМ, отклик конструкций',
-      icon:       History,
-      gradient:   'from-orange-500 to-orange-700',
-      shadow:     'shadow-orange-900/40',
-      badge:      events.length,
-      badgeLabel: 'событий в базе',
-      status:     'ok',
-    },
-    {
       href:       '/seismograms',
       title:      'Сейсмограммы',
       subtitle:   'Запись, просмотр волн, экспорт данных',
@@ -98,17 +87,6 @@ const HomePage: FC = () => {
       icon:       Activity,
       gradient:   'from-rose-500 to-rose-700',
       shadow:     'shadow-rose-900/40',
-      badge:      null,
-      badgeLabel: '',
-      status:     null,
-    },
-    {
-      href:       '/soil-profiles',
-      title:      'Профили грунтов',
-      subtitle:   'Геология, Vs30, категории по СП 14.13330',
-      icon:       Layers,
-      gradient:   'from-amber-500 to-amber-700',
-      shadow:     'shadow-amber-900/40',
       badge:      null,
       badgeLabel: '',
       status:     null,
