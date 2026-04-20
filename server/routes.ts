@@ -259,6 +259,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error updating alert' });
     }
   });
+
+  // Mark all alerts as read
+  app.post('/api/alerts/read-all', async (req, res) => {
+    try {
+      await storage.markAllAlertsAsRead();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating alerts' });
+    }
+  });
   
   
   // --- Field Operations API Routes ---

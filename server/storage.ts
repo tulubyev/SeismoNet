@@ -117,6 +117,7 @@ export interface IStorage {
   getAlerts(limit: number): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
   markAlertAsRead(id: number): Promise<Alert | undefined>;
+  markAllAlertsAsRead(): Promise<void>;
 
   // Infrastructure object operations
   getInfrastructureObjects(): Promise<InfrastructureObject[]>;
@@ -764,6 +765,12 @@ export class MemStorage implements IStorage {
       return updatedAlert;
     }
     return undefined;
+  }
+
+  async markAllAlertsAsRead(): Promise<void> {
+    for (const [id, alert] of this.alerts) {
+      this.alerts.set(id, { ...alert, isRead: true });
+    }
   }
 
   // ─── Region operations ─────────────────────────────────────────────────────
@@ -1566,6 +1573,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.alerts.id, id))
       .returning();
     return updatedAlert;
+  }
+
+  async markAllAlertsAsRead(): Promise<void> {
+    await db.update(schema.alerts).set({ isRead: true }).where(eq(schema.alerts.isRead, false));
   }
 
   // ─── Infrastructure object operations ────────────────────────────────────────
