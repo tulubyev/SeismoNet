@@ -40,7 +40,7 @@ const TopNav: FC = () => {
           <div className="w-7 h-7 rounded bg-blue-500 flex items-center justify-center">
             <Activity className="h-4 w-4 text-white" />
           </div>
-          <span className="text-white font-bold text-sm leading-tight hidden lg:block">
+          <span className="text-white font-bold text-sm leading-tight hidden sm:block">
             Seismo Net<br />
             <span className="text-blue-400 font-normal text-[10px]">г. Иркутск</span>
           </span>
@@ -120,7 +120,7 @@ const AppFooter: FC = () => (
       SeismoNet Irkutsk Центр сейсмического мониторинга
     </span>
     <span className="absolute left-1/2 -translate-x-1/2 text-slate-300 text-xs font-medium hidden md:inline whitespace-nowrap">
-      Единая цифровая система эксплуатационного мониторинга (ЕЦСЭМ)
+      ЕЦСЭМ
     </span>
     <div className="flex items-center gap-4 text-slate-500 text-xs">
       <span>v2.0.0</span>
