@@ -27,6 +27,11 @@ import SystemManagement from "@/pages/SystemManagement";
 import Calculations from "@/pages/Calculations";
 import SeismoNetProject from "@/pages/SeismoNetProject";
 import DataAnalysis from "@/pages/DataAnalysis";
+import AboutProject from "@/pages/AboutProject";
+import Partners from "@/pages/Partners";
+import AboutEarthquakes from "@/pages/AboutEarthquakes";
+import SeismicBasics from "@/pages/SeismicBasics";
+import Interesting from "@/pages/Interesting";
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
@@ -57,7 +62,12 @@ function Router() {
         requiredRole="administrator" />
       <ProtectedRoute path="/system-management"   component={withLayout(SystemManagement)}   />
       <ProtectedRoute path="/seismonet-project"  component={withLayout(SeismoNetProject)}   />
-      <ProtectedRoute path="/data-analysis"     component={withLayout(DataAnalysis)}       />
+      <ProtectedRoute path="/data-analysis"      component={withLayout(DataAnalysis)}      />
+      <ProtectedRoute path="/about-project"     component={withLayout(AboutProject)}      />
+      <ProtectedRoute path="/partners"          component={withLayout(Partners)}          />
+      <ProtectedRoute path="/about-earthquakes" component={withLayout(AboutEarthquakes)}  />
+      <ProtectedRoute path="/seismic-basics"    component={withLayout(SeismicBasics)}     />
+      <ProtectedRoute path="/interesting"       component={withLayout(Interesting)}       />
 
       <ProtectedRoute path="/network-status"   component={withLayout(Dashboard)}   />
       <ProtectedRoute path="/live-waveforms"   component={withLayout(Dashboard)}   />
