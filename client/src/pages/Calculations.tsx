@@ -993,7 +993,14 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
           onClick={() => {
-            const rows = ['period_s,Sa_m_s2,Sv_m_s,Sd_m']
+            const meta: string[] = [];
+            if (scatter) {
+              meta.push(`# h1h2_scatter_peak,${scatter.peak.toFixed(4)}`);
+              meta.push(`# h1h2_scatter_median,${scatter.median.toFixed(4)}`);
+              meta.push(`# h1h2_scatter_mean,${scatter.mean.toFixed(4)}`);
+            }
+            const rows = meta
+              .concat(['period_s,Sa_m_s2,Sv_m_s,Sd_m'])
               .concat(points.map(p => `${p.T.toFixed(4)},${p.Sa.toFixed(6)},${p.Sv.toFixed(6)},${p.Sd.toFixed(6)}`));
             downloadCsv(`response_spectrum_calc_${calc.id}.csv`, rows.join('\n'));
           }}>
