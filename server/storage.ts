@@ -46,7 +46,7 @@ import {
 } from "@shared/schema";
 
 // Maximum number of note history entries to keep per calculation
-const NOTE_HISTORY_LIMIT = 50;
+export const NOTE_HISTORY_LIMIT = 50;
 
 // Interface for storage operations
 export interface IStorage {

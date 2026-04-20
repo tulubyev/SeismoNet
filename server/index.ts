@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { db, schema } from "./db";
+import { sql } from "drizzle-orm";
+import { NOTE_HISTORY_LIMIT } from "./storage";
 
 const app = express();
 app.use(express.json());
@@ -45,8 +48,55 @@ app.use((req, res, next) => {
   next();
 });
 
+async function trimNoteHistoryOnStartup() {
+  try {
+    // Find all calculationIds that have more than the allowed number of history entries
+    const overLimit = await db.execute(sql`
+      SELECT calculation_id
+      FROM calculation_note_history
+      GROUP BY calculation_id
+      HAVING COUNT(*) > ${NOTE_HISTORY_LIMIT}
+    `);
+
+    if (overLimit.rows.length === 0) {
+      log("note history cleanup: all calculations within limit, nothing to trim");
+      return;
+    }
+
+    let trimmed = 0;
+    for (const row of overLimit.rows) {
+      const calcId = (row as { calculation_id: number }).calculation_id;
+
+      // Fetch the IDs to keep (most recent 50 entries)
+      const toKeep = await db.query.calculationNoteHistory.findMany({
+        where: (t, { eq }) => eq(t.calculationId, calcId),
+        orderBy: (t, { desc }) => [desc(t.editedAt), desc(t.id)],
+        columns: { id: true },
+        limit: NOTE_HISTORY_LIMIT,
+      });
+
+      const keepIds = toKeep.map(e => e.id);
+
+      // Delete everything for this calculation that isn't in keepIds
+      await db.delete(schema.calculationNoteHistory)
+        .where(
+          sql`${schema.calculationNoteHistory.calculationId} = ${calcId}
+              AND ${schema.calculationNoteHistory.id} NOT IN ${sql`(${sql.join(keepIds.map(id => sql`${id}`), sql`, `)})`}`
+        );
+
+      trimmed++;
+    }
+
+    log(`note history cleanup: trimmed ${trimmed} calculation(s) to ${NOTE_HISTORY_LIMIT} entries`);
+  } catch (err) {
+    log(`note history cleanup error: ${err}`);
+  }
+}
+
 (async () => {
   const server = await registerRoutes(app);
+
+  await trimNoteHistoryOnStartup();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
