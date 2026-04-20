@@ -43,7 +43,7 @@ const HomePage: FC = () => {
   const blocks: BlockDef[] = [
     {
       href:       '/monitoring-hub',
-      title:      'Карта и мониторинг',
+      title:      'Онлайн обзор',
       subtitle:   'Карта событий, объекты инфраструктуры, сейсмические станции',
       icon:       Map,
       gradient:   'from-teal-500 to-teal-700',
