@@ -210,8 +210,11 @@ const Calculations: FC = () => {
         variant: 'destructive' });
     }
     deepLinkConsumedRef.current = true;
-    // Strip the query param so refresh doesn't re-trigger and the URL stays clean.
-    window.history.replaceState({}, '', window.location.pathname);
+    // Strip only the `compare` param so refresh doesn't re-trigger; preserve
+    // any unrelated query params a future feature may rely on.
+    params.delete('compare');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
   }, [calcs, calcMap, toast]);
 
   // Prune stale selected IDs whenever the calc list changes (e.g. after delete/refetch).
