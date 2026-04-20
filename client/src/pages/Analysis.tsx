@@ -1256,6 +1256,9 @@ const ResponseTab: FC<RespTabProps> = ({
   const [catalogComponent, setCatalogComponent] = useState<'single' | 'GMH'>('single');
   const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[]; H1?: SpecPoint[]; H2?: SpecPoint[] } | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const [customPeriods,  setCustomPeriods]  = useState<number[]>([]);
+  const [customPeriodInput, setCustomPeriodInput] = useState<string>('');
+  const [customPeriodError, setCustomPeriodError] = useState<string>('');
   useEffect(() => {
     if (selectedObjectId === null) return;
     const obj = objects.find(o => o.id === selectedObjectId);
@@ -1517,7 +1520,12 @@ const ResponseTab: FC<RespTabProps> = ({
     if (componentSpectra.H2) comps.push('H2');
     if (comps.length === 0) return null;
 
-    const rows = KEY_PERIODS.map(kp => {
+    const allPeriods: { T: number; isCustom: boolean }[] = [
+      ...KEY_PERIODS.map(T => ({ T, isCustom: false })),
+      ...customPeriods.map(T => ({ T, isCustom: true })),
+    ].sort((a, b) => a.T - b.T);
+
+    const rows = allPeriods.map(({ T: kp, isCustom }) => {
       let nearestIdx = 0;
       let minDiff = Infinity;
       chartData.forEach((pt, i) => {
@@ -1529,7 +1537,7 @@ const ResponseTab: FC<RespTabProps> = ({
       comps.forEach(c => {
         compValues[c] = (pt as Record<string, unknown>)[`Sa_${c}`] as number | undefined;
       });
-      return { T: kp, Sa: pt.Sa, compValues };
+      return { T: kp, Sa: pt.Sa, compValues, isCustom };
     });
 
     let peakRow = -1;
@@ -1542,7 +1550,7 @@ const ResponseTab: FC<RespTabProps> = ({
     }
 
     return { rows, comps, peakRow };
-  }, [componentSpectra, chartData, peakSa]);
+  }, [componentSpectra, chartData, peakSa, customPeriods]);
 
   const toggleSeries = useCallback((dataKey: string) => {
     setHiddenSeries(prev => {
@@ -1928,13 +1936,59 @@ const ResponseTab: FC<RespTabProps> = ({
                     onClick={() => {
                       const headers = ['T (с)', ...saKeyTable.comps.map(c => `Sa_${c}`), 'Sa расч.'].join('\t');
                       const dataRows = saKeyTable.rows.map(r =>
-                        [r.T.toFixed(1), ...saKeyTable.comps.map(c => r.compValues[c]?.toFixed(4) ?? '—'), r.Sa.toFixed(4)].join('\t')
+                        [r.T.toFixed(r.isCustom ? 3 : 1), ...saKeyTable.comps.map(c => r.compValues[c]?.toFixed(4) ?? '—'), r.Sa.toFixed(4)].join('\t')
                       );
                       navigator.clipboard.writeText([headers, ...dataRows].join('\n'));
                     }}
                   >
                     <Copy className="h-3 w-3" /> Копировать
                   </Button>
+                </div>
+                <div className="px-3 py-2 border-b border-slate-100 flex flex-wrap items-center gap-1.5">
+                  {customPeriods.map(T => (
+                    <span key={T}
+                      className="inline-flex items-center gap-1 rounded border border-dashed border-violet-400 bg-violet-50 text-violet-700 text-[11px] font-mono px-2 py-0.5">
+                      {T % 1 === 0 ? T.toFixed(1) : T} с
+                      <button
+                        className="ml-0.5 text-violet-400 hover:text-violet-700 leading-none"
+                        onClick={() => setCustomPeriods(prev => prev.filter(p => p !== T))}
+                        title="Удалить"
+                      >×</button>
+                    </span>
+                  ))}
+                  <form
+                    className="flex items-center gap-1"
+                    onSubmit={e => {
+                      e.preventDefault();
+                      const raw = parseFloat(customPeriodInput.replace(',', '.'));
+                      const val = Math.round(raw * 1000) / 1000;
+                      if (isNaN(val) || val <= 0 || val > 20) {
+                        setCustomPeriodError('Введите T от 0 до 20 с');
+                        return;
+                      }
+                      if (KEY_PERIODS.includes(val) || customPeriods.includes(val)) {
+                        setCustomPeriodError('Этот период уже есть в таблице');
+                        return;
+                      }
+                      setCustomPeriods(prev => [...prev, val]);
+                      setCustomPeriodError('');
+                      setCustomPeriodInput('');
+                    }}
+                  >
+                    <Input
+                      value={customPeriodInput}
+                      onChange={e => { setCustomPeriodInput(e.target.value); setCustomPeriodError(''); }}
+                      placeholder="T, с"
+                      className={`h-6 w-20 text-[11px] px-2 font-mono ${customPeriodError ? 'border-red-400' : ''}`}
+                    />
+                    <Button type="submit" size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-0.5 text-violet-600 border-violet-300 hover:bg-violet-50">
+                      <Plus className="h-3 w-3" /> Добавить
+                    </Button>
+                  </form>
+                  {customPeriodError
+                    ? <span className="text-[10px] text-red-500">{customPeriodError}</span>
+                    : <span className="text-[10px] text-slate-400">— добавить пользовательский период</span>
+                  }
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
@@ -1960,12 +2014,17 @@ const ResponseTab: FC<RespTabProps> = ({
                               return v > bv ? c : best;
                             }, null)
                           : null;
+                        const rowClass = isPeakRow
+                          ? 'bg-purple-50 border-l-2 border-purple-400'
+                          : row.isCustom
+                            ? (ri % 2 === 0 ? 'bg-violet-50/60 border-l-2 border-dashed border-violet-300' : 'bg-violet-50/40 border-l-2 border-dashed border-violet-300')
+                            : (ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/40');
                         return (
-                          <tr key={row.T}
-                            className={isPeakRow ? 'bg-purple-50 border-l-2 border-purple-400' : ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
-                            <td className={`px-3 py-1 font-mono ${isPeakRow ? 'font-bold text-purple-700' : 'text-slate-600'}`}>
-                              {row.T.toFixed(1)}
+                          <tr key={row.T} className={rowClass}>
+                            <td className={`px-3 py-1 font-mono ${isPeakRow ? 'font-bold text-purple-700' : row.isCustom ? 'text-violet-700' : 'text-slate-600'}`}>
+                              {row.isCustom ? (row.T % 1 === 0 ? row.T.toFixed(1) : String(row.T)) : row.T.toFixed(1)}
                               {isPeakRow && <span className="ml-1 text-[9px] text-purple-500">▲ пик</span>}
+                              {row.isCustom && !isPeakRow && <span className="ml-1 text-[9px] text-violet-400">★ польз.</span>}
                             </td>
                             {saKeyTable.comps.map(c => {
                               const isDom = isPeakRow && rowDomKey === c;
@@ -1989,7 +2048,7 @@ const ResponseTab: FC<RespTabProps> = ({
                   </table>
                 </div>
                 <div className="px-3 py-1 text-[10px] text-slate-400 border-t border-slate-100">
-                  Стандартные расчётные периоды T = 0.1, 0.2, 0.5, 1.0, 2.0 с · ближайший шаг сетки · «Sa расч.» — итоговый (геом. среднее при GMH/AVG3) · ★ — доминирующая компонента в строке пика · строка пика (▲) выделена.
+                  Стандартные периоды T = 0.1, 0.2, 0.5, 1.0, 2.0 с · пользовательские периоды выделены пунктирной рамкой (★ польз.) · ближайший шаг сетки · «Sa расч.» — итоговый (геом. среднее при GMH/AVG3) · ★ — доминирующая компонента в строке пика · строка пика (▲) выделена.
                 </div>
               </div>
             )}
