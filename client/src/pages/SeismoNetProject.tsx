@@ -78,13 +78,6 @@ const SeismoNetProject: FC = () => {
     <div className="min-h-full bg-slate-900">
       <div className="px-6 pt-8 pb-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Проект SeismoNet</h1>
-            <p className="text-slate-400 text-base">
-              Нормативные документы, партнёры, просветительские и научно-популярные материалы
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {blocks.map(block => {
               const Icon = block.icon;
