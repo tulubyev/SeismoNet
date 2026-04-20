@@ -822,14 +822,18 @@ const InfrastructureObjects: FC = () => {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Filters + Object list — side by side, 50/50 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
 
-            {/* Filters + List */}
-            <div className="lg:col-span-2 space-y-4">
-
-              {/* Filters */}
-              <Card className="border-0 shadow-sm bg-white">
-                <CardContent className="pt-4 pb-3 space-y-3">
+            {/* Filters */}
+            <Card className="border-0 shadow-sm bg-white">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-400" />
+                  Фильтры объектов инфраструктуры
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 pb-3 space-y-3">
                   {/* Row 1: search + reset */}
                   <div className="flex gap-3 items-center">
                     <div className="relative flex-1">
@@ -975,25 +979,12 @@ const InfrastructureObjects: FC = () => {
                   })
                 )}
               </div>
-            </div>
-
-            {/* Detail panel */}
-            <div className="lg:col-span-1">
-              {currentSelectedObj ? (
-                <div className="sticky top-4">
-                  <DetailPanel obj={currentSelectedObj} sensors={sensorInstallations} categories={categories} />
-                </div>
-              ) : (
-                <Card className="border-0 shadow-sm bg-slate-50 border-dashed border border-slate-200">
-                  <CardContent className="py-16 text-center">
-                    <Building2 className="h-10 w-10 mx-auto mb-3 text-slate-300" />
-                    <p className="text-sm text-slate-400 font-medium">Выберите объект</p>
-                    <p className="text-xs text-slate-400 mt-1">для просмотра параметров и 3D-схемы</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
           </div>
+
+          {/* Detail panel — full width below filters/list */}
+          {currentSelectedObj && (
+            <DetailPanel obj={currentSelectedObj} sensors={sensorInstallations} categories={categories} />
+          )}
         </div>
   </>
   );
