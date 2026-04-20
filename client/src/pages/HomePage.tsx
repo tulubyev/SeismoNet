@@ -128,9 +128,10 @@ const HomePage: FC = () => {
 
   return (
     <div className="min-h-full bg-slate-900">
-      <div className="px-6 pt-8 pb-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="px-6 py-8">
+        <div className="max-w-3xl mx-auto space-y-5">
+          {/* Stats — same width as 2-column blocks grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'Датчиков онлайн', value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
               { label: 'События 24 ч',    value: last24hEvents,                           color: 'text-orange-400'  },
@@ -143,12 +144,11 @@ const HomePage: FC = () => {
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      <div className="px-6 pb-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {blocks.map(renderBlock)}
+          {/* Blocks — always 2 per row */}
+          <div className="grid grid-cols-2 gap-5">
+            {blocks.map(renderBlock)}
+          </div>
         </div>
       </div>
     </div>
