@@ -1269,15 +1269,6 @@ const ResponseTab: FC<RespTabProps> = ({
     if (obj.k2Key && obj.k2Key in SP14_K2_TABLE6) setSp14K2Key(obj.k2Key as keyof typeof SP14_K2_TABLE6);
   }, [selectedObjectId, objects]);
 
-  const saveObjectKeys = useCallback(async (k1: keyof typeof SP14_K1_TABLE5, k2: keyof typeof SP14_K2_TABLE6) => {
-    if (selectedObjectId === null) return;
-    try {
-      await apiRequest('PATCH', `/api/infrastructure-objects/${selectedObjectId}`, { k1Key: k1, k2Key: k2 });
-      queryClient.invalidateQueries({ queryKey: ['/api/infrastructure-objects'] });
-    } catch {
-      toast({ title: 'Ошибка сохранения K₁/K₂', variant: 'destructive' });
-    }
-  }, [selectedObjectId, toast]);
 
   const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
   const sp14K2 = SP14_K2_TABLE6[sp14K2Key];
@@ -1787,7 +1778,6 @@ const ResponseTab: FC<RespTabProps> = ({
               <Select value={sp14K1Key} onValueChange={v => {
                 const k = v as keyof typeof SP14_K1_TABLE5;
                 setSp14K1Key(k);
-                saveObjectKeys(k, sp14K2Key);
               }}>
                 <SelectTrigger className="h-8 w-64 text-xs" data-testid="select-sp14-k1"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1803,7 +1793,6 @@ const ResponseTab: FC<RespTabProps> = ({
               <Select value={sp14K2Key} onValueChange={v => {
                 const k = v as keyof typeof SP14_K2_TABLE6;
                 setSp14K2Key(k);
-                saveObjectKeys(sp14K1Key, k);
               }}>
                 <SelectTrigger className="h-8 w-72 text-xs" data-testid="select-sp14-k2"><SelectValue /></SelectTrigger>
                 <SelectContent>
