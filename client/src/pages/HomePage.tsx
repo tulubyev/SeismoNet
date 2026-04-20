@@ -4,21 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
-  BarChart2, Building2, Radio, Map, FileText,
-  ArrowRight,
-  AlertTriangle, CheckCircle2, Settings as SettingsIcon, Globe,
+  BarChart2, Building2, Radio, Map,
+  ArrowRight, AlertTriangle, CheckCircle2,
+  Settings as SettingsIcon, Globe,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import type { Alert } from '@shared/schema';
 
-interface SubLink {
-  href: string;
-  label: string;
-  icon: FC<{ className?: string }>;
-  gradient: string;
-}
-
 interface BlockDef {
+  href: string;
   title: string;
   subtitle: string;
   icon: FC<{ className?: string }>;
@@ -27,9 +21,6 @@ interface BlockDef {
   badge?: string | number | null;
   badgeLabel?: string;
   status?: 'ok' | 'warn' | 'error' | null;
-  href?: string;
-  subLinks?: SubLink[];
-  colSpan?: string;
 }
 
 const HomePage: FC = () => {
@@ -48,7 +39,7 @@ const HomePage: FC = () => {
     queryKey: ['/api/alerts'],
   });
 
-  const unreadAlerts = alerts.filter(a => !a.isRead).length;
+  const unreadAlerts    = alerts.filter(a => !a.isRead).length;
   const onlineStations  = stations.filter(s => s.status === 'online').length;
   const monitoredObjs   = objects.filter(o => o.isMonitored).length;
   const last24hEvents   = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
@@ -78,6 +69,7 @@ const HomePage: FC = () => {
       status:     last24hEvents > 5 ? 'warn' : 'ok',
     },
     {
+      href:       '/data-analysis',
       title:      'Анализ данных',
       subtitle:   'Сейсмограммы, Фурье-анализ, спектры отклика, АЧХ',
       icon:       BarChart2,
@@ -86,10 +78,6 @@ const HomePage: FC = () => {
       badge:      seismograms.length,
       badgeLabel: 'записей в архиве',
       status:     'ok',
-      subLinks: [
-        { href: '/seismograms', label: 'Сейсмограммы',       icon: FileText,  gradient: 'from-violet-500 to-violet-700' },
-        { href: '/analysis',    label: 'Спектральный анализ', icon: BarChart2, gradient: 'from-rose-500   to-rose-700'   },
-      ],
     },
     {
       href:       '/stations',
@@ -127,74 +115,41 @@ const HomePage: FC = () => {
 
   const renderBlock = (block: BlockDef) => {
     const Icon = block.icon;
-    const isCompound = !!block.subLinks?.length;
-
     return (
-      <div
-        key={block.title}
-        className={`group relative bg-gradient-to-br ${block.gradient} rounded-2xl p-6
-          shadow-xl ${block.shadow} border border-white/10 overflow-hidden
-          ${block.colSpan ?? ''} ${!isCompound ? 'hover:scale-[1.02] hover:shadow-2xl transition-all duration-200 cursor-pointer' : ''}`}
-        onClick={!isCompound && block.href ? () => navigate(block.href!) : undefined}
+      <button
+        key={block.href}
+        onClick={() => navigate(block.href)}
+        className={`group relative bg-gradient-to-br ${block.gradient} rounded-2xl p-6 text-left
+          shadow-xl ${block.shadow} hover:scale-[1.02] hover:shadow-2xl
+          transition-all duration-200 cursor-pointer border border-white/10 overflow-hidden`}
       >
-        {!isCompound && (
-          <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
-        )}
+        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
 
         <div className="flex items-start justify-between mb-4">
           <div className="p-3 rounded-xl bg-white/15 backdrop-blur-sm">
             <Icon className="h-7 w-7 text-white" />
           </div>
           <div className="flex items-center gap-1.5">
-            {block.status === 'ok'   && <CheckCircle2  className="h-4 w-4 text-white/70" />}
-            {block.status === 'warn' && <AlertTriangle className="h-4 w-4 text-yellow-300" />}
-            {block.status === 'error'&& <AlertTriangle className="h-4 w-4 text-red-300" />}
-            {!isCompound && (
-              <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
-            )}
+            {block.status === 'ok'    && <CheckCircle2  className="h-4 w-4 text-white/70" />}
+            {block.status === 'warn'  && <AlertTriangle className="h-4 w-4 text-yellow-300" />}
+            {block.status === 'error' && <AlertTriangle className="h-4 w-4 text-red-300" />}
+            <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
           </div>
         </div>
 
         <h2 className="text-white font-bold text-lg leading-tight mb-1">{block.title}</h2>
         <p className="text-white/65 text-sm leading-snug mb-4">{block.subtitle}</p>
 
-        {!isCompound && block.badge !== null && block.badge !== undefined && (
+        {block.badge !== null && block.badge !== undefined && (
           <div className="flex items-baseline gap-2 mt-auto">
             <span className="text-3xl font-bold text-white">{block.badge}</span>
             <span className="text-white/60 text-xs">{block.badgeLabel}</span>
           </div>
         )}
 
-        {isCompound && (
-          <div className={`grid gap-3 mt-2 ${block.subLinks!.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'}`}>
-            {block.subLinks!.map(link => {
-              const LinkIcon = link.icon;
-              return (
-                <button
-                  key={link.href}
-                  onClick={e => { e.stopPropagation(); navigate(link.href); }}
-                  className={`group/sub relative flex flex-col items-start gap-2 p-4 rounded-xl
-                    bg-gradient-to-br ${link.gradient} shadow-lg
-                    border border-white/10 hover:border-white/25
-                    text-left transition-all duration-150 hover:scale-[1.04] hover:shadow-xl cursor-pointer overflow-hidden`}
-                >
-                  <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm">
-                    <LinkIcon className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="text-white text-sm font-bold leading-tight">
-                    {link.label}
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-white/40 group-hover/sub:text-white/90 group-hover/sub:translate-x-0.5 transition-all absolute bottom-3 right-3" />
-                  <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-5 -mb-5" />
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-white/5 -mr-8 -mb-8" />
         <div className="absolute bottom-0 right-0 w-14 h-14 rounded-full bg-white/5 -mr-2 -mb-2" />
-      </div>
+      </button>
     );
   };
 

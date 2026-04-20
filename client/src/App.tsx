@@ -26,6 +26,7 @@ import SoilDatabase from "@/pages/SoilDatabase";
 import SystemManagement from "@/pages/SystemManagement";
 import Calculations from "@/pages/Calculations";
 import SeismoNetProject from "@/pages/SeismoNetProject";
+import DataAnalysis from "@/pages/DataAnalysis";
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
@@ -56,6 +57,7 @@ function Router() {
         requiredRole="administrator" />
       <ProtectedRoute path="/system-management"   component={withLayout(SystemManagement)}   />
       <ProtectedRoute path="/seismonet-project"  component={withLayout(SeismoNetProject)}   />
+      <ProtectedRoute path="/data-analysis"     component={withLayout(DataAnalysis)}       />
 
       <ProtectedRoute path="/network-status"   component={withLayout(Dashboard)}   />
       <ProtectedRoute path="/live-waveforms"   component={withLayout(Dashboard)}   />
