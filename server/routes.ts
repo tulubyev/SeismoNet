@@ -16,6 +16,21 @@ import { encodeMiniSEED, type MseedChannel } from "./lib/miniseed";
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
 
+// Ensure columns added after initial table creation exist in all environments
+async function runStartupMigrations() {
+  try {
+    await db.execute(
+      `ALTER TABLE seismic_calculations ADD COLUMN IF NOT EXISTS notes_updated_at timestamp`
+    );
+    await db.execute(
+      `ALTER TABLE seismic_calculations ADD COLUMN IF NOT EXISTS notes_updated_by text`
+    );
+    console.log('Startup migrations applied (seismic_calculations columns ensured).');
+  } catch (e) {
+    console.error('Startup migration error (seismic_calculations columns):', e);
+  }
+}
+
 // Function to ensure all research networks are initialized
 async function initializeResearchNetworks() {
   console.log('Initializing research networks...');
@@ -51,6 +66,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with passport.js
   setupAuth(app);
   
+  // Apply any missing column migrations before serving requests
+  await runStartupMigrations();
+
   // Initialize research networks before server startup
   await initializeResearchNetworks();
   
