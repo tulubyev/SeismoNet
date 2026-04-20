@@ -1431,6 +1431,48 @@ const ResponseTab: FC<RespTabProps> = ({
     return { peak, median, mean, ratios };
   }, [componentSpectra]);
 
+  // Нормативный проектный спектр β(T)·A0·g·K_грунт по СП 14.13330.2018 §5,
+  // совмещённый с сеткой периодов вычисленного Sa(T) для прямого сравнения.
+  const chartData = useMemo(() => {
+    if (!respResult) return [];
+    const periods = respResult.map(p => p.T);
+    const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2);
+    return respResult.map((p, i) => {
+      const h1 = componentSpectra?.H1?.[i]?.Sa;
+      const h2 = componentSpectra?.H2?.[i]?.Sa;
+      const h1h2Ratio = (h1 != null && h2 != null && Math.min(h1, h2) > 0)
+        ? Math.max(h1, h2) / Math.min(h1, h2)
+        : undefined;
+      const ribbonLow  = (h1 != null && h2 != null) ? Math.min(h1, h2) : undefined;
+      const ribbonHigh = (h1 != null && h2 != null) ? Math.max(h1, h2) : undefined;
+      return {
+        ...p,
+        Sa_design: design[i].Sa_design,
+        Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
+        Sa_NS: componentSpectra?.NS?.[i]?.Sa,
+        Sa_EW: componentSpectra?.EW?.[i]?.Sa,
+        Sa_H1: h1,
+        Sa_H2: h2,
+        H1_H2_ratio: h1h2Ratio,
+        Sa_H1H2_ribbon: (ribbonLow != null && ribbonHigh != null) ? [ribbonLow, ribbonHigh] as [number, number] : undefined,
+      };
+    });
+  }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2, componentSpectra]);
+
+  const H1H2_GRADIENT_DOMAIN: [number, number] = [0.05, 3];
+  const h1h2GradientStops = useMemo(() => {
+    const pts = chartData.filter(pt => pt.H1_H2_ratio != null && pt.T >= H1H2_GRADIENT_DOMAIN[0] && pt.T <= H1H2_GRADIENT_DOMAIN[1]);
+    if (pts.length === 0) return null;
+    const logMin = Math.log(H1H2_GRADIENT_DOMAIN[0]);
+    const logMax = Math.log(H1H2_GRADIENT_DOMAIN[1]);
+    return pts.map(pt => {
+      const offset = ((Math.log(pt.T) - logMin) / (logMax - logMin)) * 100;
+      const ratio = pt.H1_H2_ratio!;
+      const color = ratio < 1.3 ? '#22c55e' : ratio < 1.6 ? '#f59e0b' : '#ef4444';
+      return { offset: Math.max(0, Math.min(100, offset)), color };
+    });
+  }, [chartData]);
+
   const COMPONENT_KEYS = new Set(['Sa_Z', 'Sa_NS', 'Sa_EW', 'Sa_H1', 'Sa_H2']);
   const AGGREGATE_KEYS = new Set(['Sa', 'Sa_design']);
 
@@ -1445,9 +1487,17 @@ const ResponseTab: FC<RespTabProps> = ({
       .sort((a, b) => b.value - a.value);
     const aggRows = validRows.filter(p => AGGREGATE_KEYS.has(p.dataKey));
     const hasComp = compRows.length > 0;
+    const tVal = Number(label);
+    const nearestPt = chartData.reduce<(typeof chartData)[0] | null>((best, pt) =>
+      best == null || Math.abs(pt.T - tVal) < Math.abs(best.T - tVal) ? pt : best, null);
+    const h1h2RatioAtT = nearestPt?.H1_H2_ratio;
+    const ratioColor = h1h2RatioAtT == null ? undefined
+      : h1h2RatioAtT < 1.3 ? '#16a34a'
+      : h1h2RatioAtT < 1.6 ? '#d97706'
+      : '#dc2626';
     return (
       <div className="bg-white border border-slate-200 rounded shadow-lg px-3 py-2 text-xs min-w-[180px]">
-        <div className="font-medium text-slate-600 border-b pb-1 mb-1.5">T = {Number(label).toFixed(3)} с</div>
+        <div className="font-medium text-slate-600 border-b pb-1 mb-1.5">T = {tVal.toFixed(3)} с</div>
         {hasComp && (
           <>
             <div className="text-[10px] text-slate-400 mb-0.5 uppercase tracking-wide">Компоненты (↓ по убыванию)</div>
@@ -1478,37 +1528,15 @@ const ResponseTab: FC<RespTabProps> = ({
             <span className="font-mono text-slate-700">{item.value.toFixed(4)}</span>
           </div>
         ))}
+        {h1h2RatioAtT != null && (
+          <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex justify-between gap-4 items-center">
+            <span className="text-slate-500">H1/H2 разброс</span>
+            <span className="font-mono font-semibold" style={{ color: ratioColor }}>{h1h2RatioAtT.toFixed(2)}×</span>
+          </div>
+        )}
       </div>
     );
-  }, []);
-
-  // Нормативный проектный спектр β(T)·A0·g·K_грунт по СП 14.13330.2018 §5,
-  // совмещённый с сеткой периодов вычисленного Sa(T) для прямого сравнения.
-  const chartData = useMemo(() => {
-    if (!respResult) return [];
-    const periods = respResult.map(p => p.T);
-    const design = sp14DesignSpectrum(periods, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2);
-    return respResult.map((p, i) => {
-      const h1 = componentSpectra?.H1?.[i]?.Sa;
-      const h2 = componentSpectra?.H2?.[i]?.Sa;
-      const h1h2Ratio = (h1 != null && h2 != null && Math.min(h1, h2) > 0)
-        ? Math.max(h1, h2) / Math.min(h1, h2)
-        : undefined;
-      const ribbonLow  = (h1 != null && h2 != null) ? Math.min(h1, h2) : undefined;
-      const ribbonHigh = (h1 != null && h2 != null) ? Math.max(h1, h2) : undefined;
-      return {
-        ...p,
-        Sa_design: design[i].Sa_design,
-        Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
-        Sa_NS: componentSpectra?.NS?.[i]?.Sa,
-        Sa_EW: componentSpectra?.EW?.[i]?.Sa,
-        Sa_H1: h1,
-        Sa_H2: h2,
-        H1_H2_ratio: h1h2Ratio,
-        Sa_H1H2_ribbon: (ribbonLow != null && ribbonHigh != null) ? [ribbonLow, ribbonHigh] as [number, number] : undefined,
-      };
-    });
-  }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2, componentSpectra]);
+  }, [chartData]);
 
   const KEY_PERIODS = [0.1, 0.2, 0.5, 1.0, 2.0];
 
@@ -1849,13 +1877,22 @@ const ResponseTab: FC<RespTabProps> = ({
                   <ReferenceLine x={peakSa.T} stroke="none"
                     label={{ value: `${COMP_META[dominantComp.key]?.label ?? dominantComp.key} @ пик`, fontSize: 9, fill: COMP_META[dominantComp.key]?.color ?? '#64748b', position: 'insideTop' }} />
                 )}
+                {h1h2GradientStops && (
+                  <defs>
+                    <linearGradient id="h1h2RibbonGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      {h1h2GradientStops.map((stop, i) => (
+                        <stop key={i} offset={`${stop.offset.toFixed(2)}%`} stopColor={stop.color} stopOpacity={0.35} />
+                      ))}
+                    </linearGradient>
+                  </defs>
+                )}
                 {componentSpectra?.H1 && componentSpectra?.H2 && (
                   <Area
                     type="monotone"
                     dataKey="Sa_H1H2_ribbon"
                     stroke="none"
-                    fill="#6366f1"
-                    fillOpacity={0.13}
+                    fill={h1h2GradientStops ? 'url(#h1h2RibbonGradient)' : '#6366f1'}
+                    fillOpacity={h1h2GradientStops ? 1 : 0.13}
                     legendType="none"
                     hide={hiddenSeries.has('Sa_H1') || hiddenSeries.has('Sa_H2')}
                     isAnimationActive={false}
