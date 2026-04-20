@@ -45,6 +45,9 @@ import {
   InsertComparisonSet
 } from "@shared/schema";
 
+// Maximum number of note history entries to keep per calculation
+const NOTE_HISTORY_LIMIT = 50;
+
 // Interface for storage operations
 export interface IStorage {
   // User operations
@@ -912,6 +915,18 @@ export class MemStorage implements IStorage {
   async createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory> {
     const row: CalculationNoteHistory = { id: this.currentNoteHistoryId++, ...entry, editedAt: entry.editedAt ?? new Date() };
     this.noteHistoryMap.set(row.id, row);
+    // Trim oldest entries beyond the limit for this calculation
+    const entries = Array.from(this.noteHistoryMap.values())
+      .filter(e => e.calculationId === entry.calculationId)
+      .sort((a, b) => {
+        const timeDiff = new Date(b.editedAt).getTime() - new Date(a.editedAt).getTime();
+        return timeDiff !== 0 ? timeDiff : b.id - a.id;
+      });
+    if (entries.length > NOTE_HISTORY_LIMIT) {
+      for (const old of entries.slice(NOTE_HISTORY_LIMIT)) {
+        this.noteHistoryMap.delete(old.id);
+      }
+    }
     return row;
   }
 
@@ -1171,7 +1186,7 @@ export class MemStorage implements IStorage {
 }
 
 import { db } from './db';
-import { eq, desc, and, gt, lte } from 'drizzle-orm';
+import { eq, desc, and, gt, lte, inArray } from 'drizzle-orm';
 import { schema } from './db';
 import {
   users, regions, stations, events, waveformData, researchNetworks,
@@ -1686,6 +1701,17 @@ export class DatabaseStorage implements IStorage {
   }
   async createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory> {
     const [row] = await db.insert(schema.calculationNoteHistory).values(entry).returning();
+    // Trim oldest entries beyond the limit for this calculation (bulk delete)
+    const allEntries = await db.query.calculationNoteHistory.findMany({
+      where: (t, { eq }) => eq(t.calculationId, entry.calculationId),
+      orderBy: (t, { desc }) => [desc(t.editedAt), desc(t.id)],
+      columns: { id: true },
+    });
+    if (allEntries.length > NOTE_HISTORY_LIMIT) {
+      const idsToDelete = allEntries.slice(NOTE_HISTORY_LIMIT).map(e => e.id);
+      await db.delete(schema.calculationNoteHistory)
+        .where(inArray(schema.calculationNoteHistory.id, idsToDelete));
+    }
     return row;
   }
 
