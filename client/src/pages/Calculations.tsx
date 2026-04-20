@@ -747,6 +747,7 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
     onError: () => toast({ title: 'Не удалось восстановить заметку', variant: 'destructive' }),
   });
 
+  const [showDiff, setShowDiff] = useState(true);
   const dirty = (value ?? '') !== (savedNotes ?? '');
 
   return (
@@ -768,6 +769,32 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
 
       {showHistory && (
         <div className="border rounded bg-white p-2 space-y-1.5 max-h-48 overflow-y-auto" data-testid={`notes-history-panel-${calc.id}`}>
+          <div className="flex items-center justify-end mb-1">
+            <div
+              className="flex items-center border border-amber-300 rounded overflow-hidden text-[10px]"
+              role="group"
+              aria-label="Режим просмотра истории"
+            >
+              <button
+                type="button"
+                aria-pressed={showDiff}
+                className={`px-1.5 py-0.5 transition-colors ${showDiff ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-amber-700 hover:bg-amber-50'}`}
+                onClick={() => setShowDiff(true)}
+                data-testid={`btn-notes-diff-toggle-${calc.id}`}
+              >
+                Diff
+              </button>
+              <button
+                type="button"
+                aria-pressed={!showDiff}
+                className={`px-1.5 py-0.5 border-l border-amber-300 transition-colors ${!showDiff ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-amber-700 hover:bg-amber-50'}`}
+                onClick={() => setShowDiff(false)}
+                data-testid={`btn-notes-text-toggle-${calc.id}`}
+              >
+                Текст
+              </button>
+            </div>
+          </div>
           {historyQuery.isLoading && (
             <div className="flex items-center gap-2 text-[10px] text-amber-700">
               <Loader2 className="h-3 w-3 animate-spin" /> Загрузка…
@@ -796,7 +823,10 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
                     Восстановить
                   </button>
                 </div>
-                <DiffView oldText={beforeText} newText={afterText} />
+                {showDiff
+                  ? <DiffView oldText={beforeText} newText={afterText} />
+                  : <span className="text-[10px] whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">{beforeText || <em className="italic">пустая заметка</em>}</span>
+                }
               </div>
             );
           })}
