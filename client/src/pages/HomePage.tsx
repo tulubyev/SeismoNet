@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
-  Activity, Building2, Radio, Map, FileText,
+  BarChart2, Building2, Radio, Map,
   BookOpen, ArrowRight, Users2, Waves, Compass, Lightbulb,
   AlertTriangle, CheckCircle2, Settings as SettingsIcon,
 } from 'lucide-react';
@@ -70,26 +70,15 @@ const HomePage: FC = () => {
       status:     last24hEvents > 5 ? 'warn' : 'ok',
     },
     {
-      href:       '/seismograms',
-      title:      'Сейсмограммы',
-      subtitle:   'Запись, просмотр волн, экспорт данных',
-      icon:       FileText,
+      href:       '/analysis',
+      title:      'Анализ данных',
+      subtitle:   'Сейсмограммы, Фурье-анализ, спектры отклика, АЧХ',
+      icon:       BarChart2,
       gradient:   'from-violet-600 to-violet-800',
       shadow:     'shadow-violet-900/40',
       badge:      seismograms.length,
       badgeLabel: 'записей в архиве',
       status:     'ok',
-    },
-    {
-      href:       '/analysis',
-      title:      'Спектральный анализ',
-      subtitle:   'Фурье-анализ, АЧХ, калибровка датчиков',
-      icon:       Activity,
-      gradient:   'from-rose-500 to-rose-700',
-      shadow:     'shadow-rose-900/40',
-      badge:      null,
-      badgeLabel: '',
-      status:     null,
     },
     {
       href:       '/stations',
@@ -245,7 +234,7 @@ const HomePage: FC = () => {
 
       <div className="px-6 pb-4">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {blocks.slice(0, 4).map(renderBlock)}
+          {blocks.slice(0, 3).map(renderBlock)}
         </div>
       </div>
 
