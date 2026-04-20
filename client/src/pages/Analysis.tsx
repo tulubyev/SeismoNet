@@ -1165,13 +1165,15 @@ const BAIKAL_CATALOG: BaikalScenario[] = [
   { id: 'sp14_vii', label: 'СП 14 нормативный, I=VII (0.1g)', Mw: 6.0, R_km: 100, PGA_g: 0.100, T_dom: 0.20, duration_s: 20, seismicIntensity: 'VII MSK-64', notes: 'Нормативное воздействие по СП 14.13330.2018 для 7-балльной зоны (PGA=0.1g)' },
 ];
 
-function generateSyntheticAccelerogram(scenario: BaikalScenario, sr = 200): Float64Array {
+function generateSyntheticAccelerogram(scenario: BaikalScenario, sr = 200, phaseTag = ''): Float64Array {
   const N = Math.round(scenario.duration_s * sr);
   const dt = 1 / sr;
   const arr = new Float64Array(N);
 
-  // Deterministic "random" seed per scenario for reproducibility
-  let seed = scenario.id.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 12345);
+  // Deterministic "random" seed per scenario + phaseTag for reproducibility.
+  // phaseTag allows generating statistically uncorrelated H1/H2 phase realisations.
+  const seedKey = scenario.id + phaseTag;
+  let seed = seedKey.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 12345);
   const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 0xFFFFFFFF; };
 
   // Phase 1: white noise
@@ -1211,6 +1213,18 @@ function generateSyntheticAccelerogram(scenario: BaikalScenario, sr = 200): Floa
   return arr;
 }
 
+// Orthogonal H1/H2 pair for a Baikal scenario — same target PGA and spectral
+// shape, but statistically uncorrelated phases (different phaseTag seeds).
+// Mirrors synthesizeSP14HorizontalPair for direct code-comparable geomean.
+function generateSyntheticAccelerogramPair(
+  scenario: BaikalScenario, sr = 200,
+): { h1: Float64Array; h2: Float64Array; sampleRate: number; pga_ms2: number } {
+  const g = 9.80665;
+  const h1 = generateSyntheticAccelerogram(scenario, sr, 'H1');
+  const h2 = generateSyntheticAccelerogram(scenario, sr, 'H2');
+  return { h1, h2, sampleRate: sr, pga_ms2: scenario.PGA_g * g };
+}
+
 // ─── Response spectrum tab (Newmark-β SDOF) ──────────────────────────────────
 
 interface RespTabProps {
@@ -1236,6 +1250,7 @@ const ResponseTab: FC<RespTabProps> = ({
   const [sp14K1Key, setSp14K1Key] = useState<keyof typeof SP14_K1_TABLE5>('elastic');
   const [sp14K2Key, setSp14K2Key] = useState<keyof typeof SP14_K2_TABLE6>('wall_monolithic');
   const [sp14Component, setSp14Component] = useState<'single' | 'GMH'>('single');
+  const [catalogComponent, setCatalogComponent] = useState<'single' | 'GMH'>('single');
   const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[]; H1?: SpecPoint[]; H2?: SpecPoint[] } | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
@@ -1272,9 +1287,22 @@ const ResponseTab: FC<RespTabProps> = ({
     try {
       if (inputMode === 'catalog') {
         const sr = 200;
-        const sig = generateSyntheticAccelerogram(scenario, sr);
-        setRespResult(responseSpectrum(sig, 1 / sr, periods, zeta));
-        toast({ title: 'Спектр отклика рассчитан', description: `Сценарий: ${scenario.label}, PGA=${(scenario.PGA_g * 1000).toFixed(0)} мг, ζ=${(zeta*100).toFixed(1)}%` });
+        if (catalogComponent === 'GMH') {
+          const { h1, h2, pga_ms2 } = generateSyntheticAccelerogramPair(scenario, sr);
+          const dt = 1 / sr;
+          const specH1 = responseSpectrum(Array.from(h1), dt, periods, zeta);
+          const specH2 = responseSpectrum(Array.from(h2), dt, periods, zeta);
+          setRespResult(combineSpectraGeomean([specH1, specH2]));
+          setComponentSpectra({ H1: specH1, H2: specH2 });
+          toast({
+            title: 'Спектр отклика рассчитан',
+            description: `Байкал (H1⊕H2 геом. среднее): ${scenario.label}, PGA=${pga_ms2.toFixed(2)} м/с², ζ=${(zeta*100).toFixed(1)}%`,
+          });
+        } else {
+          const sig = generateSyntheticAccelerogram(scenario, sr, 'H1');
+          setRespResult(responseSpectrum(sig, 1 / sr, periods, zeta));
+          toast({ title: 'Спектр отклика рассчитан', description: `Сценарий: ${scenario.label}, PGA=${(scenario.PGA_g * 1000).toFixed(0)} мг, ζ=${(zeta*100).toFixed(1)}%` });
+        }
       } else if (inputMode === 'sp14') {
         if (sp14Component === 'GMH') {
           const { h1, h2, sampleRate, pga_ms2 } = synthesizeSP14HorizontalPair(sp14Record, { soilCategory: sp14SoilCategory });
@@ -1325,7 +1353,7 @@ const ResponseTab: FC<RespTabProps> = ({
     } catch (e) {
       toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
     }
-  }, [inputMode, scenario, sp14Record, sp14SoilCategory, sp14Component, rec, real, respComponent, respDamping, setRespResult, toast]);
+  }, [inputMode, scenario, catalogComponent, sp14Record, sp14SoilCategory, sp14Component, rec, real, respComponent, respDamping, setRespResult, toast]);
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
@@ -1520,16 +1548,28 @@ const ResponseTab: FC<RespTabProps> = ({
 
           {inputMode === 'catalog' && (
             <div className="space-y-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Расчётный сценарий (Байкальский регион)</Label>
-                <Select value={selectedScenarioId} onValueChange={v => { setSelectedScenarioId(v); setRespResult(null); }}>
-                  <SelectTrigger className="h-9 text-sm w-full max-w-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {BAIKAL_CATALOG.map(s => (
-                      <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1 flex-1 min-w-[18rem]">
+                  <Label className="text-xs">Расчётный сценарий (Байкальский регион)</Label>
+                  <Select value={selectedScenarioId} onValueChange={v => { setSelectedScenarioId(v); setRespResult(null); }}>
+                    <SelectTrigger className="h-9 text-sm w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BAIKAL_CATALOG.map(s => (
+                        <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Компонента</Label>
+                  <Select value={catalogComponent} onValueChange={v => { setCatalogComponent(v as 'single' | 'GMH'); setRespResult(null); }}>
+                    <SelectTrigger className="h-9 w-72 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single" className="text-xs">Одиночная (H1)</SelectItem>
+                      <SelectItem value="GMH" className="text-xs">H1⊕H2 — геом. среднее горизонталей (СП 14)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="bg-slate-50 rounded p-3 text-xs text-slate-600 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><span className="text-slate-400">Магнитуда</span><div className="font-bold">Mw {scenario.Mw}</div></div>
@@ -1703,7 +1743,10 @@ const ResponseTab: FC<RespTabProps> = ({
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>SDOF-осциллятор: m ü + 2mζω u̇ + mω² u = −m a_g(t); численное интегрирование Newmark-β (безусловно устойчивая схема).</p>
               {inputMode === 'catalog' && (
-                <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018</p>
+                <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018
+                {catalogComponent === 'GMH' && (
+                  <span> · компонента: <strong>H1⊕H2</strong> — пара ортогональных горизонталей с одинаковым целевым PGA и формой спектра, но статистически некоррелированными фазами; Sa(T) = exp(½·[ln Sa<sub>H1</sub>(T) + ln Sa<sub>H2</sub>(T)]) — поточечное геом. среднее, напрямую сопоставимое с проектным спектром СП 14.</span>
+                )}</p>
               )}
               {inputMode === 'sp14' && (
                 <p>СП 14.13330: <strong>{sp14Record.label}</strong> · прототип: {sp14Record.source} · грунт {sp14SoilCategory} (K={SP14_SOIL_K_TABLE4[sp14SoilCategory]}) · PGA={(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²
@@ -1758,7 +1801,7 @@ const ResponseTab: FC<RespTabProps> = ({
                       body: JSON.stringify({ calcType: 'response_spectrum',
                         inputParams:
                           inputMode === 'catalog'
-                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key }
+                            ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), component: catalogComponent === 'GMH' ? 'H1⊕H2_geomean' : 'single', K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key }
                             : inputMode === 'sp14'
                               ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single' }
                               : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key, K2: sp14K2, K2_key: sp14K2Key },
