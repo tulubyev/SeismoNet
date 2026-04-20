@@ -5,6 +5,7 @@ import type { InfrastructureObject, Event as SeismicEvent } from '@shared/schema
 import { Building2, Radio, Activity, Layers, RefreshCw, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 declare global { interface Window { L: any } }
 
@@ -74,7 +75,17 @@ const IrkutskSeismicMap: FC = () => {
             ${obj.seismicCategory ? `<span style="background:#fef3c7;padding:2px 6px;border-radius:4px;font-size:10px">Кат. ${esc(obj.seismicCategory)}</span>` : ''}
             ${obj.designIntensity ? `<span style="background:#ede9fe;padding:2px 6px;border-radius:4px;font-size:10px">${esc(String(obj.designIntensity))} балл.</span>` : ''}
           </div>
-          <div style="margin-top:6px;font-size:11px">${obj.isMonitored
+          <div style="margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px;font-size:10px;color:#475569">
+            <div style="display:flex;gap:4px;align-items:baseline">
+              <span style="font-weight:600;color:#1e293b;min-width:22px">K₁:</span>
+              <span>${esc(sp14K1Label(obj.k1Key))}</span>
+            </div>
+            <div style="display:flex;gap:4px;align-items:baseline;margin-top:2px">
+              <span style="font-weight:600;color:#1e293b;min-width:22px">K₂:</span>
+              <span>${esc(sp14K2Label(obj.k2Key))}</span>
+            </div>
+          </div>
+          <div style="margin-top:5px;font-size:11px">${obj.isMonitored
             ? '<span style="color:#10b981">&#9679; Под мониторингом</span>'
             : '<span style="color:#94a3b8">&#9675; Без мониторинга</span>'}</div>
         </div>

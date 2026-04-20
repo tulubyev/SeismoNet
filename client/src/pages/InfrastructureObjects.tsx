@@ -22,7 +22,7 @@ import DeveloperObjectFilter, {
   DEVELOPER_FILTER_DEFAULT,
 } from '@/components/DeveloperObjectFilter';
 import { apiRequest } from '@/lib/queryClient';
-import { SP14_K1_TABLE5, SP14_K2_TABLE6 } from '@/data/sp14-accelerograms';
+import { SP14_K1_OPTIONS, SP14_K2_OPTIONS, sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
 
@@ -114,25 +114,11 @@ const installationLocationLabel = (loc: string | null) => {
   return loc ? (labels[loc] ?? loc) : '—';
 };
 
-// ─── K₁ / K₂ labels ──────────────────────────────────────────────────────────
-
-const K1_OPTIONS: { value: keyof typeof SP14_K1_TABLE5; label: string }[] = [
-  { value: 'elastic',     label: `Упругий (K₁ = ${SP14_K1_TABLE5.elastic})` },
-  { value: 'critical',    label: `Критически важный (K₁ = ${SP14_K1_TABLE5.critical})` },
-  { value: 'normal',      label: `Нормальный (K₁ = ${SP14_K1_TABLE5.normal})` },
-  { value: 'residential', label: `Жилой (K₁ = ${SP14_K1_TABLE5.residential})` },
-];
-
-const K2_OPTIONS: { value: keyof typeof SP14_K2_TABLE6; label: string }[] = [
-  { value: 'frame_no_braces',   label: `Каркас без связей (K₂ = ${SP14_K2_TABLE6.frame_no_braces})` },
-  { value: 'frame_braced',      label: `Каркас со связями (K₂ = ${SP14_K2_TABLE6.frame_braced})` },
-  { value: 'wall_monolithic',   label: `Стеновой / монолит (K₂ = ${SP14_K2_TABLE6.wall_monolithic})` },
-  { value: 'timber',            label: `Деревянный (K₂ = ${SP14_K2_TABLE6.timber})` },
-  { value: 'masonry_protected', label: `Кирпич с защитой (K₂ = ${SP14_K2_TABLE6.masonry_protected})` },
-];
-
-const k1Label = (key: string | null) => K1_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
-const k2Label = (key: string | null) => K2_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
+// ─── K₁ / K₂ labels (shared from SP14 data module) ──────────────────────────
+const K1_OPTIONS = SP14_K1_OPTIONS;
+const K2_OPTIONS = SP14_K2_OPTIONS;
+const k1Label = sp14K1Label;
+const k2Label = sp14K2Label;
 
 // ─── Blank sensor form ─────────────────────────────────────────────────────────
 

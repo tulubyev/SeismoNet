@@ -219,6 +219,26 @@ export const SP14_K2_TABLE6: Record<'frame_no_braces' | 'frame_braced' | 'wall_m
   masonry_protected:  0.7,
 };
 
+export const SP14_K1_OPTIONS: { value: keyof typeof SP14_K1_TABLE5; label: string }[] = [
+  { value: 'elastic',     label: `Упругий (K₁ = ${SP14_K1_TABLE5.elastic})` },
+  { value: 'critical',    label: `Критически важный (K₁ = ${SP14_K1_TABLE5.critical})` },
+  { value: 'normal',      label: `Нормальный (K₁ = ${SP14_K1_TABLE5.normal})` },
+  { value: 'residential', label: `Жилой (K₁ = ${SP14_K1_TABLE5.residential})` },
+];
+
+export const SP14_K2_OPTIONS: { value: keyof typeof SP14_K2_TABLE6; label: string }[] = [
+  { value: 'frame_no_braces',   label: `Каркас без связей (K₂ = ${SP14_K2_TABLE6.frame_no_braces})` },
+  { value: 'frame_braced',      label: `Каркас со связями (K₂ = ${SP14_K2_TABLE6.frame_braced})` },
+  { value: 'wall_monolithic',   label: `Стеновой / монолит (K₂ = ${SP14_K2_TABLE6.wall_monolithic})` },
+  { value: 'timber',            label: `Деревянный (K₂ = ${SP14_K2_TABLE6.timber})` },
+  { value: 'masonry_protected', label: `Кирпич с защитой (K₂ = ${SP14_K2_TABLE6.masonry_protected})` },
+];
+
+export const sp14K1Label = (key: string | null | undefined): string =>
+  SP14_K1_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
+export const sp14K2Label = (key: string | null | undefined): string =>
+  SP14_K2_OPTIONS.find(o => o.value === key)?.label ?? (key ?? '—');
+
 // Полный нормативный спектр Sa_design(T), м/с² по СП 14.13330.2018, §5:
 //   Sa = A0 · g · K_грунт · K1 · K2 · β(T)
 // K2 — коэффициент конструктивного решения здания (Табл. 6); по умолчанию 1.0.
