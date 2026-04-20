@@ -179,7 +179,7 @@ export interface IStorage {
   getSeismicCalculations(calcType?: string, limit?: number): Promise<SeismicCalculation[]>;
   getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined>;
   createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
-  updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined>;
+  updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined>;
   deleteSeismicCalculation(id: number): Promise<boolean>;
 
   // Saved comparison set operations
@@ -863,16 +863,20 @@ export class MemStorage implements IStorage {
     const id = this.currentSeismicCalcId++;
     const record: SeismicCalculation = { ...calc, id, createdAt: new Date(),
       soilProfileId: calc.soilProfileId ?? null, objectId: calc.objectId ?? null,
-      createdBy: calc.createdBy ?? null, notes: calc.notes ?? null };
+      createdBy: calc.createdBy ?? null, notes: calc.notes ?? null,
+      notesUpdatedAt: null, notesUpdatedBy: null };
     this.seismicCalculationsMap.set(id, record);
     return record;
   }
-  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined> {
+  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined> {
     const existing = this.seismicCalculationsMap.get(id);
     if (!existing) return undefined;
+    const notesChanged = data.notes !== undefined;
     const updated: SeismicCalculation = {
       ...existing,
-      notes: data.notes !== undefined ? (data.notes ?? null) : existing.notes,
+      notes: notesChanged ? (data.notes ?? null) : existing.notes,
+      notesUpdatedAt: notesChanged ? new Date() : existing.notesUpdatedAt,
+      notesUpdatedBy: notesChanged ? (data.notesUpdatedBy ?? null) : existing.notesUpdatedBy,
     };
     this.seismicCalculationsMap.set(id, updated);
     return updated;
@@ -1612,9 +1616,13 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.insert(schema.seismicCalculations).values(calc).returning();
     return row;
   }
-  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined> {
+  async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined> {
     const patch: Record<string, unknown> = {};
-    if (data.notes !== undefined) patch.notes = data.notes ?? null;
+    if (data.notes !== undefined) {
+      patch.notes = data.notes ?? null;
+      patch.notesUpdatedAt = new Date();
+      patch.notesUpdatedBy = data.notesUpdatedBy ?? null;
+    }
     if (Object.keys(patch).length === 0) {
       return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     }

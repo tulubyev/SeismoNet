@@ -414,7 +414,9 @@ export const seismicCalculations = pgTable("seismic_calculations", {
   results: jsonb("results").notNull(),            // frequency arrays, amplitudes, risk level…
   createdAt: timestamp("created_at").notNull().defaultNow(),
   createdBy: text("created_by"),
-  notes: text("notes")
+  notes: text("notes"),
+  notesUpdatedAt: timestamp("notes_updated_at"),
+  notesUpdatedBy: text("notes_updated_by")
 });
 
 // ─── Saved comparison sets (named selections of seismic_calculations) ────────
@@ -452,7 +454,7 @@ export const insertCalibrationSessionSchema = createInsertSchema(calibrationSess
 export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
 export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
 export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true });
+export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true, notesUpdatedAt: true, notesUpdatedBy: true });
 export const insertComparisonSetSchema = createInsertSchema(comparisonSets).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────

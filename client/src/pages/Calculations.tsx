@@ -664,11 +664,16 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const { toast } = useToast();
   const [savedNotes, setSavedNotes] = useState<string>(calc.notes ?? '');
   const [value, setValue] = useState<string>(calc.notes ?? '');
+  const [audit, setAudit] = useState<{ at: string | Date | null; by: string | null }>({
+    at: calc.notesUpdatedAt ?? null,
+    by: calc.notesUpdatedBy ?? null,
+  });
 
   useEffect(() => {
     setSavedNotes(calc.notes ?? '');
     setValue(calc.notes ?? '');
-  }, [calc.id, calc.notes]);
+    setAudit({ at: calc.notesUpdatedAt ?? null, by: calc.notesUpdatedBy ?? null });
+  }, [calc.id, calc.notes, calc.notesUpdatedAt, calc.notesUpdatedBy]);
 
   const saveMut = useMutation({
     mutationFn: async (notes: string) => {
@@ -679,6 +684,7 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       const next = row?.notes ?? '';
       setSavedNotes(next);
       setValue(next);
+      setAudit({ at: row?.notesUpdatedAt ?? new Date(), by: row?.notesUpdatedBy ?? null });
       queryClient.invalidateQueries({ queryKey: ['/api/calculations', { limit: 500 }] });
       toast({ title: 'Заметка сохранена' });
     },
@@ -701,6 +707,12 @@ const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
         className="text-xs min-h-[72px] bg-white"
         data-testid={`textarea-notes-${calc.id}`}
       />
+      {audit.at && (
+        <div className="text-[10px] text-amber-700/80" data-testid={`notes-audit-${calc.id}`}>
+          изменено {audit.by ? <>пользователем <strong>{audit.by}</strong></> : null}
+          {' '}· {new Date(audit.at).toLocaleString('ru-RU')}
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         {dirty && (
           <Button

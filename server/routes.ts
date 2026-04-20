@@ -780,7 +780,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const patchSchema = insertSeismicCalculationSchema.pick({ notes: true }).partial();
       const parsed = patchSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: 'Invalid patch data', errors: parsed.error.flatten() });
-      const row = await storage.updateSeismicCalculation(id, parsed.data);
+      const editor = (req.user as { username?: string } | undefined)?.username ?? null;
+      const row = await storage.updateSeismicCalculation(id, { ...parsed.data, notesUpdatedBy: editor });
       if (!row) return res.status(404).json({ message: 'Calculation not found' });
       res.json(row);
     } catch (e) {
