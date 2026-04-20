@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useRef, useState } from 'react';
+import { FC, RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,8 +23,9 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download,
   Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
-  StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check,
+  StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check, ImageDown,
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import type {
   SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet, CalculationNoteHistory,
 } from '@shared/schema';
@@ -1080,10 +1081,48 @@ const CompareDialog: FC<CompareDialogProps> = ({
   open, onClose, calcs, profMap, objMap, onSaveSet, onShareLink, isSaving,
 }) => {
   const [setName, setSetName] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   // Reset the name input whenever the dialog opens or the selection changes.
   useEffect(() => { if (open) setSetName(''); }, [open, calcs.map(c => c.id).join(',')]);
   const calcType = calcs[0]?.calcType as CalcType | undefined;
   const meta = calcType ? TYPE_META[calcType] : null;
+
+  const hasChartData = useMemo(() => {
+    if (calcType === 'mtsm') {
+      return calcs.some(c => (((c.results ?? {}) as MtsmResults).points ?? []).length > 0);
+    }
+    if (calcType === 'response_spectrum') {
+      return calcs.some(c => (((c.results ?? {}) as RespResults).points ?? []).length > 0);
+    }
+    return false;
+  }, [calcs, calcType]);
+
+  const exportChartImage = async () => {
+    const el = chartContainerRef.current;
+    if (!el) {
+      toast({ title: 'Нет данных для экспорта', description: 'График недоступен.', variant: 'destructive' });
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const link = document.createElement('a');
+      link.download = `compare_${calcType}_${calcs.map(c => c.id).join('_')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch {
+      toast({ title: 'Ошибка экспорта', description: 'Не удалось создать изображение.', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const labelFor = (c: SeismicCalculation): string => {
     const inp = (c.inputParams ?? {}) as Record<string, unknown>;
@@ -1176,8 +1215,8 @@ const CompareDialog: FC<CompareDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} />}
-        {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} />}
+        {calcType === 'mtsm' && <MtsmCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
+        {calcType === 'response_spectrum' && <RespCompareChart calcs={calcs} labelFor={labelFor} containerRef={chartContainerRef} />}
 
         <div className="border rounded p-3 bg-slate-50 space-y-2">
           <div className="text-xs font-semibold text-slate-600">Выбранные расчёты</div>
@@ -1228,7 +1267,16 @@ const CompareDialog: FC<CompareDialogProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={exportChartImage}
+            disabled={isExporting || !hasChartData}
+            data-testid="btn-compare-export-image">
+            {isExporting
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <ImageDown className="h-3 w-3" />}
+            Экспорт PNG
+          </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
             onClick={exportCombinedCsv}
             data-testid="btn-compare-csv">
@@ -1243,7 +1291,8 @@ const CompareDialog: FC<CompareDialogProps> = ({
 const MtsmCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
-}> = ({ calcs, labelFor }) => {
+  containerRef?: RefObject<HTMLDivElement | null>;
+}> = ({ calcs, labelFor, containerRef }) => {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
@@ -1257,7 +1306,7 @@ const MtsmCompareChart: FC<{
   }
   const baseStat = stats[0];
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" ref={containerRef}>
     <CompareStatsBar stats={stats} xLabel="f₀" xUnit="Гц" yLabel="A" xFractionDigits={2} />
     <div className="flex justify-end">
       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
@@ -1312,7 +1361,8 @@ const MtsmCompareChart: FC<{
 const RespCompareChart: FC<{
   calcs: SeismicCalculation[];
   labelFor: (c: SeismicCalculation) => string;
-}> = ({ calcs, labelFor }) => {
+  containerRef?: RefObject<HTMLDivElement | null>;
+}> = ({ calcs, labelFor, containerRef }) => {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const series = calcs.map(c => ({
     id: c.id,
@@ -1325,7 +1375,7 @@ const RespCompareChart: FC<{
   }
   const baseStat = stats[0];
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" ref={containerRef}>
     <CompareStatsBar stats={stats} xLabel="T_peak" xUnit="с" yLabel="Sa" xFractionDigits={3} />
     <div className="flex justify-end">
       <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
