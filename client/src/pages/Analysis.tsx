@@ -457,15 +457,17 @@ const Analysis: FC = () => {
       </div>
 
       <Tabs defaultValue="calibration" className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
-          <TabsTrigger value="calibration"   className="text-xs gap-1"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
-          <TabsTrigger value="afc"           className="text-xs gap-1"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
-          <TabsTrigger value="waveforms"     className="text-xs gap-1"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
-          <TabsTrigger value="spectrum"      className="text-xs gap-1"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
-          <TabsTrigger value="amplification" className="text-xs gap-1"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
-          <TabsTrigger value="response"      className="text-xs gap-1"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
-          <TabsTrigger value="resonance"     className="text-xs gap-1"><TriangleAlert className="h-3.5 w-3.5" />Резонанс</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="flex w-max min-w-full">
+            <TabsTrigger value="calibration"   className="text-xs gap-1 flex-1 min-w-[7rem]"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
+            <TabsTrigger value="afc"           className="text-xs gap-1 flex-1 min-w-[5rem]"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
+            <TabsTrigger value="waveforms"     className="text-xs gap-1 flex-1 min-w-[8rem]"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
+            <TabsTrigger value="spectrum"      className="text-xs gap-1 flex-1 min-w-[6rem]"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
+            <TabsTrigger value="amplification" className="text-xs gap-1 flex-1 min-w-[6rem]"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
+            <TabsTrigger value="response"      className="text-xs gap-1 flex-1 min-w-[5rem]"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
+            <TabsTrigger value="resonance"     className="text-xs gap-1 flex-1 min-w-[6rem]"><TriangleAlert className="h-3.5 w-3.5" />Резонанс</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="calibration" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1649,7 +1651,7 @@ const ResponseTab: FC<RespTabProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1 flex-1 min-w-[18rem]">
+                <div className="space-y-1 flex-1 min-w-0">
                   <Label className="text-xs">Запись-прототип</Label>
                   <Select value={sp14RecordId} onValueChange={v => { setSp14RecordId(v); setRespResult(null); }}>
                     <SelectTrigger className="h-9 w-full text-sm"><SelectValue /></SelectTrigger>
@@ -1679,7 +1681,7 @@ const ResponseTab: FC<RespTabProps> = ({
           {inputMode === 'catalog' && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-3 items-end">
-                <div className="space-y-1 flex-1 min-w-[18rem]">
+                <div className="space-y-1 flex-1 min-w-0">
                   <Label className="text-xs">Расчётный сценарий (Байкальский регион)</Label>
                   <Select value={selectedScenarioId} onValueChange={v => { setSelectedScenarioId(v); setRespResult(null); }}>
                     <SelectTrigger className="h-9 text-sm w-full"><SelectValue /></SelectTrigger>
