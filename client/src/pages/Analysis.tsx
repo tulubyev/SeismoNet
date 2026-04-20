@@ -15,6 +15,7 @@ import {
   SP14_K1_TABLE5,
   sp14DesignSpectrum,
   synthesizeSP14Accelerogram,
+  synthesizeSP14HorizontalPair,
   type NormativeAccelerogram,
   type SeismicIntensity,
 } from '@/data/sp14-accelerograms';
@@ -1232,7 +1233,8 @@ const ResponseTab: FC<RespTabProps> = ({
   const [sp14SoilCategory, setSp14SoilCategory] = useState<'I'|'II'|'III'>('II');
   const [sp14RecordId, setSp14RecordId] = useState<string>(SP14_BY_INTENSITY['VIII'][0].id);
   const [sp14K1Key, setSp14K1Key] = useState<keyof typeof SP14_K1_TABLE5>('elastic');
-  const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[] } | null>(null);
+  const [sp14Component, setSp14Component] = useState<'single' | 'GMH'>('single');
+  const [componentSpectra, setComponentSpectra] = useState<{ Z?: SpecPoint[]; NS?: SpecPoint[]; EW?: SpecPoint[]; H1?: SpecPoint[]; H2?: SpecPoint[] } | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const sp14K1 = SP14_K1_TABLE5[sp14K1Key];
   const SP14_K1_LABEL: Record<keyof typeof SP14_K1_TABLE5, string> = {
@@ -1264,12 +1266,28 @@ const ResponseTab: FC<RespTabProps> = ({
         setRespResult(responseSpectrum(sig, 1 / sr, periods, zeta));
         toast({ title: 'Спектр отклика рассчитан', description: `Сценарий: ${scenario.label}, PGA=${(scenario.PGA_g * 1000).toFixed(0)} мг, ζ=${(zeta*100).toFixed(1)}%` });
       } else if (inputMode === 'sp14') {
-        const { signal, sampleRate, pga_ms2 } = synthesizeSP14Accelerogram(sp14Record, { soilCategory: sp14SoilCategory });
-        setRespResult(responseSpectrum(signal, 1 / sampleRate, periods, zeta));
-        toast({
-          title: 'Спектр отклика рассчитан',
-          description: `СП 14: ${sp14Record.label}, грунт ${sp14SoilCategory} (K=${SP14_SOIL_K_TABLE4[sp14SoilCategory]}), PGA=${pga_ms2.toFixed(2)} м/с², ζ=${(zeta*100).toFixed(1)}%`,
-        });
+        if (sp14Component === 'GMH') {
+          const { h1, h2, sampleRate, pga_ms2 } = synthesizeSP14HorizontalPair(sp14Record, { soilCategory: sp14SoilCategory });
+          const dt = 1 / sampleRate;
+          const specH1 = responseSpectrum(Array.from(h1), dt, periods, zeta);
+          const specH2 = responseSpectrum(Array.from(h2), dt, periods, zeta);
+          setRespResult(combineSpectraGeomean([specH1, specH2]));
+          setComponentSpectra({ H1: specH1, H2: specH2 });
+          toast({
+            title: 'Спектр отклика рассчитан',
+            description: `СП 14 (H1⊕H2 геом. среднее): ${sp14Record.label}, грунт ${sp14SoilCategory} (K=${SP14_SOIL_K_TABLE4[sp14SoilCategory]}), PGA=${pga_ms2.toFixed(2)} м/с², ζ=${(zeta*100).toFixed(1)}%`,
+          });
+        } else {
+          // Single-component mode uses the same H1 phase realization that GMH
+          // mode shows on the chart, so toggling between modes keeps the H1
+          // curve identical (the two are physically the same component).
+          const { signal, sampleRate, pga_ms2 } = synthesizeSP14Accelerogram(sp14Record, { soilCategory: sp14SoilCategory, phaseTag: 'H1' });
+          setRespResult(responseSpectrum(Array.from(signal), 1 / sampleRate, periods, zeta));
+          toast({
+            title: 'Спектр отклика рассчитан',
+            description: `СП 14: ${sp14Record.label}, грунт ${sp14SoilCategory} (K=${SP14_SOIL_K_TABLE4[sp14SoilCategory]}), PGA=${pga_ms2.toFixed(2)} м/с², ζ=${(zeta*100).toFixed(1)}%`,
+          });
+        }
       } else {
         if (!rec || !real) return;
         const arrs = getRealArrays(rec);
@@ -1297,7 +1315,7 @@ const ResponseTab: FC<RespTabProps> = ({
     } catch (e) {
       toast({ title: 'Ошибка расчёта', description: String(e), variant: 'destructive' });
     }
-  }, [inputMode, scenario, sp14Record, sp14SoilCategory, rec, real, respComponent, respDamping, setRespResult, toast]);
+  }, [inputMode, scenario, sp14Record, sp14SoilCategory, sp14Component, rec, real, respComponent, respDamping, setRespResult, toast]);
 
   const peakSa = respResult ? respResult.reduce((b, p) => p.Sa > b.Sa ? p : b, { T: 0, Sa: 0, Sv: 0, Sd: 0 }) : null;
 
@@ -1313,6 +1331,8 @@ const ResponseTab: FC<RespTabProps> = ({
       Sa_Z:  componentSpectra?.Z?.[i]?.Sa,
       Sa_NS: componentSpectra?.NS?.[i]?.Sa,
       Sa_EW: componentSpectra?.EW?.[i]?.Sa,
+      Sa_H1: componentSpectra?.H1?.[i]?.Sa,
+      Sa_H2: componentSpectra?.H2?.[i]?.Sa,
     }));
   }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, componentSpectra]);
 
@@ -1372,6 +1392,16 @@ const ResponseTab: FC<RespTabProps> = ({
                       <SelectItem value="I" className="text-xs">I — скальные (K=0.8)</SelectItem>
                       <SelectItem value="II" className="text-xs">II — плотные/твёрдые (K=1.0)</SelectItem>
                       <SelectItem value="III" className="text-xs">III — рыхлые/мягкие (K=1.4)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Компонента</Label>
+                  <Select value={sp14Component} onValueChange={v => { setSp14Component(v as 'single' | 'GMH'); setRespResult(null); }}>
+                    <SelectTrigger className="h-9 w-72 text-sm" data-testid="select-sp14-component"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single" className="text-xs">Одиночная (H1)</SelectItem>
+                      <SelectItem value="GMH" className="text-xs">H1⊕H2 — геом. среднее горизонталей (СП 14)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1542,6 +1572,14 @@ const ResponseTab: FC<RespTabProps> = ({
                   <Line type="monotone" dataKey="Sa_EW" stroke="#d97706" strokeWidth={1} dot={false}
                     hide={hiddenSeries.has('Sa_EW')} name="Sa EW (В–З)" isAnimationActive={false} />
                 )}
+                {componentSpectra?.H1 && (
+                  <Line type="monotone" dataKey="Sa_H1" stroke="#65a30d" strokeWidth={1} dot={false}
+                    hide={hiddenSeries.has('Sa_H1')} name="Sa H1 (горизонт. 1)" isAnimationActive={false} />
+                )}
+                {componentSpectra?.H2 && (
+                  <Line type="monotone" dataKey="Sa_H2" stroke="#d97706" strokeWidth={1} dot={false}
+                    hide={hiddenSeries.has('Sa_H2')} name="Sa H2 (горизонт. 2)" isAnimationActive={false} />
+                )}
                 <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false}
                   hide={hiddenSeries.has('Sa')} name={`Sa расч., ζ=${respDamping}%`} />
                 <Line type="monotone" dataKey="Sa_design" stroke="#0369a1" strokeWidth={1.6} strokeDasharray="6 4" dot={false}
@@ -1563,7 +1601,10 @@ const ResponseTab: FC<RespTabProps> = ({
                 <p>Сценарий: <strong>{scenario.label}</strong> · PGA={( scenario.PGA_g * 9.81).toFixed(2)} м/с² · {scenario.seismicIntensity} · СП 14.13330.2018</p>
               )}
               {inputMode === 'sp14' && (
-                <p>СП 14.13330: <strong>{sp14Record.label}</strong> · прототип: {sp14Record.source} · грунт {sp14SoilCategory} (K={SP14_SOIL_K_TABLE4[sp14SoilCategory]}) · PGA={(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²</p>
+                <p>СП 14.13330: <strong>{sp14Record.label}</strong> · прототип: {sp14Record.source} · грунт {sp14SoilCategory} (K={SP14_SOIL_K_TABLE4[sp14SoilCategory]}) · PGA={(sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665).toFixed(2)} м/с²
+                {sp14Component === 'GMH' && (
+                  <span> · компонента: <strong>H1⊕H2</strong> — пара ортогональных горизонталей с одинаковым целевым PGA и формой спектра, но статистически некоррелированными фазами; Sa(T) = exp(½·[ln Sa<sub>H1</sub>(T) + ln Sa<sub>H2</sub>(T)]) — поточечное геом. среднее, напрямую сопоставимое с проектным спектром СП 14.</span>
+                )}</p>
               )}
               {inputMode === 'seismogram' && (
                 <p>Расчёт: <strong>{RESP_COMPONENT_LABEL[respComponent]}</strong>, выборка {rec?.sampleRate} Гц, длительность {rec?.durationSec?.toFixed(1)} с.
@@ -1580,6 +1621,8 @@ const ResponseTab: FC<RespTabProps> = ({
                   if (cs?.Z)  extraCols.push('Sa_Z_m_s2');
                   if (cs?.NS) extraCols.push('Sa_NS_m_s2');
                   if (cs?.EW) extraCols.push('Sa_EW_m_s2');
+                  if (cs?.H1) extraCols.push('Sa_H1_m_s2');
+                  if (cs?.H2) extraCols.push('Sa_H2_m_s2');
                   const header = ['period_s,Sa_m_s2,Sv_m_s,Sd_m', ...extraCols].join(',');
                   const rows = [header].concat(
                     respResult!.map((p, i) => {
@@ -1588,6 +1631,8 @@ const ResponseTab: FC<RespTabProps> = ({
                       if (cs?.Z)  extras.push((cs.Z[i]?.Sa  ?? 0).toFixed(6));
                       if (cs?.NS) extras.push((cs.NS[i]?.Sa ?? 0).toFixed(6));
                       if (cs?.EW) extras.push((cs.EW[i]?.Sa ?? 0).toFixed(6));
+                      if (cs?.H1) extras.push((cs.H1[i]?.Sa ?? 0).toFixed(6));
+                      if (cs?.H2) extras.push((cs.H2[i]?.Sa ?? 0).toFixed(6));
                       return extras.length ? `${base},${extras.join(',')}` : base;
                     })
                   );
@@ -1610,7 +1655,7 @@ const ResponseTab: FC<RespTabProps> = ({
                           inputMode === 'catalog'
                             ? { scenarioId: scenario.id, scenarioLabel: scenario.label, Mw: scenario.Mw, R_km: scenario.R_km, PGA_g: scenario.PGA_g, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key }
                             : inputMode === 'sp14'
-                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping) }
+                              ? { sp14: true, recordId: sp14Record.id, recordLabel: sp14Record.label, source: sp14Record.source, intensity: sp14Record.intensity, soilCategory: sp14SoilCategory, K_soil: SP14_SOIL_K_TABLE4[sp14SoilCategory], K1: sp14K1, K1_key: sp14K1Key, PGA_g: sp14Record.PGA_g, PGA_eff_ms2: sp14Record.PGA_g * SP14_SOIL_K_TABLE4[sp14SoilCategory] * 9.80665, Mw: sp14Record.Mw, R_km: sp14Record.R_km, T_dom: sp14Record.T_dom, damping: parseFloat(respDamping), component: sp14Component === 'GMH' ? 'H1⊕H2_geomean' : 'single' }
                               : { seismogramId: selectedSeismogramId, component: respComponent, damping: parseFloat(respDamping), K1: sp14K1, K1_key: sp14K1Key },
                         results: { points: respResult, peakT: peakSa?.T, peakSa: peakSa?.Sa, inputMode } }) });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);

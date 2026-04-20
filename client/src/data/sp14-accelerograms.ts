@@ -239,7 +239,7 @@ export function sp14DesignSpectrum(
 // затем нормировка к (PGA_g × K_грунт) × g, м/с².
 export function synthesizeSP14Accelerogram(
   rec: NormativeAccelerogram,
-  opts: { sampleRate?: number; soilCategory?: 'I' | 'II' | 'III' } = {},
+  opts: { sampleRate?: number; soilCategory?: 'I' | 'II' | 'III'; phaseTag?: string } = {},
 ): { signal: Float64Array; sampleRate: number; pga_ms2: number } {
   const sr = opts.sampleRate ?? 200;
   const soil = opts.soilCategory ?? rec.soilCategory;
@@ -247,8 +247,12 @@ export function synthesizeSP14Accelerogram(
   const dt = 1 / sr;
   const arr = new Float64Array(N);
 
-  // Детерминированный псевдослучайный поток (воспроизводимость по id).
-  let seed = rec.id.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0xC0FFEE);
+  // Детерминированный псевдослучайный поток (воспроизводимость по id + phaseTag).
+  // phaseTag позволяет получить статистически некоррелированные реализации
+  // фазы (для пары ортогональных горизонталей H1/H2) при сохранении той же
+  // целевой PGA и формы спектра.
+  const seedKey = rec.id + (opts.phaseTag ?? '');
+  let seed = seedKey.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0xC0FFEE);
   const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return (seed >>> 0) / 0xFFFFFFFF; };
   for (let i = 0; i < N; i++) arr[i] = rnd() * 2 - 1;
 
@@ -282,4 +286,22 @@ export function synthesizeSP14Accelerogram(
   if (peak > 0) for (let i = 0; i < N; i++) arr[i] = (arr[i] / peak) * targetPGA;
 
   return { signal: arr, sampleRate: sr, pga_ms2: targetPGA };
+}
+
+// Пара ортогональных горизонтальных компонент H1, H2 для одной нормативной
+// записи. Используется в режиме «геометрическое среднее горизонталей» по
+// СП 14.13330 — даёт ориентационно-инвариантную кривую, напрямую сопоставимую
+// с проектным спектром. Обе компоненты:
+//   • имеют один и тот же целевой PGA и K_грунт,
+//   • узкополосны вокруг одного и того же T_dom (общая форма спектра),
+//   • статистически некоррелированы по фазе (разные phaseTag → разные
+//     псевдослучайные последовательности),
+// что воспроизводит свойство пары независимых горизонтальных регистраций.
+export function synthesizeSP14HorizontalPair(
+  rec: NormativeAccelerogram,
+  opts: { sampleRate?: number; soilCategory?: 'I' | 'II' | 'III' } = {},
+): { h1: Float64Array; h2: Float64Array; sampleRate: number; pga_ms2: number } {
+  const a = synthesizeSP14Accelerogram(rec, { ...opts, phaseTag: 'H1' });
+  const b = synthesizeSP14Accelerogram(rec, { ...opts, phaseTag: 'H2' });
+  return { h1: a.signal, h2: b.signal, sampleRate: a.sampleRate, pga_ms2: a.pga_ms2 };
 }
