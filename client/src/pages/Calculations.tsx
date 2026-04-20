@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,9 +23,11 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download,
   Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
-  StickyNote, Save, Loader2,
+  StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check,
 } from 'lucide-react';
-import type { SeismicCalculation, SoilProfile, InfrastructureObject } from '@shared/schema';
+import type {
+  SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet,
+} from '@shared/schema';
 
 type CalcType = 'mtsm' | 'response_spectrum' | 'resonance';
 
@@ -124,6 +126,7 @@ const Calculations: FC = () => {
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<SeismicCalculation | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SeismicCalculation | null>(null);
+  const [confirmDeleteSet, setConfirmDeleteSet] = useState<ComparisonSet | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
 
@@ -139,6 +142,7 @@ const Calculations: FC = () => {
   });
   const { data: profiles = [] } = useQuery<SoilProfile[]>({ queryKey: ['/api/soil-profiles'] });
   const { data: objects  = [] } = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
+  const { data: savedSets = [] } = useQuery<ComparisonSet[]>({ queryKey: ['/api/comparison-sets'] });
 
   const profMap = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
   const objMap  = useMemo(() => new Map(objects.map(o => [o.id, o])), [objects]);
@@ -179,6 +183,37 @@ const Calculations: FC = () => {
   );
   const selectionType: CalcType | null = selectedCalcs[0]?.calcType as CalcType ?? null;
 
+  // Deep-link: /calculations?compare=12,17 — auto-open the compare dialog with those IDs.
+  // Runs once after `calcs` first loads so we can validate the IDs against existing rows.
+  const deepLinkConsumedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkConsumedRef.current || calcs.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get('compare');
+    if (!raw) { deepLinkConsumedRef.current = true; return; }
+    const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isInteger(n));
+    const valid = ids.filter(id => calcMap.has(id)).slice(0, MAX_COMPARE);
+    if (valid.length >= 2) {
+      const firstType = calcMap.get(valid[0])?.calcType;
+      const sameType = valid.every(id => calcMap.get(id)?.calcType === firstType);
+      if (sameType && (firstType === 'mtsm' || firstType === 'response_spectrum')) {
+        setSelected(valid);
+        setCompareOpen(true);
+      } else {
+        toast({ title: 'Не удалось открыть сравнение из ссылки',
+          description: 'Расчёты должны быть одного типа (МТСМ или спектр отклика).',
+          variant: 'destructive' });
+      }
+    } else if (raw) {
+      toast({ title: 'Не удалось открыть сравнение из ссылки',
+        description: 'Указанные расчёты не найдены или их меньше двух.',
+        variant: 'destructive' });
+    }
+    deepLinkConsumedRef.current = true;
+    // Strip the query param so refresh doesn't re-trigger and the URL stays clean.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [calcs, calcMap, toast]);
+
   // Prune stale selected IDs whenever the calc list changes (e.g. after delete/refetch).
   // Without this, an ID that no longer exists in `calcs` would silently block all further
   // selections (toolbar hides because selectedCalcs is empty, but toggleSelect still sees
@@ -217,11 +252,59 @@ const Calculations: FC = () => {
     mutationFn: (id: number) => apiRequest('DELETE', `/api/calculations/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/calculations', { limit: 500 }] });
+      // Saved sets reference calc IDs; refresh so the "missing" badge stays accurate.
+      queryClient.invalidateQueries({ queryKey: ['/api/comparison-sets'] });
       toast({ title: 'Расчёт удалён' });
       setConfirmDelete(null);
     },
     onError: () => toast({ title: 'Ошибка удаления', description: 'Удаление доступно только администраторам', variant: 'destructive' }),
   });
+
+  const saveSetMut = useMutation({
+    mutationFn: async (input: { name: string; calcType: string; calcIds: number[] }) => {
+      const r = await apiRequest('POST', '/api/comparison-sets', input);
+      return r.json() as Promise<ComparisonSet>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/comparison-sets'] });
+      toast({ title: 'Набор сравнения сохранён' });
+    },
+    onError: () => toast({ title: 'Не удалось сохранить набор',
+      description: 'Сохранение доступно после входа.', variant: 'destructive' }),
+  });
+
+  const deleteSetMut = useMutation({
+    mutationFn: (id: number) => apiRequest('DELETE', `/api/comparison-sets/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/comparison-sets'] });
+      toast({ title: 'Набор удалён' });
+      setConfirmDeleteSet(null);
+    },
+    onError: () => toast({ title: 'Ошибка удаления набора', variant: 'destructive' }),
+  });
+
+  const openSavedSet = (set: ComparisonSet) => {
+    const valid = set.calcIds.filter(id => calcMap.has(id));
+    if (valid.length < 2) {
+      toast({ title: 'Невозможно открыть набор',
+        description: 'Часть расчётов из этого набора удалена. Останется меньше двух — нечего сравнивать.',
+        variant: 'destructive' });
+      return;
+    }
+    setSelected(valid.slice(0, MAX_COMPARE));
+    setCompareOpen(true);
+  };
+
+  const copyShareLink = async (ids: number[], label?: string) => {
+    const url = `${window.location.origin}/calculations?compare=${ids.join(',')}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Ссылка скопирована',
+        description: label ? `«${label}» — ссылка в буфере обмена.` : 'Ссылка в буфере обмена.' });
+    } catch {
+      toast({ title: 'Не удалось скопировать', description: url, variant: 'destructive' });
+    }
+  };
 
   const renderRow = (c: SeismicCalculation) => {
     const prof = c.soilProfileId ? profMap.get(c.soilProfileId)?.profileName : null;
@@ -370,6 +453,62 @@ const Calculations: FC = () => {
         </CardContent>
       </Card>
 
+      {savedSets.length > 0 && (
+        <Card className="border-0 shadow-sm" data-testid="saved-sets-panel">
+          <CardHeader className="pb-2 pt-4 px-4 flex-row items-center gap-2">
+            <Bookmark className="h-4 w-4 text-amber-600" />
+            <CardTitle className="text-sm text-slate-700">Сохранённые сравнения</CardTitle>
+            <Badge variant="secondary" className="ml-2">{savedSets.length}</Badge>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-1.5">
+            {savedSets.map(set => {
+              const setMeta = TYPE_META[set.calcType as CalcType];
+              const missing = set.calcIds.filter(id => !calcMap.has(id)).length;
+              return (
+                <div key={set.id}
+                  className="grid grid-cols-12 gap-2 items-center border rounded px-3 py-2 text-xs hover:bg-amber-50/50 transition-colors"
+                  data-testid={`saved-set-row-${set.id}`}>
+                  <div className="col-span-12 md:col-span-5 flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className={`${setMeta?.color ?? ''} gap-1 text-[10px]`}>
+                      {setMeta?.icon}{setMeta?.label.split(' — ')[0] ?? set.calcType}
+                    </Badge>
+                    <span className="font-medium text-slate-800 truncate" title={set.name}>{set.name}</span>
+                  </div>
+                  <div className="col-span-12 md:col-span-3 text-slate-500 font-mono text-[11px]">
+                    #{set.calcIds.join(', #')}
+                    {missing > 0 && (
+                      <span className="ml-2 text-red-600" title="Часть расчётов из набора удалена">
+                        ({missing} не найдено)
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-12 md:col-span-2 text-slate-400 text-[11px]">
+                    {new Date(set.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                  <div className="col-span-12 md:col-span-2 flex justify-end gap-1">
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      onClick={() => openSavedSet(set)} data-testid={`btn-open-set-${set.id}`}>
+                      <FolderOpen className="h-3 w-3" /> Открыть
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      onClick={() => copyShareLink(set.calcIds, set.name)}
+                      data-testid={`btn-share-set-${set.id}`}
+                      title="Скопировать ссылку для общего доступа">
+                      <Link2 className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50"
+                      onClick={() => setConfirmDeleteSet(set)}
+                      data-testid={`btn-delete-set-${set.id}`}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'all' | CalcType)}>
         <TabsList className="grid grid-cols-4 max-w-2xl">
           <TabsTrigger value="all" className="text-xs gap-1" data-testid="tab-all">
@@ -427,7 +566,33 @@ const Calculations: FC = () => {
         calcs={selectedCalcs}
         profMap={profMap}
         objMap={objMap}
+        onSaveSet={(name) => {
+          if (!selectionType) return;
+          saveSetMut.mutate({ name, calcType: selectionType, calcIds: selectedCalcs.map(c => c.id) });
+        }}
+        onShareLink={() => copyShareLink(selectedCalcs.map(c => c.id))}
+        isSaving={saveSetMut.isPending}
       />
+
+      <AlertDialog open={!!confirmDeleteSet} onOpenChange={open => !open && setConfirmDeleteSet(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить набор «{confirmDeleteSet?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Сами расчёты не будут затронуты — удалится только сохранённое сравнение.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="btn-cancel-delete-set">Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => confirmDeleteSet && deleteSetMut.mutate(confirmDeleteSet.id)}
+              data-testid="btn-confirm-delete-set">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!confirmDelete} onOpenChange={open => !open && setConfirmDelete(null)}>
         <AlertDialogContent>
@@ -725,9 +890,17 @@ interface CompareDialogProps {
   calcs: SeismicCalculation[];
   profMap: Map<number, SoilProfile>;
   objMap: Map<number, InfrastructureObject>;
+  onSaveSet: (name: string) => void;
+  onShareLink: () => void;
+  isSaving: boolean;
 }
 
-const CompareDialog: FC<CompareDialogProps> = ({ open, onClose, calcs, profMap, objMap }) => {
+const CompareDialog: FC<CompareDialogProps> = ({
+  open, onClose, calcs, profMap, objMap, onSaveSet, onShareLink, isSaving,
+}) => {
+  const [setName, setSetName] = useState('');
+  // Reset the name input whenever the dialog opens or the selection changes.
+  useEffect(() => { if (open) setSetName(''); }, [open, calcs.map(c => c.id).join(',')]);
   const calcType = calcs[0]?.calcType as CalcType | undefined;
   const meta = calcType ? TYPE_META[calcType] : null;
 
@@ -805,6 +978,39 @@ const CompareDialog: FC<CompareDialogProps> = ({ open, onClose, calcs, profMap, 
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="border rounded p-3 bg-amber-50/40 space-y-2">
+          <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+            <Bookmark className="h-3.5 w-3.5 text-amber-600" />
+            Сохранить как именованный набор
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              value={setName}
+              onChange={e => setSetName(e.target.value)}
+              placeholder="Название (напр. «Сравнение оснований ЖК Юбилейный»)"
+              maxLength={120}
+              className="h-8 text-xs flex-1"
+              data-testid="input-save-set-name"
+            />
+            <Button size="sm" variant="default" className="h-8 text-xs gap-1"
+              disabled={!setName.trim() || isSaving}
+              onClick={() => { onSaveSet(setName.trim()); setSetName(''); }}
+              data-testid="btn-save-set">
+              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Сохранить набор
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1"
+              onClick={onShareLink}
+              data-testid="btn-share-link"
+              title="Скопировать прямую ссылку на это сравнение">
+              <Link2 className="h-3 w-3" /> Ссылка
+            </Button>
+          </div>
+          <div className="text-[10px] text-slate-500">
+            Сохранённые наборы появятся в панели «Сохранённые сравнения» на странице расчётов и будут доступны всем пользователям.
           </div>
         </div>
 

@@ -38,7 +38,9 @@ import {
   Developer,
   InsertDeveloper,
   SeismicCalculation,
-  InsertSeismicCalculation
+  InsertSeismicCalculation,
+  ComparisonSet,
+  InsertComparisonSet
 } from "@shared/schema";
 
 // Interface for storage operations
@@ -179,6 +181,12 @@ export interface IStorage {
   createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
   updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>>): Promise<SeismicCalculation | undefined>;
   deleteSeismicCalculation(id: number): Promise<boolean>;
+
+  // Saved comparison set operations
+  getComparisonSets(): Promise<ComparisonSet[]>;
+  getComparisonSet(id: number): Promise<ComparisonSet | undefined>;
+  createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet>;
+  deleteComparisonSet(id: number): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -871,6 +879,32 @@ export class MemStorage implements IStorage {
   }
   async deleteSeismicCalculation(id: number): Promise<boolean> {
     return this.seismicCalculationsMap.delete(id);
+  }
+
+  // ─── Comparison set operations ─────────────────────────────────────────────
+  private comparisonSetsMap: Map<number, ComparisonSet> = new Map();
+  private currentComparisonSetId = 1;
+
+  async getComparisonSets(): Promise<ComparisonSet[]> {
+    return Array.from(this.comparisonSetsMap.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async getComparisonSet(id: number): Promise<ComparisonSet | undefined> {
+    return this.comparisonSetsMap.get(id);
+  }
+  async createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet> {
+    const id = this.currentComparisonSetId++;
+    const record: ComparisonSet = {
+      ...set,
+      id,
+      createdAt: new Date(),
+      createdBy: set.createdBy ?? null,
+    };
+    this.comparisonSetsMap.set(id, record);
+    return record;
+  }
+  async deleteComparisonSet(id: number): Promise<boolean> {
+    return this.comparisonSetsMap.delete(id);
   }
 
   // ─── Object category operations ────────────────────────────────────────────
@@ -1594,6 +1628,26 @@ export class DatabaseStorage implements IStorage {
     const res = await db.delete(schema.seismicCalculations)
       .where(eq(schema.seismicCalculations.id, id))
       .returning({ id: schema.seismicCalculations.id });
+    return res.length > 0;
+  }
+
+  // ─── Comparison set operations ───────────────────────────────────────────────
+  async getComparisonSets(): Promise<ComparisonSet[]> {
+    return db.query.comparisonSets.findMany({
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    });
+  }
+  async getComparisonSet(id: number): Promise<ComparisonSet | undefined> {
+    return db.query.comparisonSets.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  }
+  async createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet> {
+    const [row] = await db.insert(schema.comparisonSets).values(set).returning();
+    return row;
+  }
+  async deleteComparisonSet(id: number): Promise<boolean> {
+    const res = await db.delete(schema.comparisonSets)
+      .where(eq(schema.comparisonSets.id, id))
+      .returning({ id: schema.comparisonSets.id });
     return res.length > 0;
   }
 

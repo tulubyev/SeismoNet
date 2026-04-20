@@ -417,6 +417,16 @@ export const seismicCalculations = pgTable("seismic_calculations", {
   notes: text("notes")
 });
 
+// ─── Saved comparison sets (named selections of seismic_calculations) ────────
+export const comparisonSets = pgTable("comparison_sets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  calcType: text("calc_type").notNull(),
+  calcIds: integer("calc_ids").array().notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: text("created_by"),
+});
+
 // ─── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
@@ -443,6 +453,7 @@ export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omi
 export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
 export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true });
+export const insertComparisonSetSchema = createInsertSchema(comparisonSets).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -530,6 +541,9 @@ export type InsertCalibrationAfc = z.infer<typeof insertCalibrationAfcSchema>;
 
 export type SeismicCalculation = typeof seismicCalculations.$inferSelect;
 export type InsertSeismicCalculation = z.infer<typeof insertSeismicCalculationSchema>;
+
+export type ComparisonSet = typeof comparisonSets.$inferSelect;
+export type InsertComparisonSet = z.infer<typeof insertComparisonSetSchema>;
 
 // ─── WebSocket / API types ─────────────────────────────────────────────────────
 

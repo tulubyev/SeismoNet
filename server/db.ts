@@ -46,7 +46,8 @@ export const schema = {
   calibrationSessions,
   calibrationAfc,
   developers: schemaImport.developers,
-  seismicCalculations
+  seismicCalculations,
+  comparisonSets: schemaImport.comparisonSets,
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

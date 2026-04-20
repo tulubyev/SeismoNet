@@ -800,6 +800,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Saved comparison sets API ────────────────────────────────────────────────
+
+  app.get('/api/comparison-sets', async (_req, res) => {
+    try {
+      const sets = await storage.getComparisonSets();
+      res.json(sets);
+    } catch (e) {
+      console.error('GET /api/comparison-sets failed:', e);
+      res.status(500).json({ message: 'Error fetching comparison sets' });
+    }
+  });
+
+  app.post('/api/comparison-sets', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const { name, calcType, calcIds } = req.body ?? {};
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ message: 'name is required' });
+      }
+      if (typeof calcType !== 'string' || !calcType.trim()) {
+        return res.status(400).json({ message: 'calcType is required' });
+      }
+      if (!Array.isArray(calcIds) || calcIds.length < 2 ||
+          !calcIds.every((n: unknown) => Number.isInteger(n))) {
+        return res.status(400).json({ message: 'calcIds must be an integer array of length >= 2' });
+      }
+      const set = await storage.createComparisonSet({
+        name: name.trim().slice(0, 120),
+        calcType,
+        calcIds: calcIds as number[],
+        createdBy: (req.user as { username?: string } | undefined)?.username ?? null,
+      });
+      res.status(201).json(set);
+    } catch (e) {
+      console.error('POST /api/comparison-sets failed:', e);
+      res.status(500).json({ message: 'Error creating comparison set' });
+    }
+  });
+
+  app.delete('/api/comparison-sets/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteComparisonSet(id);
+      if (!ok) return res.status(404).json({ message: 'Comparison set not found' });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ message: 'Error deleting comparison set' });
+    }
+  });
+
   // ─── Object Categories API ────────────────────────────────────────────────────
 
   app.get('/api/object-categories', async (_req, res) => {
