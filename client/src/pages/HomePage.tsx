@@ -5,7 +5,7 @@ import { useSeismicData } from '@/hooks/useSeismicData';
 import type { InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
   BarChart2, Building2, Radio, Map, FileText,
-  BookOpen, ArrowRight, Users2, Waves, Compass, Lightbulb,
+  ArrowRight,
   AlertTriangle, CheckCircle2, Settings as SettingsIcon, Globe,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -114,6 +114,7 @@ const HomePage: FC = () => {
       status:     isAdmin ? 'ok' : 'warn',
     },
     {
+      href:       '/seismonet-project',
       title:      'Проект SeismoNet',
       subtitle:   'Нормативная база, партнёры, публикации и просветительские материалы',
       icon:       Globe,
@@ -121,14 +122,6 @@ const HomePage: FC = () => {
       shadow:     'shadow-indigo-900/40',
       badge:      null,
       status:     null,
-      colSpan:    'lg:col-span-3',
-      subLinks: [
-        { href: '/building-norms',    label: 'Нормативная база',    icon: BookOpen,  gradient: 'from-indigo-500 to-indigo-700' },
-        { href: '/partners',          label: 'Партнёры',            icon: Users2,    gradient: 'from-sky-500    to-sky-700'    },
-        { href: '/about-earthquakes', label: 'О землетрясениях',   icon: Waves,     gradient: 'from-orange-500 to-orange-700' },
-        { href: '/seismic-basics',    label: 'Основы наблюдений',  icon: Compass,   gradient: 'from-lime-500   to-lime-700'   },
-        { href: '/interesting',       label: 'Это интересно',      icon: Lightbulb, gradient: 'from-amber-500  to-amber-700'  },
-      ],
     },
   ];
 
