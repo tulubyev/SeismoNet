@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts';
-import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2, Download, BookOpen, TriangleAlert } from 'lucide-react';
+import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2, Download, BookOpen, TriangleAlert, Copy } from 'lucide-react';
 import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, SoilLayer, InfrastructureObject, SeismicCalculation } from '@shared/schema';
 
 // Cooley-Tukey FFT, radix-2 DIT, in-place on Float64Arrays
@@ -1502,6 +1502,45 @@ const ResponseTab: FC<RespTabProps> = ({
     });
   }, [respResult, sp14Intensity, sp14SoilCategory, sp14K1, sp14K2, componentSpectra]);
 
+  const KEY_PERIODS = [0.1, 0.2, 0.5, 1.0, 2.0];
+
+  const saKeyTable = useMemo(() => {
+    if (!componentSpectra || !chartData.length) return null;
+    const comps: string[] = [];
+    if (componentSpectra.Z)  comps.push('Z');
+    if (componentSpectra.NS) comps.push('NS');
+    if (componentSpectra.EW) comps.push('EW');
+    if (componentSpectra.H1) comps.push('H1');
+    if (componentSpectra.H2) comps.push('H2');
+    if (comps.length === 0) return null;
+
+    const rows = KEY_PERIODS.map(kp => {
+      let nearestIdx = 0;
+      let minDiff = Infinity;
+      chartData.forEach((pt, i) => {
+        const diff = Math.abs(pt.T - kp);
+        if (diff < minDiff) { minDiff = diff; nearestIdx = i; }
+      });
+      const pt = chartData[nearestIdx];
+      const compValues: Record<string, number | undefined> = {};
+      comps.forEach(c => {
+        compValues[c] = (pt as Record<string, unknown>)[`Sa_${c}`] as number | undefined;
+      });
+      return { T: kp, Sa: pt.Sa, compValues };
+    });
+
+    let peakRow = -1;
+    if (peakSa && peakSa.T > 0) {
+      let minDiff = Infinity;
+      rows.forEach((r, i) => {
+        const diff = Math.abs(r.T - peakSa.T);
+        if (diff < minDiff) { minDiff = diff; peakRow = i; }
+      });
+    }
+
+    return { rows, comps, peakRow };
+  }, [componentSpectra, chartData, peakSa]);
+
   const toggleSeries = useCallback((dataKey: string) => {
     setHiddenSeries(prev => {
       const next = new Set(prev);
@@ -1854,6 +1893,82 @@ const ResponseTab: FC<RespTabProps> = ({
                 <div className="mt-1 text-[10px] text-slate-400">
                   Разброс = max(Sa<sub>H1</sub>, Sa<sub>H2</sub>) / min(Sa<sub>H1</sub>, Sa<sub>H2</sub>) по каждому периоду T; значение 1.0 означает идеальное совпадение.
                   {' '}Поэкспортируется в CSV как столбец <code>H1_H2_ratio</code>.
+                </div>
+              </div>
+            )}
+            {saKeyTable && (
+              <div className="mx-3 mt-2 mb-1 rounded-md border border-slate-200 bg-white overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+                  <span className="text-[11px] font-semibold text-slate-600">
+                    Sa(T) при ключевых инженерных периодах (м/с²)
+                  </span>
+                  <Button
+                    size="sm" variant="ghost" className="h-6 text-[10px] px-2 gap-1 text-slate-500 hover:text-slate-700"
+                    onClick={() => {
+                      const headers = ['T (с)', ...saKeyTable.comps.map(c => `Sa_${c}`), 'Sa расч.'].join('\t');
+                      const dataRows = saKeyTable.rows.map(r =>
+                        [r.T.toFixed(1), ...saKeyTable.comps.map(c => r.compValues[c]?.toFixed(4) ?? '—'), r.Sa.toFixed(4)].join('\t')
+                      );
+                      navigator.clipboard.writeText([headers, ...dataRows].join('\n'));
+                    }}
+                  >
+                    <Copy className="h-3 w-3" /> Копировать
+                  </Button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-50/60 border-b border-slate-100">
+                        <th className="px-3 py-1.5 text-left text-slate-500 font-medium whitespace-nowrap">T (с)</th>
+                        {saKeyTable.comps.map(c => (
+                          <th key={c} className="px-3 py-1.5 text-right font-semibold whitespace-nowrap"
+                            style={{ color: COMP_META[c]?.color ?? '#64748b' }}>
+                            Sa<sub>{c}</sub>
+                          </th>
+                        ))}
+                        <th className="px-3 py-1.5 text-right text-red-600 font-semibold whitespace-nowrap">Sa расч.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {saKeyTable.rows.map((row, ri) => {
+                        const isPeakRow = ri === saKeyTable.peakRow;
+                        const rowDomKey = isPeakRow
+                          ? saKeyTable.comps.reduce<string | null>((best, c) => {
+                              const v = row.compValues[c] ?? 0;
+                              const bv = best ? (row.compValues[best] ?? 0) : -1;
+                              return v > bv ? c : best;
+                            }, null)
+                          : null;
+                        return (
+                          <tr key={row.T}
+                            className={isPeakRow ? 'bg-purple-50 border-l-2 border-purple-400' : ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
+                            <td className={`px-3 py-1 font-mono ${isPeakRow ? 'font-bold text-purple-700' : 'text-slate-600'}`}>
+                              {row.T.toFixed(1)}
+                              {isPeakRow && <span className="ml-1 text-[9px] text-purple-500">▲ пик</span>}
+                            </td>
+                            {saKeyTable.comps.map(c => {
+                              const isDom = isPeakRow && rowDomKey === c;
+                              const val = row.compValues[c];
+                              return (
+                                <td key={c}
+                                  className={`px-3 py-1 text-right font-mono ${isDom ? 'font-bold' : 'text-slate-700'}`}
+                                  style={isDom ? { color: COMP_META[c]?.color, backgroundColor: `${COMP_META[c]?.color}1a` } : {}}>
+                                  {val != null ? val.toFixed(4) : '—'}
+                                  {isDom && <span className="ml-1 text-[9px]">★</span>}
+                                </td>
+                              );
+                            })}
+                            <td className={`px-3 py-1 text-right font-mono ${isPeakRow ? 'font-bold text-red-600' : 'text-slate-700'}`}>
+                              {row.Sa.toFixed(4)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-3 py-1 text-[10px] text-slate-400 border-t border-slate-100">
+                  Стандартные расчётные периоды T = 0.1, 0.2, 0.5, 1.0, 2.0 с · ближайший шаг сетки · «Sa расч.» — итоговый (геом. среднее при GMH/AVG3) · ★ — доминирующая компонента в строке пика · строка пика (▲) выделена.
                 </div>
               </div>
             )}
