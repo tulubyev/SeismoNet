@@ -47,11 +47,9 @@ const constructionTypeOptions = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface StationListProps {
-  stations: Station[];
-}
+interface StationListProps {}
 
-const StationList: FC<StationListProps> = ({ stations }) => {
+const StationList: FC<StationListProps> = () => {
   const [searchTerm,         setSearchTerm]         = useState('');
   const [statusFilter,       setStatusFilter]       = useState('all');
   const [districtFilter,     setDistrictFilter]     = useState('all');
@@ -59,6 +57,7 @@ const StationList: FC<StationListProps> = ({ stations }) => {
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [selectedStation,    setSelectedStation]    = useState<Station | null>(null);
 
+  const { data: stations = [] }      = useQuery<Station[]>({ queryKey: ['/api/stations'] });
   const { data: objects = [] }       = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: developers = [] }    = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
