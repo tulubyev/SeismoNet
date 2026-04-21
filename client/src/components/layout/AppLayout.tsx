@@ -2,7 +2,7 @@ import { FC, ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  Home, Building2, Radio,
+  Home, Radio,
   LogOut, UserCircle, Bell,
   ChevronDown, Activity,
   ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
@@ -20,7 +20,6 @@ import type { Alert } from '@shared/schema';
 
 const NAV_LINKS = [
   { href: '/',               icon: <Home className="h-4 w-4" />,       label: 'Обзор'               },
-  { href: '/infrastructure', icon: <Building2 className="h-4 w-4" />,  label: 'Объекты мониторинга' },
   { href: '/stations',       icon: <Radio className="h-4 w-4" />,      label: 'Датчики'             },
 ];
 
