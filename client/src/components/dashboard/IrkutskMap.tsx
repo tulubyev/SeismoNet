@@ -1,20 +1,28 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map as MapIcon, Search, MapPin, Layers, Radio } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Map as MapIcon, Search, MapPin, Layers, Radio,
+  X, ExternalLink, Building2, Calendar, Shield,
+  CheckCircle2, AlertTriangle
+} from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
-import type { InfrastructureObject, Station, ObjectCategory, Developer } from '@shared/schema';
+import type { InfrastructureObject, Station, ObjectCategory, Developer, SensorInstallation } from '@shared/schema';
 import DeveloperObjectFilter, {
   type DeveloperObjectFilterValue,
   DEVELOPER_FILTER_DEFAULT,
 } from '@/components/DeveloperObjectFilter';
+import { sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 declare global {
-  interface Window { L: any; }
+  interface Window { L: any; __mapOpenObj?: (id: number) => void; }
 }
 
 const esc = (s: string | null | undefined): string =>
@@ -28,15 +36,10 @@ interface IrkutskMapProps {
 
 const IRKUTSK_CENTER: [number, number] = [52.29, 104.30];
 const IRKUTSK_ZOOM = 12;
-
 const FALLBACK_CATEGORY_COLOR = '#6366f1';
 
 const IRKUTSK_DISTRICTS = [
-  'Октябрьский',
-  'Свердловский',
-  'Ленинский',
-  'Правобережный',
-  'Иркутский район',
+  'Октябрьский', 'Свердловский', 'Ленинский', 'Правобережный', 'Иркутский район',
 ];
 
 const constructionTypeOptions = [
@@ -52,6 +55,33 @@ const constructionTypeOptions = [
   { value: 'mixed',               label: 'Смешанная система' },
 ];
 
+const structuralSystemLabel = (sys: string | null) => {
+  const labels: Record<string, string> = {
+    monolithic: 'Монолит', frame: 'Каркас', brick: 'Кирпич', panel: 'Панельное',
+    reinforced_concrete: 'Ж/Б каркас', steel: 'Стальной каркас',
+    masonry: 'Кирпичная кладка', wood: 'Деревянный', mixed: 'Смешанная система',
+  };
+  return sys ? (labels[sys] ?? sys) : '—';
+};
+
+const conditionInfo = (condition: string | null) => {
+  switch (condition) {
+    case 'good':         return { label: 'Хорошее',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-3 w-3" /> };
+    case 'satisfactory': return { label: 'Удовл.',      cls: 'bg-blue-100 text-blue-700 border-blue-200',          icon: null };
+    case 'poor':         return { label: 'Плохое',      cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: <AlertTriangle className="h-3 w-3" /> };
+    case 'critical':     return { label: 'Критическое', cls: 'bg-red-100 text-red-700 border-red-200',             icon: <AlertTriangle className="h-3 w-3" /> };
+    default:             return { label: 'Н/Д',         cls: 'bg-slate-100 text-slate-500',                        icon: null };
+  }
+};
+
+const installationLocationLabel = (loc: string | null) => {
+  const labels: Record<string, string> = {
+    foundation: 'Фундамент', ground_floor: '1-й этаж',
+    mid_floor: 'Средний этаж', roof: 'Кровля', free_field: 'Свободное поле',
+  };
+  return loc ? (labels[loc] ?? loc) : '—';
+};
+
 const stationColor = (status: string) => {
   switch (status) {
     case 'online':   return '#10b981';
@@ -65,18 +95,25 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const mapRef         = useRef<any>(null);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapperRef     = useRef<HTMLDivElement>(null);
+  const detailRef      = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
   const markersRef     = useRef<any[]>([]);
+  const objectsRef     = useRef<InfrastructureObject[]>([]);
 
-  // Filter state — mirrors the filter on the InfrastructureObjects page
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [showStations,       setShowStations]       = useState(true);
+  const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
 
-  const { data: categories  = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
+  const { data: categories = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
   const { data: developers  = [] } = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
+
+  const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
+    queryKey: ['/api/sensor-installations', selectedObj?.id],
+    enabled: !!selectedObj,
+  });
 
   const catBySlug = useMemo(() => {
     const m = new Map<string, ObjectCategory>();
@@ -93,19 +130,18 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         (obj.objectId ?? '').toLowerCase().includes(q);
       const matchDistrict     = districtFilter     === 'all' || (obj.district         ?? '') === districtFilter;
       const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
-
-      // Hierarchical developer filter
-      const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
-      const matchObject    = devFilter.objectId      === 'all' || String(obj.id)         === devFilter.objectId;
-      const matchComplex   = devFilter.complexName   === 'all' || (() => {
+      const matchDeveloper    = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
+      const matchObject       = devFilter.objectId      === 'all' || String(obj.id)         === devFilter.objectId;
+      const matchComplex      = devFilter.complexName   === 'all' || (() => {
         const needle = devFilter.complexName.toLowerCase();
         return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
       })();
-
-      return matchSearch && matchDistrict && matchConstruction &&
-             matchDeveloper && matchComplex && matchObject;
+      return matchSearch && matchDistrict && matchConstruction && matchDeveloper && matchComplex && matchObject;
     });
   }, [objects, search, districtFilter, devFilter, constructionFilter]);
+
+  // Keep ref in sync to avoid stale closures in window function
+  useEffect(() => { objectsRef.current = filteredObjects; }, [filteredObjects]);
 
   const activeFilterCount = [
     districtFilter !== 'all',
@@ -152,7 +188,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
       const catLabel = catBySlug.get(obj.objectType)?.name || obj.objectType;
       marker.bindPopup(`
-        <div style="font-family: sans-serif; min-width: 180px;">
+        <div style="font-family: sans-serif; min-width: 200px;">
           <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #1e293b;">${esc(obj.name)}</div>
           <div style="font-size: 11px; color: #64748b; margin-bottom: 2px;">${esc(obj.address)}</div>
           <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
@@ -166,6 +202,17 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
               : '<span style="color: #94a3b8;">&#9675; Без мониторинга</span>'}
           </div>
           ${obj.developer ? `<div style="margin-top: 4px; font-size: 10px; color: #64748b;">Застройщик: ${esc(obj.developer)}</div>` : ''}
+          <button
+            onclick="window.__mapOpenObj(${obj.id})"
+            style="
+              margin-top: 10px; width: 100%; padding: 6px 0;
+              background: #2563eb; color: white; border: none;
+              border-radius: 6px; font-size: 12px; font-weight: 600;
+              cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;
+            "
+            onmouseover="this.style.background='#1d4ed8'"
+            onmouseout="this.style.background='#2563eb'"
+          >&#9432; Открыть объект</button>
         </div>
       `);
 
@@ -234,6 +281,20 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     addMarkers();
   };
 
+  // Register global window handler (once, reads from ref to avoid stale closure)
+  useEffect(() => {
+    window.__mapOpenObj = (id: number) => {
+      const obj = objectsRef.current.find(o => o.id === id) ?? null;
+      setSelectedObj(obj);
+      if (mapRef.current) mapRef.current.closePopup();
+      // Scroll to detail panel
+      setTimeout(() => {
+        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    };
+    return () => { delete window.__mapOpenObj; };
+  }, []);
+
   useEffect(() => {
     if (!window.L) {
       const link = document.createElement('link');
@@ -277,6 +338,17 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     return () => ro.disconnect();
   }, []);
 
+  // Keep selectedObj in sync if filteredObjects change (e.g. after filter reset)
+  useEffect(() => {
+    if (selectedObj) {
+      const updated = objects.find(o => o.id === selectedObj.id);
+      setSelectedObj(updated ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects]);
+
+  const cond = conditionInfo(selectedObj?.technicalCondition ?? null);
+
   return (
     <Card className={`border-0 shadow-sm w-full ${className}`}>
       <CardHeader className="pb-2">
@@ -292,9 +364,8 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
       <CardContent className="pt-0 space-y-3">
 
-        {/* ── Filter bar (mirrors the InfrastructureObjects page) ── */}
+        {/* Filter bar */}
         <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
-          {/* Row 1: search + station toggle + reset */}
           <div className="flex gap-3 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -324,7 +395,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
             )}
           </div>
 
-          {/* Row 2: district + construction */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Select value={districtFilter} onValueChange={setDistrictFilter}>
               <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
@@ -352,7 +422,6 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
             </Select>
           </div>
 
-          {/* Row 3: hierarchical developer filter */}
           <DeveloperObjectFilter
             developers={developers}
             objects={objects}
@@ -360,20 +429,12 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
             onChange={setDevFilter}
             popoverZIndex={1001}
           />
-
         </div>
 
-        {/* ── Map (full width) ── */}
+        {/* Map */}
         <div
           ref={wrapperRef}
-          style={{
-            resize: 'vertical',
-            overflow: 'hidden',
-            width: '100%',
-            height: '560px',
-            minHeight: '320px',
-            maxHeight: '1000px',
-          }}
+          style={{ resize: 'vertical', overflow: 'hidden', width: '100%', height: '560px', minHeight: '320px', maxHeight: '1000px' }}
           className="rounded-lg border border-slate-200"
           data-testid="map-resize-wrapper"
         >
@@ -405,6 +466,163 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
             <span className="w-3 h-3 rounded bg-red-500" /> Офлайн
           </span>
         </div>
+
+        {/* ── Object detail panel ── */}
+        {selectedObj && (
+          <div ref={detailRef} className="border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
+
+            {/* Detail header */}
+            <div className="flex items-start justify-between gap-3 px-4 py-3 bg-blue-50 border-b border-blue-100">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Building2 className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-slate-800 leading-tight">{selectedObj.name}</h3>
+                  {selectedObj.isMonitored
+                    ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] h-5">Под мониторингом</Badge>
+                    : <Badge variant="outline" className="text-[10px] h-5 text-slate-500">Без мониторинга</Badge>}
+                </div>
+                {selectedObj.address && (
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                    <MapPin className="h-3 w-3 flex-shrink-0" />{selectedObj.address}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Link href="/infrastructure">
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-blue-300 text-blue-700 hover:bg-blue-100">
+                    <ExternalLink className="h-3 w-3" />
+                    В раздел
+                  </Button>
+                </Link>
+                <button
+                  onClick={() => setSelectedObj(null)}
+                  className="p-1 rounded hover:bg-blue-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Detail tabs */}
+            <div className="p-4">
+              <Tabs defaultValue="params">
+                <TabsList className="w-full mb-4 h-8">
+                  <TabsTrigger value="params"  className="text-xs flex-1">Параметры</TabsTrigger>
+                  <TabsTrigger value="sensors" className="text-xs flex-1">
+                    Датчики {sensorInstallations.length > 0 ? `(${sensorInstallations.length})` : ''}
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Parameters */}
+                <TabsContent value="params" className="mt-0 space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Тип объекта</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5">
+                        {categories.find(c => c.slug === selectedObj.objectType)?.name || selectedObj.objectType}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Год постройки</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5 flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-slate-400" />
+                        {selectedObj.constructionYear ?? 'Н/Д'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Этажность</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5">
+                        {selectedObj.floors ? `${selectedObj.floors} эт.` : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Конструктив</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5">{structuralSystemLabel(selectedObj.structuralSystem)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Кат. грунта (СП14)</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5">
+                        {selectedObj.seismicCategory ? `Категория ${selectedObj.seismicCategory}` : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Расч. интенсивность</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5 flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-slate-400" />
+                        {selectedObj.designIntensity ? `${selectedObj.designIntensity} балл.` : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Тип фундамента</p>
+                      <p className="text-xs font-medium text-slate-700 mt-0.5">{selectedObj.foundationType ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Тех. состояние</p>
+                      <div className="mt-0.5">
+                        <Badge className={`text-[10px] h-5 flex items-center gap-1 w-fit ${cond.cls}`}>
+                          {cond.icon}{cond.label}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* K1/K2 */}
+                  <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold mb-2">Коэфф. нагрузки (СП14)</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                      <div>
+                        <p className="text-[10px] text-slate-400">K₁ (уровень отв.)</p>
+                        <p className="text-xs font-medium text-slate-700 mt-0.5">{sp14K1Label(selectedObj.k1Key)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400">K₂ (конструктив)</p>
+                        <p className="text-xs font-medium text-slate-700 mt-0.5">{sp14K2Label(selectedObj.k2Key)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedObj.developer && (
+                    <p className="text-xs text-slate-500">Застройщик: <span className="font-medium text-slate-700">{selectedObj.developer}</span></p>
+                  )}
+                </TabsContent>
+
+                {/* Sensors */}
+                <TabsContent value="sensors" className="mt-0">
+                  {sensorInstallations.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      <Radio className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs">Датчики не установлены</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {sensorInstallations.map(inst => (
+                        <div key={inst.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-800">{inst.stationId}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              {installationLocationLabel(inst.installationLocation)}
+                              {inst.floor ? `, ${inst.floor} эт.` : ''}
+                              {inst.measurementAxes ? ` · ${inst.measurementAxes}` : ''}
+                            </p>
+                            {inst.sensorType && (
+                              <p className="text-[10px] text-slate-400">{inst.sensorType}</p>
+                            )}
+                          </div>
+                          <Badge
+                            className={`text-[10px] h-5 ml-3 flex-shrink-0 ${inst.isActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500'}`}
+                          >
+                            {inst.isActive ? 'Активен' : 'Откл.'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        )}
+
       </CardContent>
     </Card>
   );
