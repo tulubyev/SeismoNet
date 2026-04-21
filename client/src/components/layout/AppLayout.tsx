@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Building2, Radio, FileText,
   LogOut, UserCircle, Bell,
-  ChevronDown, Calculator, Activity, Mountain,
+  ChevronDown, Calculator, Activity,
   ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
   WifiOff as StationOfflineIcon, Info, CheckCheck, ExternalLink,
 } from 'lucide-react';
@@ -24,7 +24,6 @@ const NAV_LINKS = [
   { href: '/stations',       icon: <Radio className="h-4 w-4" />,      label: 'Датчики'             },
   { href: '/seismograms',    icon: <FileText className="h-4 w-4" />,   label: 'Сигналы'             },
   { href: '/analysis',       icon: <Calculator className="h-4 w-4" />, label: 'Расчёты'             },
-  { href: '/soil-database',  icon: <Mountain className="h-4 w-4" />,   label: 'Грунты'              },
 ];
 
 const PARENT_ROUTES: Record<string, string> = {

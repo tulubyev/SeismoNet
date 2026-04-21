@@ -1,8 +1,8 @@
 import { FC } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, BarChart2, History, ArrowRight } from 'lucide-react';
-import type { SeismogramRecord, SeismicCalculation } from '@shared/schema';
+import { FileText, BarChart2, History, Layers, ArrowRight } from 'lucide-react';
+import type { SeismogramRecord, SeismicCalculation, SoilProfile } from '@shared/schema';
 
 interface BlockDef {
   href: string;
@@ -25,6 +25,10 @@ const DataAnalysis: FC = () => {
 
   const { data: calculations = [] } = useQuery<SeismicCalculation[]>({
     queryKey: ['/api/calculations'],
+  });
+
+  const { data: soilProfiles = [] } = useQuery<SoilProfile[]>({
+    queryKey: ['/api/soil-profiles'],
   });
 
   const blocks: BlockDef[] = [
@@ -60,6 +64,17 @@ const DataAnalysis: FC = () => {
       badge:       calculations.length > 0 ? calculations.length : null,
       badgeLabel:  'расчётов сохранено',
     },
+    {
+      href:        '/soil-database',
+      title:       'Инженерная геология',
+      subtitle:    'Грунтовые разрезы, категории СП 14, параметры Vs/Vp',
+      description: 'База данных инженерно-геологических условий объектов Иркутска. Стратиграфия, скоростные профили, категории грунтов по СП 14.13330 для расчётов усиления сейсмического воздействия',
+      icon:        Layers,
+      gradient:    'from-teal-600 to-teal-800',
+      shadow:      'shadow-teal-900/40',
+      badge:       soilProfiles.length > 0 ? soilProfiles.length : null,
+      badgeLabel:  'геологических профилей',
+    },
   ];
 
   return (
@@ -73,7 +88,7 @@ const DataAnalysis: FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {blocks.map(block => {
               const Icon = block.icon;
               return (
