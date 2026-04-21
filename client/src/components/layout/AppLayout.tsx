@@ -2,10 +2,9 @@ import { FC, ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  Home, Radio,
+  ArrowDown, ArrowUp, ArrowLeft,
   LogOut, UserCircle, Bell,
-  ChevronDown, Activity,
-  ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
+  ChevronDown, Activity, AlertTriangle, Siren, BatteryLow, ServerCrash,
   WifiOff as StationOfflineIcon, Info, CheckCheck, ExternalLink,
 } from 'lucide-react';
 import {
@@ -17,11 +16,6 @@ import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { Alert } from '@shared/schema';
-
-const NAV_LINKS = [
-  { href: '/',               icon: <Home className="h-4 w-4" />,       label: 'Обзор'               },
-  { href: '/stations',       icon: <Radio className="h-4 w-4" />,      label: 'Датчики'             },
-];
 
 const PARENT_ROUTES: Record<string, string> = {
   '/monitoring-hub':     '/',
@@ -53,12 +47,6 @@ const PARENT_ROUTES: Record<string, string> = {
   '/interesting':        '/seismonet-project',
 };
 
-const ROUTE_LABELS: Record<string, string> = {
-  '/':                  'Обзор',
-  '/stations':          'Датчики',
-  '/seismonet-project': 'WiKi SeismoNet',
-};
-
 function getParent(location: string): string | null {
   if (location === '/') return null;
   if (PARENT_ROUTES[location]) return PARENT_ROUTES[location];
@@ -83,9 +71,9 @@ function alertMeta(alert: Alert): { Icon: FC<{ className?: string }>; color: str
   const s = alert.severity ?? '';
 
   if (s === 'critical' || t.includes('seismic') || t.includes('event'))
-    return { Icon: Siren,             color: 'text-red-400',    bg: 'bg-red-500/10'    };
+    return { Icon: Siren,              color: 'text-red-400',    bg: 'bg-red-500/10'    };
   if (t.includes('battery') || t.includes('power'))
-    return { Icon: BatteryLow,        color: 'text-amber-400',  bg: 'bg-amber-500/10'  };
+    return { Icon: BatteryLow,         color: 'text-amber-400',  bg: 'bg-amber-500/10'  };
   if (t.includes('offline') || t.includes('station') || t.includes('connection'))
     return { Icon: StationOfflineIcon, color: 'text-orange-400', bg: 'bg-orange-500/10' };
   if (t.includes('server') || t.includes('data'))
@@ -182,62 +170,84 @@ const AlertsPanel: FC = () => {
   );
 };
 
-const TopNav: FC = () => {
+const TopBar: FC = () => {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { data: alerts = [] } = useQuery<Alert[]>({ queryKey: ['/api/alerts'] });
   const unread = alerts.filter(a => !a.isRead).length;
 
+  const isHome = location === '/';
   const parentHref = getParent(location);
-  const parentLabel = parentHref ? (ROUTE_LABELS[parentHref] ?? 'Назад') : null;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-slate-900 border-b border-slate-700 flex items-center px-4 gap-2 shadow-lg">
+    <header className="fixed top-0 left-0 right-0 z-50 h-12 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/60 flex items-center px-4 gap-3 shadow-lg">
+
+      {/* Logo / brand */}
       <Link href="/">
-        <div className="flex items-center gap-2 mr-2 cursor-pointer flex-shrink-0">
-          <div className="w-7 h-7 rounded bg-blue-500 flex items-center justify-center">
-            <Activity className="h-4 w-4 text-white" />
+        <div className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+          <div className="w-6 h-6 rounded bg-blue-500 flex items-center justify-center">
+            <Activity className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="text-white font-bold text-sm leading-tight hidden sm:block">
-            Seismo Net<br />
-            <span className="text-blue-400 font-normal text-[10px]">г. Иркутск</span>
+          <span className="text-white font-semibold text-xs leading-tight hidden sm:block">
+            SeismoNet
+            <span className="text-blue-400 font-normal ml-1 text-[10px]">г. Иркутск</span>
           </span>
         </div>
       </Link>
 
-      {parentHref && (
-        <>
-          <Link href={parentHref}>
-            <div className="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-slate-400 hover:text-white hover:bg-slate-700 transition-colors flex-shrink-0">
-              <ChevronLeft className="h-3.5 w-3.5" />
-              <span className="text-xs hidden sm:inline">{parentLabel}</span>
+      <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
+
+      {/* Navigation arrows */}
+      {isHome ? (
+        /* Home page: single green ↓ arrow centered */
+        <div className="flex-1 flex justify-center">
+          <div
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full
+              bg-gradient-to-r from-green-500/20 to-green-600/20
+              border border-green-500/40
+              text-green-400 select-none"
+          >
+            <ArrowDown className="h-4 w-4 animate-bounce" strokeWidth={2.5} />
+            <span className="text-xs font-medium hidden sm:inline">к разделам</span>
+          </div>
+        </div>
+      ) : (
+        /* Sub-page: ↑ green (home) + ← blue (parent) */
+        <div className="flex items-center gap-2 flex-1">
+          <Link href="/">
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full cursor-pointer
+                bg-gradient-to-r from-green-500/20 to-green-600/20
+                border border-green-500/40
+                text-green-400 hover:text-green-300 hover:border-green-400/60
+                transition-all duration-150"
+              title="На главную"
+            >
+              <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+              <span className="text-xs font-medium hidden sm:inline">Главная</span>
             </div>
           </Link>
-          <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
-        </>
-      )}
 
-      <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
-        {NAV_LINKS.map(link => {
-          const isActive = link.href === '/'
-            ? location === '/'
-            : location.startsWith(link.href);
-          return (
-            <Link key={link.href} href={link.href}>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm cursor-pointer whitespace-nowrap transition-colors ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}>
-                {link.icon}
-                <span className="hidden md:inline">{link.label}</span>
+          {parentHref && (
+            <Link href={parentHref}>
+              <div
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full cursor-pointer
+                  bg-gradient-to-r from-blue-500/20 to-blue-600/20
+                  border border-blue-500/40
+                  text-blue-400 hover:text-blue-300 hover:border-blue-400/60
+                  transition-all duration-150"
+                title="Назад"
+              >
+                <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />
+                <span className="text-xs font-medium hidden sm:inline">Назад</span>
               </div>
             </Link>
-          );
-        })}
-      </nav>
+          )}
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+      {/* Right: alerts + user */}
+      <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
         <Popover>
           <PopoverTrigger asChild>
             <div className="relative cursor-pointer">
@@ -308,8 +318,8 @@ interface AppLayoutProps {
 
 const AppLayout: FC<AppLayoutProps> = ({ children }) => (
   <div className="min-h-screen bg-slate-900 flex flex-col">
-    <TopNav />
-    <main className="flex-1 overflow-y-auto pt-14 pb-10">
+    <TopBar />
+    <main className="flex-1 overflow-y-auto pt-12 pb-10">
       {children}
     </main>
     <AppFooter />
