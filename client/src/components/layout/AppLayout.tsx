@@ -180,9 +180,9 @@ const TopBar: FC = () => {
   const parentHref = getParent(location);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-12 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/60 flex items-center px-4 gap-3 shadow-lg">
+    <header className="fixed top-0 left-0 right-0 z-50 h-12 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/60 flex items-center px-4 shadow-lg">
 
-      {/* Logo / brand */}
+      {/* Logo / brand — left */}
       <Link href="/">
         <div className="flex items-center gap-2 cursor-pointer flex-shrink-0">
           <div className="w-6 h-6 rounded bg-blue-500 flex items-center justify-center">
@@ -195,12 +195,10 @@ const TopBar: FC = () => {
         </div>
       </Link>
 
-      <div className="w-px h-5 bg-slate-700 flex-shrink-0" />
-
-      {/* Navigation arrows */}
+      {/* Navigation arrows — absolutely centered */}
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
       {isHome ? (
-        /* Home page: single green ↓ arrow centered */
-        <div className="flex-1 flex justify-center">
+        /* Home page: single green ↓ arrow */
           <div
             className="flex items-center gap-1.5 px-3 py-1 rounded-full
               bg-gradient-to-r from-green-500/20 to-green-600/20
@@ -210,10 +208,9 @@ const TopBar: FC = () => {
             <ArrowDown className="h-4 w-4 animate-bounce" strokeWidth={2.5} />
             <span className="text-xs font-medium hidden sm:inline">к разделам</span>
           </div>
-        </div>
       ) : (
         /* Sub-page: ↑ green (home) + ← blue (parent) */
-        <div className="flex items-center gap-2 flex-1">
+        <>
           <Link href="/">
             <div
               className="flex items-center gap-1.5 px-3 py-1 rounded-full cursor-pointer
@@ -243,8 +240,9 @@ const TopBar: FC = () => {
               </div>
             </Link>
           )}
-        </div>
+        </>
       )}
+      </div>
 
       {/* Right: alerts + user */}
       <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
