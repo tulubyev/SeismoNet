@@ -7,6 +7,7 @@ import type { Alert, InfrastructureObject, SeismogramRecord } from '@shared/sche
 import {
   Settings as SettingsIcon, ShieldCheck, ArrowRight,
   HardHat, PlusSquare, Radio, Network, Server, Database, BellRing, Siren,
+  Wrench,
 } from 'lucide-react';
 
 const SystemManagement: FC = () => {
@@ -113,6 +114,30 @@ const SystemManagement: FC = () => {
                 </button>
               );
             })}
+          </div>
+
+          {/* Settings block */}
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-px flex-1 bg-slate-700/60" />
+              <span className="text-xs text-slate-500 uppercase tracking-widest">Системные настройки</span>
+              <div className="h-px flex-1 bg-slate-700/60" />
+            </div>
+            <button
+              onClick={() => navigate('/settings')}
+              className="group w-full text-left rounded-xl border bg-slate-700/20 border-slate-600/40 hover:bg-slate-700/40 p-4 transition-all cursor-pointer flex items-center gap-4"
+            >
+              <div className="p-3 rounded-xl bg-slate-600/30 border border-slate-500/30 flex-shrink-0">
+                <Wrench className="h-6 w-6 text-slate-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-white font-semibold text-sm">Настройки системы</div>
+                <div className="text-slate-400 text-xs mt-0.5">
+                  Пользователи, роли, уведомления, подключения, безопасность
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+            </button>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import {
   Home, Building2, Radio, FileText,
-  Settings, LogOut, UserCircle, Bell,
+  LogOut, UserCircle, Bell,
   ChevronDown, Calculator, Activity, Mountain, History,
   ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
   WifiOff as StationOfflineIcon, Info, CheckCheck, ExternalLink,
@@ -26,7 +26,6 @@ const NAV_LINKS = [
   { href: '/analysis',       icon: <Calculator className="h-4 w-4" />, label: 'Расчёты'             },
   { href: '/calculations',   icon: <History className="h-4 w-4" />,    label: 'История'             },
   { href: '/soil-database',  icon: <Mountain className="h-4 w-4" />,   label: 'Грунты'              },
-  { href: '/settings',       icon: <Settings className="h-4 w-4" />,   label: 'Настройки'           },
 ];
 
 const PARENT_ROUTES: Record<string, string> = {
