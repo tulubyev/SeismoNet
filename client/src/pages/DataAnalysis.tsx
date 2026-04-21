@@ -1,8 +1,8 @@
 import { FC } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, BarChart2, ArrowRight } from 'lucide-react';
-import type { SeismogramRecord } from '@shared/schema';
+import { FileText, BarChart2, History, ArrowRight } from 'lucide-react';
+import type { SeismogramRecord, SeismicCalculation } from '@shared/schema';
 
 interface BlockDef {
   href: string;
@@ -21,6 +21,10 @@ const DataAnalysis: FC = () => {
 
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
     queryKey: ['/api/seismograms'],
+  });
+
+  const { data: calculations = [] } = useQuery<SeismicCalculation[]>({
+    queryKey: ['/api/calculations'],
   });
 
   const blocks: BlockDef[] = [
@@ -45,6 +49,17 @@ const DataAnalysis: FC = () => {
       shadow:      'shadow-rose-900/40',
       badge:       null,
     },
+    {
+      href:        '/calculations',
+      title:       'История Расчётов',
+      subtitle:    'Сохранённые спектры отклика, МТСМ, анализ резонанса',
+      description: 'Архив выполненных расчётов с возможностью сравнения результатов, аннотирования, экспорта в CSV и PDF. Фильтрация по типу расчёта и дате',
+      icon:        History,
+      gradient:    'from-amber-500 to-amber-700',
+      shadow:      'shadow-amber-900/40',
+      badge:       calculations.length > 0 ? calculations.length : null,
+      badgeLabel:  'расчётов сохранено',
+    },
   ];
 
   return (
@@ -58,7 +73,7 @@ const DataAnalysis: FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {blocks.map(block => {
               const Icon = block.icon;
               return (
