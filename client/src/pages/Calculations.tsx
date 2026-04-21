@@ -1031,6 +1031,23 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
             const rows = meta
               .concat(['period_s,Sa_m_s2,Sv_m_s,Sd_m'])
               .concat(points.map(p => `${p.T.toFixed(4)},${p.Sa.toFixed(6)},${p.Sv.toFixed(6)},${p.Sd.toFixed(6)}`));
+            if (r.keyPeriodTable && r.keyPeriodTable.length > 0) {
+              rows.push('');
+              rows.push('# key_period_table');
+              rows.push('T_s,Sa_Z,Sa_NS,Sa_EW,Sa_H1,Sa_H2,Sa_calc');
+              for (const kp of r.keyPeriodTable) {
+                const fmt = (v: number | undefined) => v != null ? v.toFixed(6) : '';
+                rows.push([
+                  kp.T.toFixed(1),
+                  fmt(kp.Sa_Z),
+                  fmt(kp.Sa_NS),
+                  fmt(kp.Sa_EW),
+                  fmt(kp.Sa_H1),
+                  fmt(kp.Sa_H2),
+                  kp.Sa.toFixed(6),
+                ].join(','));
+              }
+            }
             downloadCsv(`response_spectrum_calc_${calc.id}.csv`, rows.join('\n'));
           }}>
           <Download className="h-3 w-3" /> CSV (точки графика)
