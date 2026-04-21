@@ -301,10 +301,10 @@ const AppFooter: FC = () => (
       SeismoNet Irkutsk Центр сейсмического мониторинга
     </span>
     <span className="text-slate-300 text-sm font-medium hidden md:inline whitespace-nowrap flex-shrink-0">
-      ЕЦСЭМ
+    Приглашем к партнерству
     </span>
     <div className="flex items-center justify-end gap-4 text-slate-500 text-sm flex-1 min-w-0">
-      <span className="flex-shrink-0">v2.0.0</span>
+      <span className="flex-shrink-0">v2.0.1</span>
       <span className="hidden sm:inline truncate">© 2026 Байкальская Инновационная Компания</span>
     </div>
   </footer>
