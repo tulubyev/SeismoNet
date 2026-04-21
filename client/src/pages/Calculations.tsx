@@ -1,4 +1,5 @@
 import { FC, RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import * as Diff from 'diff';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -24,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download,
   Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
-  StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check, ImageDown,
+  StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check, ImageDown, FileText,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import type {
@@ -942,6 +943,190 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const points = r.points ?? [];
   const inp = (calc.inputParams ?? {}) as Record<string, unknown>;
   const scatter = inp.h1h2Scatter as { peak: number; median: number; mean: number } | undefined;
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const exportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Otchet: Spektr otklika SDOF', margin, y);
+      y += 7;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80, 80, 80);
+      const recordLabel = String(inp.recordLabel ?? inp.scenarioLabel ?? `seismogram #${inp.seismogramId ?? '—'}`);
+      const dampingStr = String(inp.damping ?? '5');
+      doc.text(`Raschet #${calc.id}  |  Zapis: ${recordLabel}  |  z=${dampingStr}%`, margin, y);
+      y += 5;
+      if (r.peakT != null) {
+        doc.text(`Pik Sa @ T=${r.peakT.toFixed(2)} s  |  Sa=${r.peakSa?.toFixed(4) ?? '—'} m/s2`, margin, y);
+        y += 5;
+      }
+      if (scatter) {
+        const scatterLabel = scatter.peak < 1.3 ? 'khoroshiy' : scatter.peak < 1.6 ? 'umerennyy' : 'vysokiy';
+        doc.text(`Razbros H1/H2: pikovyy=${scatter.peak.toFixed(2)}x  mediana=${scatter.median.toFixed(2)}x  srednee=${scatter.mean.toFixed(2)}x  (${scatterLabel})`, margin, y);
+        y += 5;
+      }
+      const exportDate = new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' });
+      doc.text(`Eksport: ${exportDate}`, margin, y);
+      y += 5;
+      doc.setTextColor(0, 0, 0);
+
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, y, pageW - margin, y);
+      y += 5;
+
+      if (chartRef.current) {
+        try {
+          const canvas = await html2canvas(chartRef.current, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            logging: false,
+          });
+          const imgData = canvas.toDataURL('image/png');
+          const aspectRatio = canvas.height / canvas.width;
+          const imgH = Math.min(contentW * aspectRatio, pageH * 0.35);
+          doc.addImage(imgData, 'PNG', margin, y, contentW, imgH);
+          y += imgH + 6;
+        } catch (chartErr) {
+          console.warn('[PDF export] chart capture failed:', chartErr);
+          toast({ title: 'Предупреждение', description: 'График не удалось захватить; PDF создан без изображения спектра.', variant: 'default' });
+        }
+      }
+
+      if (r.keyPeriodTable && r.keyPeriodTable.length > 0) {
+        const compKeys = Object.keys(r.keyPeriodTable[0]).filter(k => k !== 'T' && k !== 'Sa');
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Tablitsa Sa po klyuchevym periodam (T = 0.1, 0.2, 0.5, 1.0, 2.0 s)', margin, y);
+        y += 6;
+
+        const colLabels = ['T (s)', ...compKeys.map(k => k.replace('Sa_', 'Sa ') + ' (m/s2)'), 'Sa rasch. (m/s2)'];
+        const numCols = colLabels.length;
+        const colW = contentW / numCols;
+        const rowH = 7;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, y, contentW, rowH, 'F');
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(margin, y, contentW, rowH, 'S');
+        colLabels.forEach((label, ci) => {
+          const x = margin + ci * colW;
+          doc.text(label, x + colW / 2, y + rowH / 2 + 1.5, { align: 'center' });
+          if (ci > 0) {
+            doc.line(x, y, x, y + rowH);
+          }
+        });
+        y += rowH;
+
+        const renderTableHeader = () => {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setFillColor(241, 245, 249);
+          doc.rect(margin, y, contentW, rowH, 'F');
+          doc.setDrawColor(203, 213, 225);
+          doc.rect(margin, y, contentW, rowH, 'S');
+          colLabels.forEach((label, ci) => {
+            const x = margin + ci * colW;
+            doc.text(label, x + colW / 2, y + rowH / 2 + 1.5, { align: 'center' });
+            if (ci > 0) {
+              doc.line(x, y, x, y + rowH);
+            }
+          });
+        };
+
+        doc.setFont('helvetica', 'normal');
+        r.keyPeriodTable.forEach((row, ri) => {
+          if (y + rowH > pageH - margin - 20) {
+            doc.addPage();
+            y = margin;
+            renderTableHeader();
+            y += rowH;
+          }
+          if (ri % 2 === 0) {
+            doc.setFillColor(255, 255, 255);
+          } else {
+            doc.setFillColor(248, 250, 252);
+          }
+          doc.rect(margin, y, contentW, rowH, 'F');
+          doc.setDrawColor(226, 232, 240);
+          doc.rect(margin, y, contentW, rowH, 'S');
+          const cells = [
+            row.T.toFixed(1),
+            ...compKeys.map(k => row[k] != null ? (row[k] as number).toFixed(4) : '—'),
+            row.Sa.toFixed(4),
+          ];
+          cells.forEach((cell, ci) => {
+            const x = margin + ci * colW;
+            if (ci > 0) {
+              doc.line(x, y, x, y + rowH);
+            }
+            const isLast = ci === cells.length - 1;
+            doc.setFont('helvetica', isLast ? 'bold' : 'normal');
+            doc.text(cell, x + colW / 2, y + rowH / 2 + 1.5, { align: 'center' });
+          });
+          y += rowH;
+        });
+        y += 6;
+      }
+
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, y, pageW - margin, y);
+      y += 5;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Metodologiya', margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80, 80, 80);
+      const methodLines = [
+        'Raschet spektra otklika vypolnen metodom Newmark-b (lineyno-uprugiy SDOF oscillyator).',
+        `Koeffitsient dempirovaniya z=${dampingStr}%. Shag integrirovaniya opredelyaetsya iz zapisi.`,
+        'Klyuchevye periody T = 0.1, 0.2, 0.5, 1.0, 2.0 s sootvetstvuyut standartnym tochkam proverki',
+        'spektrov seynmicheskogo vozdeystviya (SP 14.13330, ASCE 7, Eurocode 8).',
+        'Sa rasch. = maks(Sa_komp) po vsem komponentam v dannoy tochke perioda.',
+      ];
+      methodLines.forEach(line => {
+        if (y + 5 > pageH - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 5;
+      });
+
+      const totalPages = doc.getNumberOfPages();
+      for (let pg = 1; pg <= totalPages; pg++) {
+        doc.setPage(pg);
+        const footerY = pageH - 8;
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150, 150, 150);
+        doc.text('Seysmicheskiy monitoring — avtomaticheski sozdano sistemoy', margin, footerY);
+        doc.text(`Stranitsa ${pg} iz ${totalPages}`, pageW - margin, footerY, { align: 'right' });
+      }
+
+      doc.save(`response_spectrum_report_${calc.id}.pdf`);
+    } catch {
+      toast({ title: 'Oshibka eksporta PDF', description: 'Ne udalos sozdat otchet.', variant: 'destructive' });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   if (points.length === 0) {
     return <div className="text-sm text-slate-500 py-8 text-center">Нет точек графика в сохранённом результате.</div>;
   }
@@ -1001,6 +1186,7 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
           </div>
         );
       })()}
+      <div ref={chartRef}>
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={points} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1019,6 +1205,7 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
           <Line type="monotone" dataKey="Sa" stroke="#dc2626" strokeWidth={1.8} dot={false} name={`Sa, ζ=${inp.damping ?? 5}%`} />
         </LineChart>
       </ResponsiveContainer>
+      </div>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
           onClick={() => {
@@ -1051,6 +1238,15 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
             downloadCsv(`response_spectrum_calc_${calc.id}.csv`, rows.join('\n'));
           }}>
           <Download className="h-3 w-3" /> CSV (точки графика)
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+          onClick={exportPdf}
+          disabled={isExportingPdf}
+          title="Экспортировать отчёт PDF с таблицей ключевых периодов">
+          {isExportingPdf
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <FileText className="h-3 w-3" />}
+          PDF отчёт
         </Button>
       </div>
     </div>
