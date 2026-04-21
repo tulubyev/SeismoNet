@@ -1261,12 +1261,27 @@ const ResponseTab: FC<RespTabProps> = ({
   const [customPeriods,  setCustomPeriods]  = useState<number[]>([]);
   const [customPeriodInput, setCustomPeriodInput] = useState<string>('');
   const [customPeriodError, setCustomPeriodError] = useState<string>('');
+  const [k1FromProfile, setK1FromProfile] = useState(false);
+  const [k2FromProfile, setK2FromProfile] = useState(false);
+
   useEffect(() => {
-    if (selectedObjectId === null) return;
+    if (selectedObjectId === null) {
+      setSp14K1Key('elastic');
+      setSp14K2Key('wall_monolithic');
+      setK1FromProfile(false);
+      setK2FromProfile(false);
+      return;
+    }
     const obj = objects.find(o => o.id === selectedObjectId);
     if (!obj) return;
-    if (obj.k1Key && obj.k1Key in SP14_K1_TABLE5) setSp14K1Key(obj.k1Key as keyof typeof SP14_K1_TABLE5);
-    if (obj.k2Key && obj.k2Key in SP14_K2_TABLE6) setSp14K2Key(obj.k2Key as keyof typeof SP14_K2_TABLE6);
+    if (obj.k1Key && obj.k1Key in SP14_K1_TABLE5) {
+      setSp14K1Key(obj.k1Key as keyof typeof SP14_K1_TABLE5);
+      setK1FromProfile(true);
+    }
+    if (obj.k2Key && obj.k2Key in SP14_K2_TABLE6) {
+      setSp14K2Key(obj.k2Key as keyof typeof SP14_K2_TABLE6);
+      setK2FromProfile(true);
+    }
   }, [selectedObjectId, objects]);
 
 
@@ -1615,7 +1630,7 @@ const ResponseTab: FC<RespTabProps> = ({
               </div>
               {selectedObjectId !== null && (
                 <div className="text-[11px] text-slate-400 leading-tight pb-1 flex-shrink-0">
-                  K₁/K₂ автосохраняются
+                  K₁/K₂ загружены из профиля
                 </div>
               )}
             </div>
@@ -1774,10 +1789,14 @@ const ResponseTab: FC<RespTabProps> = ({
               <Input className="h-8 w-24 text-xs" value={respDamping} onChange={e => setRespDamping(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">K₁ — допуск. поврежд. (Табл. 5)</Label>
+              <Label className="text-xs flex items-center gap-1.5">
+                K₁ — допуск. поврежд. (Табл. 5)
+                {k1FromProfile && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-normal">из профиля</span>}
+              </Label>
               <Select value={sp14K1Key} onValueChange={v => {
                 const k = v as keyof typeof SP14_K1_TABLE5;
                 setSp14K1Key(k);
+                setK1FromProfile(false);
               }}>
                 <SelectTrigger className="h-8 w-64 text-xs" data-testid="select-sp14-k1"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1789,10 +1808,14 @@ const ResponseTab: FC<RespTabProps> = ({
               </Select>
             </div>
             <div>
-              <Label className="text-xs">K₂ — конструктив. решение (Табл. 6)</Label>
+              <Label className="text-xs flex items-center gap-1.5">
+                K₂ — конструктив. решение (Табл. 6)
+                {k2FromProfile && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-normal">из профиля</span>}
+              </Label>
               <Select value={sp14K2Key} onValueChange={v => {
                 const k = v as keyof typeof SP14_K2_TABLE6;
                 setSp14K2Key(k);
+                setK2FromProfile(false);
               }}>
                 <SelectTrigger className="h-8 w-72 text-xs" data-testid="select-sp14-k2"><SelectValue /></SelectTrigger>
                 <SelectContent>

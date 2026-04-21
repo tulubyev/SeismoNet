@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { Station, InfrastructureObject, SensorInstallation, Developer } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
-  Search, MapPin, Signal, Clock, ChevronRight,
-  Building2, Radio, Filter, RefreshCw, Layers
+  Search, MapPin, Signal, Clock, ChevronRight, ChevronLeft,
+  Building2, Radio, Filter, RefreshCw, Layers, ArrowUpDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import StationDetailModal from './StationDetailModal';
@@ -22,14 +22,8 @@ import DeveloperObjectFilter, {
   DEVELOPER_FILTER_DEFAULT,
 } from '@/components/DeveloperObjectFilter';
 
-// ─── Constants (mirrored from InfrastructureObjects) ──────────────────────────
-
 const IRKUTSK_DISTRICTS = [
-  'Октябрьский',
-  'Свердловский',
-  'Ленинский',
-  'Правобережный',
-  'Иркутский район',
+  'Октябрьский', 'Свердловский', 'Ленинский', 'Правобережный', 'Иркутский район',
 ];
 
 const constructionTypeOptions = [
@@ -45,24 +39,34 @@ const constructionTypeOptions = [
   { value: 'mixed',               label: 'Смешанная система'     },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
+const LEVEL_OPTIONS = [
+  { value: 'all',        label: 'Все уровни'    },
+  { value: 'foundation', label: 'Фундамент'     },
+  { value: 'mid_floor',  label: 'Промежуточный' },
+  { value: 'roof',       label: 'Кровля'        },
+];
 
-interface StationListProps {}
+const PAGE_SIZE = 50;
 
-const StationList: FC<StationListProps> = () => {
+const StationList: FC = () => {
   const [searchTerm,         setSearchTerm]         = useState('');
   const [statusFilter,       setStatusFilter]       = useState('all');
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [constructionFilter, setConstructionFilter] = useState('all');
+  const [levelFilter,        setLevelFilter]        = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [selectedStation,    setSelectedStation]    = useState<Station | null>(null);
+  const [page,               setPage]               = useState(1);
 
   const { data: stations = [] }      = useQuery<Station[]>({ queryKey: ['/api/stations'] });
   const { data: objects = [] }       = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: developers = [] }    = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
 
-  // ── Filter objects the same way InfrastructureObjects does ─────────────────
+  // Reset to page 1 when any filter changes
+  useEffect(() => { setPage(1); }, [searchTerm, statusFilter, districtFilter, constructionFilter, levelFilter, devFilter]);
+
+  // Filter objects first
   const filteredObjects = objects.filter(obj => {
     const q = searchTerm.toLowerCase();
     const matchSearch =
@@ -70,34 +74,34 @@ const StationList: FC<StationListProps> = () => {
       obj.name.toLowerCase().includes(q) ||
       (obj.address ?? '').toLowerCase().includes(q) ||
       (obj.objectId ?? '').toLowerCase().includes(q);
-
     const matchDistrict     = districtFilter === 'all'     || (obj.district ?? '')        === districtFilter;
     const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
-
-    const matchDeveloper = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
-    const matchObject    = devFilter.objectId      === 'all' || String(obj.id)         === devFilter.objectId;
-    const matchComplex   = devFilter.complexName   === 'all' || (() => {
+    const matchDeveloper    = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
+    const matchObject       = devFilter.objectId === 'all'     || String(obj.id) === devFilter.objectId;
+    const matchComplex      = devFilter.complexName === 'all'  || (() => {
       const needle = devFilter.complexName.toLowerCase();
       return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
     })();
-
     return matchSearch && matchDistrict && matchConstruction && matchDeveloper && matchComplex && matchObject;
   });
 
-  // ── Station IDs that belong to the filtered objects ─────────────────────────
   const allowedObjectIds = new Set(filteredObjects.map(o => o.id));
   const anyObjectFilter  = districtFilter !== 'all' || constructionFilter !== 'all' ||
     devFilter.developerName !== 'all' || devFilter.complexName !== 'all' || devFilter.objectId !== 'all' || searchTerm !== '';
 
   const filteredStations = stations.filter(s => {
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-
-    // If any object-level filter is active, restrict to stations attached to filtered objects
     const matchObject = !anyObjectFilter || installations.some(
       i => i.stationId === s.stationId && i.objectId != null && allowedObjectIds.has(i.objectId) && i.isActive
     );
-    return matchStatus && matchObject;
+    const matchLevel = levelFilter === 'all' || installations.some(
+      i => i.stationId === s.stationId && i.isActive && i.installationLocation === levelFilter
+    );
+    return matchStatus && matchObject && matchLevel;
   });
+
+  const totalPages  = Math.max(1, Math.ceil(filteredStations.length / PAGE_SIZE));
+  const pagedStations = filteredStations.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
     districtFilter !== 'all',
@@ -105,6 +109,7 @@ const StationList: FC<StationListProps> = () => {
     devFilter.complexName !== 'all',
     devFilter.objectId !== 'all',
     constructionFilter !== 'all',
+    levelFilter !== 'all',
     searchTerm !== '',
   ].filter(Boolean).length;
 
@@ -112,19 +117,44 @@ const StationList: FC<StationListProps> = () => {
     setSearchTerm('');
     setDistrictFilter('all');
     setConstructionFilter('all');
+    setLevelFilter('all');
     setDevFilter(DEVELOPER_FILTER_DEFAULT);
   };
 
-  // Helper: which object is a station linked to?
   const stationObject = (s: Station) =>
     objects.find(o => installations.some(i => i.stationId === s.stationId && i.objectId === o.id && i.isActive));
 
+  const stationLevel = (s: Station) => {
+    const inst = installations.find(i => i.stationId === s.stationId && i.isActive);
+    return inst?.installationLocation ?? null;
+  };
+
+  const levelBadge = (loc: string | null) => {
+    switch (loc) {
+      case 'foundation': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">Фундамент</span>;
+      case 'mid_floor':  return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">Эт. {installations.find(i => i.installationLocation === loc)?.floor ?? '—'}</span>;
+      case 'roof':       return <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">Кровля</span>;
+      default:           return null;
+    }
+  };
+
+  const levelLabel = (s: Station) => {
+    const inst = installations.find(i => i.stationId === s.stationId && i.isActive);
+    if (!inst) return null;
+    switch (inst.installationLocation) {
+      case 'foundation': return <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">Фундамент</span>;
+      case 'mid_floor':  return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">Эт.{inst.floor ?? '?'}</span>;
+      case 'roof':       return <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">Кровля</span>;
+      default:           return null;
+    }
+  };
+
   const statusBadge = (status: string) => {
     switch (status) {
-      case 'online':   return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Онлайн</span>;
-      case 'degraded': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Деградация</span>;
-      case 'offline':  return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">Оффлайн</span>;
-      default:         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border">Неизвестно</span>;
+      case 'online':   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Онлайн</span>;
+      case 'degraded': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Деградация</span>;
+      case 'offline':  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">Оффлайн</span>;
+      default:         return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border">Неизв.</span>;
     }
   };
 
@@ -132,7 +162,7 @@ const StationList: FC<StationListProps> = () => {
     <>
       <div className="space-y-4">
 
-        {/* ── Network summary ───────────────────────────────────────────── */}
+        {/* Network summary */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
@@ -143,45 +173,37 @@ const StationList: FC<StationListProps> = () => {
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-slate-50 rounded-lg p-3">
-                <div className="text-xs font-medium text-slate-400 mb-1">Всего станций</div>
+                <div className="text-xs font-medium text-slate-400 mb-1">Всего датчиков</div>
                 <div className="text-2xl font-semibold">{stations.length}</div>
                 <div className="text-xs text-slate-400 mt-1">Сеть г. Иркутск</div>
               </div>
               <div className="bg-green-50 rounded-lg p-3">
                 <div className="text-xs font-medium text-slate-400 mb-1">Онлайн</div>
-                <div className="text-2xl font-semibold text-green-700">
-                  {stations.filter(s => s.status === 'online').length}
-                </div>
+                <div className="text-2xl font-semibold text-green-700">{stations.filter(s => s.status === 'online').length}</div>
                 <div className="text-xs text-slate-400 mt-1">
-                  {stations.length > 0
-                    ? ((stations.filter(s => s.status === 'online').length / stations.length) * 100).toFixed(0)
-                    : 0}% от сети
+                  {stations.length > 0 ? ((stations.filter(s => s.status === 'online').length / stations.length) * 100).toFixed(0) : 0}% от сети
                 </div>
               </div>
               <div className="bg-amber-50 rounded-lg p-3">
                 <div className="text-xs font-medium text-slate-400 mb-1">Деградация</div>
-                <div className="text-2xl font-semibold text-amber-700">
-                  {stations.filter(s => s.status === 'degraded').length}
-                </div>
+                <div className="text-2xl font-semibold text-amber-700">{stations.filter(s => s.status === 'degraded').length}</div>
                 <div className="text-xs text-slate-400 mt-1">Проблемы связи / питания</div>
               </div>
               <div className="bg-red-50 rounded-lg p-3">
                 <div className="text-xs font-medium text-slate-400 mb-1">Оффлайн</div>
-                <div className="text-2xl font-semibold text-red-700">
-                  {stations.filter(s => s.status === 'offline').length}
-                </div>
+                <div className="text-2xl font-semibold text-red-700">{stations.filter(s => s.status === 'offline').length}</div>
                 <div className="text-xs text-slate-400 mt-1">Требует обслуживания</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* ── Filter block ───────────────────────────────────────────────── */}
+        {/* Filters */}
         <Card className="border-0 shadow-sm bg-white">
           <CardHeader className="pb-2 pt-4">
             <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <Filter className="h-4 w-4 text-slate-400" />
-              Фильтры станций и датчиков
+              Фильтры датчиков
               {activeFilterCount > 0 && (
                 <Badge className="ml-auto text-[10px] h-5 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
                   активны: {activeFilterCount}
@@ -201,11 +223,9 @@ const StationList: FC<StationListProps> = () => {
                   className="pl-8 h-9 text-sm"
                 />
               </div>
-              <div className="w-44 flex-shrink-0">
+              <div className="w-40 flex-shrink-0">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Все статусы" />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Все статусы" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Все статусы</SelectItem>
                     <SelectItem value="online">Онлайн</SelectItem>
@@ -221,8 +241,8 @@ const StationList: FC<StationListProps> = () => {
               )}
             </div>
 
-            {/* Row 2: district + construction type */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Row 2: district + construction type + level */}
+            <div className="grid grid-cols-3 gap-3">
               <Select value={districtFilter} onValueChange={setDistrictFilter}>
                 <SelectTrigger className="h-9 text-sm">
                   <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
@@ -230,9 +250,7 @@ const StationList: FC<StationListProps> = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Все районы</SelectItem>
-                  {IRKUTSK_DISTRICTS.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
+                  {IRKUTSK_DISTRICTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={constructionFilter} onValueChange={setConstructionFilter}>
@@ -241,41 +259,42 @@ const StationList: FC<StationListProps> = () => {
                   <SelectValue placeholder="Тип конструкции" />
                 </SelectTrigger>
                 <SelectContent>
-                  {constructionTypeOptions.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
+                  {constructionTypeOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={levelFilter} onValueChange={setLevelFilter}>
+                <SelectTrigger className="h-9 text-sm">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="Уровень" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Row 3: hierarchical developer filter */}
-            <DeveloperObjectFilter
-              developers={developers}
-              objects={objects}
-              value={devFilter}
-              onChange={setDevFilter}
-            />
+            {/* Row 3: developer filter */}
+            <DeveloperObjectFilter developers={developers} objects={objects} value={devFilter} onChange={setDevFilter} />
 
-            {anyObjectFilter && (
+            {(anyObjectFilter || levelFilter !== 'all') && (
               <p className="text-xs text-slate-500">
-                Объектов подходит: <span className="font-semibold text-blue-600">{filteredObjects.length}</span> из {objects.length} —
-                Станций найдено: <span className="font-semibold text-blue-600">{filteredStations.length}</span> из {stations.length}
+                Объектов: <span className="font-semibold text-blue-600">{filteredObjects.length}</span> из {objects.length} —
+                Датчиков: <span className="font-semibold text-blue-600">{filteredStations.length}</span> из {stations.length}
               </p>
             )}
           </CardContent>
         </Card>
 
-        {/* ── Table ─────────────────────────────────────────────────────── */}
+        {/* Table */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             <div className="rounded-xl overflow-hidden border border-slate-200">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="text-xs">ID станции</TableHead>
-                    <TableHead className="text-xs">Название</TableHead>
-                    <TableHead className="text-xs">Расположение</TableHead>
-                    <TableHead className="text-xs">Объект</TableHead>
+                    <TableHead className="text-xs">ID датчика</TableHead>
+                    <TableHead className="text-xs">Объект / Уровень</TableHead>
+                    <TableHead className="text-xs">Ось</TableHead>
                     <TableHead className="text-xs">Статус</TableHead>
                     <TableHead className="text-xs">Поток</TableHead>
                     <TableHead className="text-xs">Обновление</TableHead>
@@ -283,8 +302,9 @@ const StationList: FC<StationListProps> = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStations.map(station => {
-                    const obj = stationObject(station);
+                  {pagedStations.map(station => {
+                    const obj  = stationObject(station);
+                    const inst = installations.find(i => i.stationId === station.stationId && i.isActive);
                     return (
                       <TableRow
                         key={station.stationId}
@@ -294,36 +314,36 @@ const StationList: FC<StationListProps> = () => {
                         <TableCell className="font-mono text-xs font-medium text-slate-700">
                           {station.stationId}
                         </TableCell>
-                        <TableCell className="font-medium text-sm">{station.name}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center text-sm">
-                            <MapPin className="h-3 w-3 mr-1 text-slate-400 flex-shrink-0" />
-                            {station.location || 'Не указано'}
-                          </div>
-                          <div className="text-xs text-slate-400 font-mono mt-0.5">
-                            {parseFloat(station.latitude.toString()).toFixed(4)}° N,{' '}
-                            {parseFloat(station.longitude.toString()).toFixed(4)}° E
-                          </div>
-                        </TableCell>
                         <TableCell>
                           {obj ? (
-                            <div className="flex items-center gap-1 text-xs text-slate-600">
-                              <Building2 className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                              <span className="truncate max-w-[140px]">{obj.name}</span>
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1 text-xs text-slate-700">
+                                <Building2 className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                                <span className="truncate max-w-[180px]">{obj.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {levelLabel(station)}
+                                {inst?.measurementAxes && (
+                                  <span className="text-[10px] text-slate-400">ось {inst.measurementAxes}</span>
+                                )}
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-xs text-slate-400">—</span>
+                            <span className="text-xs text-slate-400">Нет привязки</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-slate-500">
+                          {inst?.measurementAxes ?? '—'}
                         </TableCell>
                         <TableCell>{statusBadge(station.status)}</TableCell>
                         <TableCell>
-                          <div className="flex items-center text-sm">
+                          <div className="flex items-center text-xs">
                             <Signal className="h-3 w-3 mr-1 text-slate-400" />
                             {station.dataRate ? `${station.dataRate.toFixed(1)} МБ/с` : 'N/A'}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center text-sm text-slate-500">
+                          <div className="flex items-center text-xs text-slate-500">
                             <Clock className="h-3 w-3 mr-1 text-slate-400" />
                             {format(new Date(station.lastUpdate), 'dd.MM HH:mm')}
                           </div>
@@ -335,16 +355,13 @@ const StationList: FC<StationListProps> = () => {
                     );
                   })}
 
-                  {filteredStations.length === 0 && (
+                  {pagedStations.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10">
+                      <TableCell colSpan={7} className="text-center py-10">
                         <Radio className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                        <p className="text-slate-400 text-sm">Станции не найдены</p>
+                        <p className="text-slate-400 text-sm">Датчики не найдены</p>
                         {activeFilterCount > 0 && (
-                          <button
-                            onClick={resetFilters}
-                            className="text-xs text-blue-500 hover:underline mt-1"
-                          >
+                          <button onClick={resetFilters} className="text-xs text-blue-500 hover:underline mt-1">
                             Сбросить фильтры
                           </button>
                         )}
@@ -354,6 +371,33 @@ const StationList: FC<StationListProps> = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+                <span className="text-xs text-slate-500">
+                  Показано {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredStations.length)} из {filteredStations.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    const pg = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i;
+                    return (
+                      <Button key={pg} variant={pg === page ? 'default' : 'ghost'} size="icon"
+                        className={`h-7 w-7 text-xs ${pg === page ? 'bg-blue-600' : ''}`}
+                        onClick={() => setPage(pg)}>
+                        {pg}
+                      </Button>
+                    );
+                  })}
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
