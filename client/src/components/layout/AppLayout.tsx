@@ -2,9 +2,9 @@ import { FC, ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  Home, Building2, Radio, FileText,
+  Home, Building2, Radio,
   LogOut, UserCircle, Bell,
-  ChevronDown, Calculator, Activity,
+  ChevronDown, Activity,
   ChevronLeft, AlertTriangle, Siren, BatteryLow, ServerCrash,
   WifiOff as StationOfflineIcon, Info, CheckCheck, ExternalLink,
 } from 'lucide-react';
@@ -22,8 +22,6 @@ const NAV_LINKS = [
   { href: '/',               icon: <Home className="h-4 w-4" />,       label: 'Обзор'               },
   { href: '/infrastructure', icon: <Building2 className="h-4 w-4" />,  label: 'Объекты мониторинга' },
   { href: '/stations',       icon: <Radio className="h-4 w-4" />,      label: 'Датчики'             },
-  { href: '/seismograms',    icon: <FileText className="h-4 w-4" />,   label: 'Сигналы'             },
-  { href: '/analysis',       icon: <Calculator className="h-4 w-4" />, label: 'Расчёты'             },
 ];
 
 const PARENT_ROUTES: Record<string, string> = {
