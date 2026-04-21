@@ -1,4 +1,6 @@
-import { FC, useState, useEffect, useCallback, useMemo } from 'react';
+import { FC, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -919,6 +921,7 @@ const AmplificationTab: FC<AmpTabProps> = ({
   bedrockVs, setBedrockVs, bedrockDensity, setBedrockDensity,
   bedrockDamping, setBedrockDamping, ampResult, setAmpResult, toast
 }) => {
+  const mtsmChartRef = useRef<HTMLDivElement>(null);
   const { data: layers = [] } = useQuery<SoilLayer[]>({
     queryKey: ['/api/soil-profiles', selectedSoilProfileId, 'layers'],
     queryFn: async () => {
@@ -965,6 +968,78 @@ const AmplificationTab: FC<AmpTabProps> = ({
   }, [sortedLayers, bedrockVs, bedrockDensity, bedrockDamping, setAmpResult, toast]);
 
   const peakAmp = ampResult ? ampResult.reduce((b, p) => p.amp > b.amp ? p : b, { freq: 0, amp: 0 }) : null;
+
+  const exportMtsmPdf = useCallback(async () => {
+    if (!ampResult || ampResult.length === 0) return;
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      const headerDiv = document.createElement('div');
+      headerDiv.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:550px;padding:14px 18px;font-family:Arial,sans-serif;background:white;color:#1e293b;line-height:1.5;';
+      const exportDate = new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' });
+      const profileName = profile?.profileName ?? '—';
+      const objName = profile?.infrastructureObjectId != null ? (objects.find(o => o.id === profile.infrastructureObjectId)?.name ?? `#${profile.infrastructureObjectId}`) : '—';
+      const soilCat = profile?.soilCategory ?? '—';
+      const peakFreqStr = peakAmp && peakAmp.freq > 0 ? peakAmp.freq.toFixed(2) : '—';
+      const peakAmpStr = peakAmp && peakAmp.freq > 0 ? peakAmp.amp.toFixed(2) : '—';
+      const layerRows = sortedLayers.map((l, i) =>
+        `<tr style="background:${i%2===0?'#f8fafc':'#fff'}"><td style="padding:3px 8px">${l.layerName}</td><td style="padding:3px 8px;text-align:center">${l.thickness} м</td><td style="padding:3px 8px;text-align:center">${l.shearVelocity} м/с</td><td style="padding:3px 8px;text-align:center">${l.density ?? '—'} кг/м³</td><td style="padding:3px 8px;text-align:center">${l.dampingRatio ?? 3}%</td></tr>`
+      ).join('');
+      headerDiv.innerHTML = `
+        <h2 style="font-size:15px;font-weight:bold;margin:0 0 6px 0;color:#0f172a;">Отчёт МТСМ — усиление сейсмического воздействия в грунтовом разрезе</h2>
+        <p style="font-size:9px;color:#64748b;margin:0 0 8px 0;">Метод тонкослоистых сред (1D SH, формализм Томсона–Хаскелла) · Экспорт: ${exportDate}</p>
+        <table style="width:100%;border-collapse:collapse;font-size:9px;margin-bottom:8px;">
+          <tr><td style="padding:2px 8px;color:#64748b">Профиль грунта:</td><td style="padding:2px 8px;font-weight:bold">${profileName}</td><td style="padding:2px 8px;color:#64748b">Объект:</td><td style="padding:2px 8px;font-weight:bold">${objName}</td></tr>
+          <tr><td style="padding:2px 8px;color:#64748b">Категория грунта:</td><td style="padding:2px 8px;font-weight:bold">${soilCat}</td><td style="padding:2px 8px;color:#64748b">Скальное основание Vs:</td><td style="padding:2px 8px;font-weight:bold">${bedrockVs} м/с</td></tr>
+          <tr><td style="padding:2px 8px;color:#64748b">Пиковая частота f₀:</td><td style="padding:2px 8px;font-weight:bold;color:#7c3aed">${peakFreqStr} Гц</td><td style="padding:2px 8px;color:#64748b">Макс. усиление Amax:</td><td style="padding:2px 8px;font-weight:bold;color:#7c3aed">${peakAmpStr}</td></tr>
+        </table>
+        <p style="font-size:9px;font-weight:bold;color:#334155;margin:0 0 3px 0;">Инженерно-геологические слои:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:8.5px;">
+          <thead><tr style="background:#e2e8f0"><th style="padding:3px 8px;text-align:left">Название слоя</th><th style="padding:3px 8px">Мощность</th><th style="padding:3px 8px">Vs</th><th style="padding:3px 8px">ρ</th><th style="padding:3px 8px">ξ</th></tr></thead>
+          <tbody>${layerRows}</tbody>
+        </table>`;
+      document.body.appendChild(headerDiv);
+      const headerCanvas = await html2canvas(headerDiv, { backgroundColor: '#ffffff', scale: 1.5, logging: false });
+      document.body.removeChild(headerDiv);
+      const headerImgData = headerCanvas.toDataURL('image/png');
+      const headerAspect = headerCanvas.height / headerCanvas.width;
+      const headerImgH = Math.min(contentW * headerAspect, pageH * 0.5);
+      doc.addImage(headerImgData, 'PNG', margin, y, contentW, headerImgH);
+      y += headerImgH + 6;
+
+      if (mtsmChartRef.current) {
+        try {
+          const chartCanvas = await html2canvas(mtsmChartRef.current, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
+          const chartImgData = chartCanvas.toDataURL('image/png');
+          const chartAspect = chartCanvas.height / chartCanvas.width;
+          const chartImgH = Math.min(contentW * chartAspect, pageH * 0.4);
+          if (y + chartImgH > pageH - margin) { doc.addPage(); y = margin; }
+          doc.addImage(chartImgData, 'PNG', margin, y, contentW, chartImgH);
+          y += chartImgH + 4;
+        } catch { /* chart capture failed, skip */ }
+      }
+
+      const totalPages = doc.getNumberOfPages();
+      for (let pg = 1; pg <= totalPages; pg++) {
+        doc.setPage(pg);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150, 150, 150);
+        doc.text('Сейсмический мониторинг — автоматически создано системой', margin, pageH - 8);
+        doc.text(`Стр. ${pg} / ${totalPages}`, pageW - margin, pageH - 8, { align: 'right' });
+      }
+
+      doc.save(`mtsm_${profileName.replace(/\s+/g, '_')}.pdf`);
+    } catch (err) {
+      console.error('[MTSM PDF]', err);
+      toast({ title: 'Ошибка экспорта PDF', variant: 'destructive' });
+    }
+  }, [ampResult, peakAmp, profile, objects, sortedLayers, bedrockVs, bedrockDensity, bedrockDamping, toast]);
 
   return (
     <>
@@ -1075,6 +1150,7 @@ const AmplificationTab: FC<AmpTabProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent className="px-2 pb-4">
+            <div ref={mtsmChartRef}>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={ampResult} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -1096,6 +1172,7 @@ const AmplificationTab: FC<AmpTabProps> = ({
                 <Line type="monotone" dataKey="amp" stroke="#0891b2" strokeWidth={1.8} dot={false} name="|H(f)|" />
               </LineChart>
             </ResponsiveContainer>
+            </div>
             <div className="px-4 text-xs text-slate-500 space-y-0.5">
               <p>Метод: 1D SH-волна, формализм Томсона–Хаскелла; демпфирование введено через комплексный модуль сдвига G* = ρVs²(1+2iξ).</p>
               {peakAmp && peakAmp.freq > 0 && (
@@ -1126,6 +1203,11 @@ const AmplificationTab: FC<AmpTabProps> = ({
                   } catch { toast({ title: 'Ошибка сохранения', variant: 'destructive' }); }
                 }}>
                 <Save className="h-3 w-3" /> Сохранить
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                onClick={exportMtsmPdf}
+                title="Экспортировать отчёт МТСМ в PDF с кириллицей">
+                <Download className="h-3 w-3" /> PDF отчёт
               </Button>
             </div>
           </CardContent>
@@ -1947,6 +2029,23 @@ const ResponseTab: FC<RespTabProps> = ({
                   name={`Sa норм. СП 14 (I=${sp14Intensity}, грунт ${sp14SoilCategory}, K₁=${sp14K1.toFixed(2)}, K₂=${sp14K2.toFixed(2)})`} />
               </ComposedChart>
             </ResponsiveContainer>
+            {h1h2GradientStops && (
+              <div className="mx-3 mt-1 mb-0 flex items-center gap-2 px-1">
+                <span className="text-[10px] text-slate-400 shrink-0">Лента H1/H2:</span>
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] bg-green-100 text-green-800 border border-green-300">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-green-500 mr-0.5" />
+                  &lt; 1.3× — малый
+                </span>
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] bg-amber-100 text-amber-800 border border-amber-300">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-amber-500 mr-0.5" />
+                  1.3–1.6× — умеренный
+                </span>
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-red-500 mr-0.5" />
+                  &gt; 1.6× — высокий
+                </span>
+              </div>
+            )}
             {h1h2ScatterStats && (
               <div className="mx-3 mt-2 mb-1 rounded-md border border-slate-200 bg-white px-3 py-2">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">

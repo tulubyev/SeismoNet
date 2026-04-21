@@ -957,31 +957,35 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       const contentW = pageW - margin * 2;
       let y = margin;
 
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Otchet: Spektr otklika SDOF', margin, y);
-      y += 7;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80, 80, 80);
       const recordLabel = String(inp.recordLabel ?? inp.scenarioLabel ?? `seismogram #${inp.seismogramId ?? '—'}`);
       const dampingStr = String(inp.damping ?? '5');
-      doc.text(`Raschet #${calc.id}  |  Zapis: ${recordLabel}  |  z=${dampingStr}%`, margin, y);
-      y += 5;
-      if (r.peakT != null) {
-        doc.text(`Pik Sa @ T=${r.peakT.toFixed(2)} s  |  Sa=${r.peakSa?.toFixed(4) ?? '—'} m/s2`, margin, y);
-        y += 5;
-      }
-      if (scatter) {
-        const scatterLabel = scatter.peak < 1.3 ? 'khoroshiy' : scatter.peak < 1.6 ? 'umerennyy' : 'vysokiy';
-        doc.text(`Razbros H1/H2: pikovyy=${scatter.peak.toFixed(2)}x  mediana=${scatter.median.toFixed(2)}x  srednee=${scatter.mean.toFixed(2)}x  (${scatterLabel})`, margin, y);
-        y += 5;
-      }
       const exportDate = new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' });
-      doc.text(`Eksport: ${exportDate}`, margin, y);
-      y += 5;
-      doc.setTextColor(0, 0, 0);
+
+      // Render report header as HTML image for Cyrillic support
+      const headerEl = document.createElement('div');
+      headerEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:550px;padding:14px 18px;font-family:Arial,sans-serif;background:white;color:#1e293b;line-height:1.5;';
+      let scatterHtml = '';
+      if (scatter) {
+        const scatterColor = scatter.peak < 1.3 ? '#16a34a' : scatter.peak < 1.6 ? '#d97706' : '#dc2626';
+        const scatterLabel = scatter.peak < 1.3 ? 'малый' : scatter.peak < 1.6 ? 'умеренный' : 'высокий';
+        scatterHtml = `<p style="font-size:9px;color:${scatterColor};margin:0 0 2px 0;">Разброс H1/H2: пиковый=${scatter.peak.toFixed(2)}× · медиана=${scatter.median.toFixed(2)}× · среднее=${scatter.mean.toFixed(2)}× — <strong>${scatterLabel}</strong></p>`;
+      }
+      const peakHtml = r.peakT != null
+        ? `<p style="font-size:9px;color:#7c3aed;margin:0 0 2px 0;">Пик Sa @ T = ${r.peakT.toFixed(2)} с · Sa = ${r.peakSa?.toFixed(4) ?? '—'} м/с²</p>`
+        : '';
+      headerEl.innerHTML = `
+        <h2 style="font-size:15px;font-weight:bold;margin:0 0 5px 0;color:#0f172a;">Отчёт: Спектр отклика SDOF</h2>
+        <p style="font-size:9px;color:#475569;margin:0 0 2px 0;">Расчёт #${calc.id} &nbsp;|&nbsp; Запись: ${recordLabel} &nbsp;|&nbsp; ζ = ${dampingStr}%</p>
+        ${peakHtml}${scatterHtml}
+        <p style="font-size:8px;color:#94a3b8;margin:3px 0 0 0;">Экспорт: ${exportDate}</p>`;
+      document.body.appendChild(headerEl);
+      const headerCanvas = await html2canvas(headerEl, { backgroundColor: '#ffffff', scale: 1.5, logging: false });
+      document.body.removeChild(headerEl);
+      const headerImgData = headerCanvas.toDataURL('image/png');
+      const headerAspect = headerCanvas.height / headerCanvas.width;
+      const headerImgH = Math.min(contentW * headerAspect, pageH * 0.2);
+      doc.addImage(headerImgData, 'PNG', margin, y, contentW, headerImgH);
+      y += headerImgH + 4;
 
       doc.setDrawColor(200, 200, 200);
       doc.line(margin, y, pageW - margin, y);
@@ -1009,12 +1013,18 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       if (r.keyPeriodTable && r.keyPeriodTable.length > 0) {
         const compKeys = Object.keys(r.keyPeriodTable[0]).filter(k => k !== 'T' && k !== 'Sa');
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Tablitsa Sa po klyuchevym periodam (T = 0.1, 0.2, 0.5, 1.0, 2.0 s)', margin, y);
-        y += 6;
+        // Table section title — rendered via html2canvas for Cyrillic
+        const tableTitleEl = document.createElement('div');
+        tableTitleEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:550px;padding:4px 0;font-family:Arial,sans-serif;background:white;font-size:11px;font-weight:bold;color:#1e293b;';
+        tableTitleEl.textContent = 'Таблица Sa по ключевым периодам (T = 0.1, 0.2, 0.5, 1.0, 2.0 с)';
+        document.body.appendChild(tableTitleEl);
+        const ttCanvas = await html2canvas(tableTitleEl, { backgroundColor: '#ffffff', scale: 1.5, logging: false });
+        document.body.removeChild(tableTitleEl);
+        const ttH = Math.min(contentW * (ttCanvas.height / ttCanvas.width), 10);
+        doc.addImage(ttCanvas.toDataURL('image/png'), 'PNG', margin, y, contentW, ttH);
+        y += ttH + 3;
 
-        const colLabels = ['T (s)', ...compKeys.map(k => k.replace('Sa_', 'Sa ') + ' (m/s2)'), 'Sa rasch. (m/s2)'];
+        const colLabels = ['T (s)', ...compKeys.map(k => k.replace('Sa_', 'Sa ') + ' (m/s2)'), 'Sa calc (m/s2)'];
         const numCols = colLabels.length;
         const colW = contentW / numCols;
         const rowH = 7;
@@ -1089,24 +1099,22 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
       doc.line(margin, y, pageW - margin, y);
       y += 5;
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Metodologiya', margin, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80, 80, 80);
-      const methodLines = [
-        'Raschet spektra otklika vypolnen metodom Newmark-b (lineyno-uprugiy SDOF oscillyator).',
-        `Koeffitsient dempirovaniya z=${dampingStr}%. Shag integrirovaniya opredelyaetsya iz zapisi.`,
-        'Klyuchevye periody T = 0.1, 0.2, 0.5, 1.0, 2.0 s sootvetstvuyut standartnym tochkam proverki',
-        'spektrov seynmicheskogo vozdeystviya (SP 14.13330, ASCE 7, Eurocode 8).',
-        'Sa rasch. = maks(Sa_komp) po vsem komponentam v dannoy tochke perioda.',
-      ];
-      methodLines.forEach(line => {
-        if (y + 5 > pageH - margin) { doc.addPage(); y = margin; }
-        doc.text(line, margin, y);
-        y += 5;
-      });
+      // Methodology section — rendered via html2canvas for Cyrillic
+      const methodEl = document.createElement('div');
+      methodEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:550px;padding:4px 0;font-family:Arial,sans-serif;background:white;color:#475569;line-height:1.6;font-size:8.5px;';
+      methodEl.innerHTML = `
+        <p style="font-weight:bold;color:#1e293b;margin:0 0 4px 0;font-size:9.5px;">Методология</p>
+        <p style="margin:0 0 2px 0;">Расчёт спектра отклика выполнен методом Ньюмарка-β (линейно-упругий SDOF осциллятор).</p>
+        <p style="margin:0 0 2px 0;">Коэффициент демпфирования ζ = ${dampingStr}%. Шаг интегрирования определяется из записи.</p>
+        <p style="margin:0 0 2px 0;">Ключевые периоды T = 0.1, 0.2, 0.5, 1.0, 2.0 с соответствуют стандартным точкам проверки спектров сейсмического воздействия (СП 14.13330, ASCE 7, Eurocode 8).</p>
+        <p style="margin:0;">Sa расч. = max(Sa_компонент) по всем компонентам в данной точке периода.</p>`;
+      document.body.appendChild(methodEl);
+      const methodCanvas = await html2canvas(methodEl, { backgroundColor: '#ffffff', scale: 1.5, logging: false });
+      document.body.removeChild(methodEl);
+      if (y + 5 > pageH - margin - 20) { doc.addPage(); y = margin; }
+      const methodAspect = methodCanvas.height / methodCanvas.width;
+      const methodH = Math.min(contentW * methodAspect, pageH * 0.25);
+      doc.addImage(methodCanvas.toDataURL('image/png'), 'PNG', margin, y, contentW, methodH);
 
       const totalPages = doc.getNumberOfPages();
       for (let pg = 1; pg <= totalPages; pg++) {
@@ -1115,13 +1123,13 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(150, 150, 150);
-        doc.text('Seysmicheskiy monitoring — avtomaticheski sozdano sistemoy', margin, footerY);
-        doc.text(`Stranitsa ${pg} iz ${totalPages}`, pageW - margin, footerY, { align: 'right' });
+        doc.text('Seismic Monitoring System — auto-generated', margin, footerY);
+        doc.text(`Page ${pg} / ${totalPages}`, pageW - margin, footerY, { align: 'right' });
       }
 
       doc.save(`response_spectrum_report_${calc.id}.pdf`);
     } catch {
-      toast({ title: 'Oshibka eksporta PDF', description: 'Ne udalos sozdat otchet.', variant: 'destructive' });
+      toast({ title: 'Ошибка экспорта PDF', description: 'Не удалось создать отчёт.', variant: 'destructive' });
     } finally {
       setIsExportingPdf(false);
     }
