@@ -298,7 +298,7 @@ const TopBar: FC = () => {
 const AppFooter: FC = () => (
   <footer className="fixed bottom-0 left-0 right-0 z-40 h-10 bg-slate-900 border-t border-slate-700 flex items-center px-6 gap-2">
     <span className="text-slate-400 text-sm truncate min-w-0 flex-1">
-      SeismoNet Irkutsk Центр сейсмического мониторинга
+         Центр сейсмического мониторинга
     </span>
     <span className="text-slate-300 text-sm font-medium hidden md:inline whitespace-nowrap flex-shrink-0">
     Приглашем к партнерству

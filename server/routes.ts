@@ -1399,9 +1399,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/page-views', async (req, res) => {
     try {
+      const now = new Date();
+      const todayKey = `PageViews_${now.toISOString().slice(0, 10)}`;
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = `PageViews_${yesterday.toISOString().slice(0, 10)}`;
+
       const rows = await storage.getSystemStatus();
       const row = rows.find(r => r.component === 'PageViews');
-      res.json({ views: row ? Math.round(row.value ?? 0) : 0 });
+      const todayRow = rows.find(r => r.component === todayKey);
+      const yesterdayRow = rows.find(r => r.component === yesterdayKey);
+
+      res.json({
+        views: row ? Math.round(row.value ?? 0) : 0,
+        views_today: todayRow ? Math.round(todayRow.value ?? 0) : 0,
+        views_yesterday: yesterdayRow ? Math.round(yesterdayRow.value ?? 0) : 0,
+      });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching page views' });
     }
@@ -1409,15 +1422,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/page-views', async (req, res) => {
     try {
-      const result = await db.execute(sql`
-        INSERT INTO system_status (component, status, value, timestamp, message)
-        VALUES ('PageViews', 'ok', 1, NOW(), 'Home page view counter')
-        ON CONFLICT (component) WHERE component = 'PageViews'
-        DO UPDATE SET value = system_status.value + 1, timestamp = NOW()
-        RETURNING value
+      const todayKey = `PageViews_${new Date().toISOString().slice(0, 10)}`;
+
+      const dailyUpdate = await db.execute(sql`
+        UPDATE system_status SET value = value + 1, timestamp = NOW()
+        WHERE component = ${todayKey}
       `);
-      const views = Math.round((result.rows[0] as { value: number })?.value ?? 1);
-      res.json({ views });
+      if ((dailyUpdate.rowCount ?? 0) === 0) {
+        await db.execute(sql`
+          INSERT INTO system_status (component, status, value, timestamp, message)
+          VALUES (${todayKey}, 'ok', 1, NOW(), 'Daily page view counter')
+          ON CONFLICT DO NOTHING
+        `);
+      }
+
+      const [totalResult] = await Promise.all([
+        db.execute(sql`
+          INSERT INTO system_status (component, status, value, timestamp, message)
+          VALUES ('PageViews', 'ok', 1, NOW(), 'Home page view counter')
+          ON CONFLICT (component) WHERE component = 'PageViews'
+          DO UPDATE SET value = system_status.value + 1, timestamp = NOW()
+          RETURNING value
+        `),
+      ]);
+
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = `PageViews_${yesterday.toISOString().slice(0, 10)}`;
+
+      const rows = await storage.getSystemStatus();
+      const todayRow = rows.find(r => r.component === todayKey);
+      const yesterdayRow = rows.find(r => r.component === yesterdayKey);
+
+      const views = Math.round((totalResult.rows[0] as { value: number })?.value ?? 1);
+      res.json({
+        views,
+        views_today: todayRow ? Math.round(todayRow.value ?? 0) : 0,
+        views_yesterday: yesterdayRow ? Math.round(yesterdayRow.value ?? 0) : 0,
+      });
     } catch (error) {
       res.status(500).json({ message: 'Error updating page views' });
     }

@@ -39,7 +39,7 @@ const HomePage: FC = () => {
   const { data: infraObjects = [] } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects'],
   });
-  const { data: pageViewsData } = useQuery<{ views: number }>({
+  const { data: pageViewsData } = useQuery<{ views: number; views_today: number; views_yesterday: number }>({
     queryKey: ['/api/page-views'],
   });
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
@@ -59,10 +59,14 @@ const HomePage: FC = () => {
   }, []);
 
   const unreadAlerts    = alerts.filter(a => !a.isRead).length;
-  const onlineStations  = stations.filter(s => s.status === 'online').length;
   const last24hEvents   = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
   const activeSensors   = sensorInstallations.filter(si => si.isActive).length;
   const totalSensors    = sensorInstallations.length;
+
+  const monitoringStationIds        = new Set(sensorInstallations.map(si => si.stationId));
+  const activeMonitoringStationIds  = new Set(sensorInstallations.filter(si => si.isActive).map(si => si.stationId));
+  const totalMonitoringStations     = monitoringStationIds.size;
+  const activeMonitoringStations    = activeMonitoringStationIds.size;
 
   const blocks: BlockDef[] = [
     {
@@ -156,17 +160,30 @@ const HomePage: FC = () => {
         <div className="max-w-3xl mx-auto space-y-5">
           {/* Stats — same width as 2-column blocks grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Датчиков онлайн',   value: totalSensors > 0 ? `${activeSensors}/${totalSensors}` : `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
-              { label: 'Активных станций',   value: onlineStations,                                                                                       color: 'text-teal-400'   },
-              { label: 'Объектов в базе',    value: infraObjects.length,                    color: 'text-violet-400' },
-              { label: 'Просмотров сайта',   value: pageViewsData?.views ?? 0,              color: 'text-sky-400'    },
-            ].map(s => (
-              <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
-                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
-              </div>
-            ))}
+            {(() => {
+              const viewsToday = pageViewsData?.views_today ?? 0;
+              const viewsYesterday = pageViewsData?.views_yesterday ?? 0;
+              const delta = viewsToday - viewsYesterday;
+              const trendLabel = viewsYesterday > 0
+                ? (delta >= 0 ? `+${delta} vs вчера` : `${delta} vs вчера`)
+                : `${viewsToday} сегодня`;
+              const trendColor = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
+
+              return [
+                { label: 'Датчиков онлайн',  value: `${activeSensors}/${totalSensors}`, color: 'text-emerald-400', trend: null },
+                { label: 'Активных станций',  value: `${activeMonitoringStations}/${totalMonitoringStations}`, color: 'text-teal-400', trend: null },
+                { label: 'Объектов в базе',   value: infraObjects.length, color: 'text-violet-400', trend: null },
+                { label: 'Просмотров сайта',  value: pageViewsData?.views ?? 0, color: 'text-sky-400', trend: trendLabel, trendColor },
+              ].map(s => (
+                <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
+                  <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
+                  {s.trend && (
+                    <div className={`text-xs mt-1 font-medium ${s.trendColor}`}>{s.trend}</div>
+                  )}
+                </div>
+              ));
+            })()}
           </div>
 
           {/* Blocks — always 2 per row */}
