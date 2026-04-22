@@ -39,7 +39,7 @@ const HomePage: FC = () => {
   const { data: infraObjects = [] } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects'],
   });
-  const { data: pageViewsData } = useQuery<{ views: number; views_today: number; views_yesterday: number }>({
+  const { data: pageViewsData } = useQuery<{ views: number; views_today: number; views_yesterday: number; daily: { date: string; count: number }[] }>({
     queryKey: ['/api/page-views'],
   });
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
@@ -169,20 +169,27 @@ const HomePage: FC = () => {
                 : `${viewsToday} сегодня`;
               const trendColor = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
 
-              return [
-                { label: 'Датчиков онлайн',  value: `${activeSensors}/${totalSensors}`, color: 'text-emerald-400', trend: null },
-                { label: 'Активных станций',  value: `${activeMonitoringStations}/${totalMonitoringStations}`, color: 'text-teal-400', trend: null },
-                { label: 'Объектов в базе',   value: infraObjects.length, color: 'text-violet-400', trend: null },
-                { label: 'Просмотров сайта',  value: pageViewsData?.views ?? 0, color: 'text-sky-400', trend: trendLabel, trendColor },
-              ].map(s => (
-                <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
-                  <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                  <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
-                  {s.trend && (
-                    <div className={`text-xs mt-1 font-medium ${s.trendColor}`}>{s.trend}</div>
-                  )}
-                </div>
-              ));
+              const basicStats = [
+                { label: 'Датчиков онлайн',  value: `${activeSensors}/${totalSensors}`, color: 'text-emerald-400' },
+                { label: 'Активных станций',  value: `${activeMonitoringStations}/${totalMonitoringStations}`, color: 'text-teal-400' },
+                { label: 'Объектов в базе',   value: infraObjects.length, color: 'text-violet-400' },
+              ];
+
+              return (
+                <>
+                  {basicStats.map(s => (
+                    <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
+                      <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                      <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
+                    </div>
+                  ))}
+                  <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700 col-span-2 sm:col-span-1">
+                    <div className="text-2xl font-bold text-sky-400">{pageViewsData?.views ?? 0}</div>
+                    <div className="text-slate-400 text-xs mt-0.5">Просмотров сайта</div>
+                    <div className={`text-xs mt-1 font-medium ${trendColor}`}>{trendLabel}</div>
+                  </div>
+                </>
+              );
             })()}
           </div>
 

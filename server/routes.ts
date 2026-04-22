@@ -1410,10 +1410,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const todayRow = rows.find(r => r.component === todayKey);
       const yesterdayRow = rows.find(r => r.component === yesterdayKey);
 
+      const daily: { date: string; count: number }[] = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const key = `PageViews_${dateStr}`;
+        const dayRow = rows.find(r => r.component === key);
+        daily.push({ date: dateStr, count: dayRow ? Math.round(dayRow.value ?? 0) : 0 });
+      }
+
       res.json({
         views: row ? Math.round(row.value ?? 0) : 0,
         views_today: todayRow ? Math.round(todayRow.value ?? 0) : 0,
         views_yesterday: yesterdayRow ? Math.round(yesterdayRow.value ?? 0) : 0,
+        daily,
       });
     } catch (error) {
       res.status(500).json({ message: 'Error fetching page views' });
@@ -1455,11 +1466,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const todayRow = rows.find(r => r.component === todayKey);
       const yesterdayRow = rows.find(r => r.component === yesterdayKey);
 
+      const now2 = new Date();
+      const daily: { date: string; count: number }[] = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now2);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const key = `PageViews_${dateStr}`;
+        const dayRow = rows.find(r => r.component === key);
+        daily.push({ date: dateStr, count: dayRow ? Math.round(dayRow.value ?? 0) : 0 });
+      }
+
       const views = Math.round((totalResult.rows[0] as { value: number })?.value ?? 1);
       res.json({
         views,
         views_today: todayRow ? Math.round(todayRow.value ?? 0) : 0,
         views_yesterday: yesterdayRow ? Math.round(yesterdayRow.value ?? 0) : 0,
+        daily,
       });
     } catch (error) {
       res.status(500).json({ message: 'Error updating page views' });
