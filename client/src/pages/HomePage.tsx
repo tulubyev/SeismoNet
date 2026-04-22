@@ -449,6 +449,42 @@ const HomePage: FC = () => {
                     </div>
                     <span>Больше</span>
                   </div>
+
+                  {/* Ranked country list */}
+                  {(() => {
+                    const sorted = [...visitsByCountry]
+                      .filter(r => r.countryCode)
+                      .sort((a, b) => b.count - a.count);
+                    const total = visitsByCountry.reduce((s, r) => s + r.count, 0);
+                    if (sorted.length === 0) return null;
+                    const top = sorted.slice(0, 10);
+                    return (
+                      <div className="mt-3">
+                        <p className="text-slate-400 text-xs mb-1.5">Топ стран по визитам</p>
+                        <div className="space-y-1">
+                          {top.map((row, idx) => {
+                            const pct = total > 0 ? (row.count / total) * 100 : 0;
+                            const code = row.countryCode!;
+                            return (
+                              <div key={code} className="flex items-center gap-2 text-xs">
+                                <span className="text-slate-600 w-4 text-right shrink-0">{idx + 1}</span>
+                                <span className="text-base leading-none shrink-0">{countryFlag(code)}</span>
+                                <span className="text-slate-300 flex-1 truncate">{countryName(code)}</span>
+                                <div className="w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden shrink-0">
+                                  <div
+                                    className="h-full rounded-full bg-sky-500"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="text-slate-400 w-8 text-right shrink-0">{row.count}</span>
+                                <span className="text-slate-600 w-9 text-right shrink-0">{pct.toFixed(1)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {/* Filter bar */}
