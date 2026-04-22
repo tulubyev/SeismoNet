@@ -1567,6 +1567,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/page-visits/by-city', requireRole('administrator'), async (req, res) => {
+    try {
+      const rows = await db
+        .select({
+          city: pageVisitLogs.city,
+          region: pageVisitLogs.region,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(pageVisitLogs)
+        .where(eq(pageVisitLogs.countryCode, 'RU'))
+        .groupBy(pageVisitLogs.city, pageVisitLogs.region)
+        .orderBy(desc(sql`count(*)`))
+        .limit(20);
+      res.json(rows);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching visit counts by city' });
+    }
+  });
+
   app.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 500, 2000);
