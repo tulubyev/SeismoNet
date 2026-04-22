@@ -109,7 +109,7 @@ const HomePage: FC = () => {
     enabled: isAdmin && visitsOpen,
   });
 
-  const { data: visitsByCountry = [] } = useQuery<{ countryCode: string | null; count: number }[]>({
+  const { data: visitsByCountry = [], isLoading: isCountryLoading } = useQuery<{ countryCode: string | null; count: number }[]>({
     queryKey: ['/api/page-visits/by-country'],
     enabled: isAdmin && visitsOpen,
   });
@@ -411,7 +411,7 @@ const HomePage: FC = () => {
           {isAdmin && (
             <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3 flex flex-col gap-2">
               {/* World map */}
-              {visitsByCountry.length > 0 && (
+              {(isCountryLoading || visitsByCountry.length > 0) && (
                 <div className="shrink-0 mb-1">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-slate-400 text-xs">География посетителей</p>
@@ -481,6 +481,31 @@ const HomePage: FC = () => {
 
                     {/* Right: ranked country list */}
                     {(() => {
+                      if (isCountryLoading) {
+                        return (
+                          <div className="w-48 shrink-0">
+                            <p className="text-slate-400 text-xs mb-1.5 font-medium">Топ стран</p>
+                            <div className="space-y-1.5">
+                              {Array.from({ length: 5 }).map((_, idx) => (
+                                <div key={idx} className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-4 h-3 bg-slate-700 rounded animate-pulse shrink-0" />
+                                    <span className="w-5 h-3 bg-slate-700 rounded animate-pulse shrink-0" />
+                                    <span className="flex-1 h-3 bg-slate-700 rounded animate-pulse" />
+                                    <span className="w-6 h-3 bg-slate-700 rounded animate-pulse shrink-0" />
+                                  </div>
+                                  <div className="ml-[22px] h-1 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-slate-600 animate-pulse"
+                                      style={{ width: `${60 - idx * 10}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
                       const sorted = [...visitsByCountry]
                         .filter(r => r.countryCode)
                         .sort((a, b) => b.count - a.count);
