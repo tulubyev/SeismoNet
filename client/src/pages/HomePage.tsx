@@ -7,7 +7,7 @@ import type { SeismogramRecord } from '@shared/schema';
 import {
   BarChart2, Map as MapIcon,
   ArrowRight, AlertTriangle, CheckCircle2,
-  Settings as SettingsIcon, Globe, Users, ChevronRight, Search, X,
+  Settings as SettingsIcon, Globe, Users, ChevronRight, Search, X, Download,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
@@ -498,6 +498,41 @@ const HomePage: FC = () => {
                     Сбросить
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    const header = ['Дата и время', 'IP', 'Страна', 'Регион', 'Город'];
+                    const rows = filteredLogs.map(log => [
+                      new Date(log.visitedAt).toLocaleString('ru-RU', {
+                        day: '2-digit', month: '2-digit', year: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
+                      }),
+                      log.ip ?? '',
+                      countryName(log.countryCode),
+                      log.region ?? '',
+                      log.city ?? '',
+                    ]);
+                    const sanitize = (v: string) => {
+                      const s = String(v);
+                      return /^[=+\-@]/.test(s) ? `'${s}` : s;
+                    };
+                    const csv = [header, ...rows]
+                      .map(r => r.map(v => `"${sanitize(v).replace(/"/g, '""')}"`).join(','))
+                      .join('\n');
+                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `visitor-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  disabled={filteredLogs.length === 0}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-sky-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
+                  title="Экспорт в CSV"
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </button>
               </div>
 
               <p className="text-slate-400 text-xs shrink-0">
