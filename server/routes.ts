@@ -1586,6 +1586,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/page-visits/by-city/trend', requireRole('administrator'), async (req, res) => {
+    try {
+      const cityParam = (req.query.city as string) ?? '';
+      const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
+      const since = new Date();
+      since.setDate(since.getDate() - days + 1);
+      since.setHours(0, 0, 0, 0);
+
+      // '__unknown__' sentinel means filter for rows where city is NULL or empty
+      const cityFilter = cityParam === '__unknown__'
+        ? sql`(${pageVisitLogs.city} is null or ${pageVisitLogs.city} = '')`
+        : cityParam !== ''
+          ? eq(pageVisitLogs.city, cityParam)
+          : sql`true`;
+
+      const rows = await db
+        .select({
+          date: sql<string>`to_char(date_trunc('day', ${pageVisitLogs.visitedAt}), 'YYYY-MM-DD')`,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(pageVisitLogs)
+        .where(
+          and(
+            eq(pageVisitLogs.countryCode, 'RU'),
+            cityFilter,
+            gte(pageVisitLogs.visitedAt, since),
+          )
+        )
+        .groupBy(sql`date_trunc('day', ${pageVisitLogs.visitedAt})`)
+        .orderBy(sql`date_trunc('day', ${pageVisitLogs.visitedAt})`);
+
+      // Zero-fill missing days so the chart always shows a complete window
+      const countByDate = new Map(rows.map(r => [r.date, r.count]));
+      const filled: { date: string; count: number }[] = [];
+      for (let i = 0; i < days; i++) {
+        const d = new Date(since);
+        d.setDate(since.getDate() + i);
+        const key = d.toISOString().slice(0, 10);
+        filled.push({ date: key, count: countByDate.get(key) ?? 0 });
+      }
+
+      res.json(filled);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching city visit trend' });
+    }
+  });
+
   app.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 500, 2000);
