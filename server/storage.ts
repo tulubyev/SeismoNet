@@ -27,6 +27,8 @@ import {
   InsertSoilLayer,
   SensorInstallation,
   InsertSensorInstallation,
+  Sensor,
+  InsertSensor,
   BuildingNorm,
   InsertBuildingNorm,
   SeismogramRecord,
@@ -153,6 +155,14 @@ export interface IStorage {
   createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation>;
   updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined>;
   deleteSensorInstallation(id: number): Promise<boolean>;
+
+  // Sensor device operations
+  getSensors(stationId?: string): Promise<Sensor[]>;
+  getSensor(id: number): Promise<Sensor | undefined>;
+  getSensorBySensorCode(code: string): Promise<Sensor | undefined>;
+  createSensor(sensor: InsertSensor): Promise<Sensor>;
+  updateSensor(id: number, data: Partial<InsertSensor>): Promise<Sensor | undefined>;
+  deleteSensor(id: number): Promise<boolean>;
 
   // Building norms operations
   getBuildingNorms(category?: string): Promise<BuildingNorm[]>;
@@ -1088,6 +1098,33 @@ export class MemStorage implements IStorage {
     return this.sensorInstallations.delete(id);
   }
 
+  // ─── Sensor device operations (MemStorage stubs) ─────────────────────────────
+  private memSensors: Map<number, Sensor> = new Map();
+  private memSensorId = 1;
+
+  async getSensors(stationId?: string): Promise<Sensor[]> {
+    const all = Array.from(this.memSensors.values());
+    return stationId ? all.filter(s => s.stationId === stationId) : all;
+  }
+  async getSensor(id: number): Promise<Sensor | undefined> { return this.memSensors.get(id); }
+  async getSensorBySensorCode(code: string): Promise<Sensor | undefined> {
+    return Array.from(this.memSensors.values()).find(s => s.sensorCode === code);
+  }
+  async createSensor(sensor: InsertSensor): Promise<Sensor> {
+    const id = this.memSensorId++;
+    const row: Sensor = { ...sensor, id } as Sensor;
+    this.memSensors.set(id, row);
+    return row;
+  }
+  async updateSensor(id: number, data: Partial<InsertSensor>): Promise<Sensor | undefined> {
+    const existing = this.memSensors.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.memSensors.set(id, updated);
+    return updated;
+  }
+  async deleteSensor(id: number): Promise<boolean> { return this.memSensors.delete(id); }
+
   // ─── Building norm operations ──────────────────────────────────────────────
   async getBuildingNorms(category?: string): Promise<BuildingNorm[]> {
     const all = Array.from(this.buildingNorms.values());
@@ -1205,7 +1242,7 @@ import {
   users, regions, stations, events, waveformData, researchNetworks,
   systemStatus, alerts, maintenanceRecords,
   infrastructureObjects, objectCategories, soilProfiles, soilLayers, sensorInstallations,
-  buildingNorms, seismogramRecords
+  sensors, buildingNorms, seismogramRecords
 } from "@shared/schema";
 
 // Database storage implementation
@@ -1881,6 +1918,41 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSensorInstallation(id: number): Promise<boolean> {
     const result = await db.delete(schema.sensorInstallations).where(eq(schema.sensorInstallations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ─── Sensor device operations ─────────────────────────────────────────────────
+
+  async getSensors(stationId?: string): Promise<Sensor[]> {
+    if (stationId) {
+      return db.query.sensors.findMany({
+        where: (t, { eq }) => eq(t.stationId, stationId),
+        orderBy: (t, { asc }) => [asc(t.sensorCode)]
+      });
+    }
+    return db.query.sensors.findMany({ orderBy: (t, { asc }) => [asc(t.stationId), asc(t.sensorCode)] });
+  }
+
+  async getSensor(id: number): Promise<Sensor | undefined> {
+    return db.query.sensors.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  }
+
+  async getSensorBySensorCode(code: string): Promise<Sensor | undefined> {
+    return db.query.sensors.findFirst({ where: (t, { eq }) => eq(t.sensorCode, code) });
+  }
+
+  async createSensor(sensor: InsertSensor): Promise<Sensor> {
+    const [row] = await db.insert(schema.sensors).values(sensor).returning();
+    return row;
+  }
+
+  async updateSensor(id: number, data: Partial<InsertSensor>): Promise<Sensor | undefined> {
+    const [row] = await db.update(schema.sensors).set(data).where(eq(schema.sensors.id, id)).returning();
+    return row;
+  }
+
+  async deleteSensor(id: number): Promise<boolean> {
+    const result = await db.delete(schema.sensors).where(eq(schema.sensors.id, id)).returning();
     return result.length > 0;
   }
 
@@ -4468,6 +4540,92 @@ const initializeDatabase = async () => {
     }
     console.log(`Soil profiles: seeded ${seededCount} new, skipped ${soilSeeds.length - seededCount} existing.`);
   }
+
+  // ── Seed 20 district stations across Irkutsk ────────────────────────────────
+  const districtStations: InsertStation[] = [
+    // ── Октябрьский район ──────────────────────────────────────────────────────
+    { stationId:'IRK-DIST-001', name:'Октябрьский р-н — ИГУ',          location:'ул. Лермонтова, 132 (ИГУ)', latitude:'52.2879', longitude:'104.2564', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:91, batteryVoltage:12.7, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-10'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-01'), storageRemaining:78, connectionStrength:93, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-002', name:'Октябрьский р-н — Хмельницкого', location:'ул. Б. Хмельницкого, 73', latitude:'52.3015', longitude:'104.2580', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:85, batteryVoltage:12.4, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-15'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-03'), storageRemaining:72, connectionStrength:88, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-003', name:'Октябрьский р-н — Ново-Ленино', location:'мкр. Ново-Ленино, ул. Баумана', latitude:'52.3154', longitude:'104.2412', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:77, batteryVoltage:12.2, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-01'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-05'), storageRemaining:66, connectionStrength:84, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-004', name:'Октябрьский р-н — Байкальская', location:'ул. Байкальская, 270', latitude:'52.2930', longitude:'104.2720', status:'degraded', lastUpdate:new Date(), dataRate:65, batteryLevel:42, batteryVoltage:11.1, firmwareVersion:'v3.0.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-10'), sensorsCalibrated:false, storageRemaining:38, connectionStrength:55, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    // ── Свердловский район ─────────────────────────────────────────────────────
+    { stationId:'IRK-DIST-005', name:'Свердловский р-н — Трактовая', location:'ул. Трактовая, 18', latitude:'52.2744', longitude:'104.3177', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:88, batteryVoltage:12.6, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-20'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-08'), storageRemaining:74, connectionStrength:90, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-006', name:'Свердловский р-н — Синюшина гора', location:'мкр. Синюшина гора, ул. Депутатская', latitude:'52.2588', longitude:'104.3068', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:82, batteryVoltage:12.3, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-25'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-10'), storageRemaining:69, connectionStrength:86, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-007', name:'Свердловский р-н — Роза Люксембург', location:'ул. Розы Люксембург, 155', latitude:'52.2674', longitude:'104.3320', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:79, batteryVoltage:12.2, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-05'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-12'), storageRemaining:71, connectionStrength:82, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-008', name:'Свердловский р-н — Помяловского', location:'ул. Помяловского, 7', latitude:'52.2803', longitude:'104.3265', status:'offline',  lastUpdate:new Date(Date.now()-7200000), dataRate:0, batteryLevel:8, batteryVoltage:10.1, firmwareVersion:'v3.0.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-15'), sensorsCalibrated:false, storageRemaining:9, connectionStrength:0, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    // ── Ленинский район ────────────────────────────────────────────────────────
+    { stationId:'IRK-DIST-009', name:'Ленинский р-н — Депутатская', location:'ул. Депутатская, 46', latitude:'52.2487', longitude:'104.2699', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:93, batteryVoltage:12.8, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-12'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-02'), storageRemaining:80, connectionStrength:95, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-010', name:'Ленинский р-н — Черёмушки', location:'мкр. Черёмушки, ул. Маршала Конева', latitude:'52.2358', longitude:'104.2868', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:86, batteryVoltage:12.5, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-18'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-06'), storageRemaining:73, connectionStrength:87, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-011', name:'Ленинский р-н — Баумана', location:'ул. Баумана, 204а', latitude:'52.2572', longitude:'104.2520', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:81, batteryVoltage:12.3, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-08'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-09'), storageRemaining:68, connectionStrength:83, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-012', name:'Ленинский р-н — Ленина', location:'ул. Ленина, 30 (Свердловский р-н — граница)', latitude:'52.2631', longitude:'104.2613', status:'degraded', lastUpdate:new Date(), dataRate:55, batteryLevel:38, batteryVoltage:10.9, firmwareVersion:'v3.0.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-20'), sensorsCalibrated:false, storageRemaining:31, connectionStrength:48, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    // ── Правобережный район ────────────────────────────────────────────────────
+    { stationId:'IRK-DIST-013', name:'Правобережный р-н — Академгородок', location:'мкр. Академгородок, ул. Лермонтова', latitude:'52.3218', longitude:'104.3147', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:90, batteryVoltage:12.7, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-22'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-11'), storageRemaining:76, connectionStrength:92, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-014', name:'Правобережный р-н — Приморский', location:'мкр. Приморский, ул. Волжская', latitude:'52.3324', longitude:'104.2956', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:84, batteryVoltage:12.4, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-03'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-14'), storageRemaining:70, connectionStrength:85, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-015', name:'Правобережный р-н — Лисиха', location:'мкр. Лисиха, ул. Первомайская', latitude:'52.2987', longitude:'104.3452', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:76, batteryVoltage:12.1, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-12'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-16'), storageRemaining:64, connectionStrength:80, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-016', name:'Правобережный р-н — Топкинский', location:'мкр. Топкинский, ул. Нижняя', latitude:'52.3163', longitude:'104.3381', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:88, batteryVoltage:12.6, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-18'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-18'), storageRemaining:75, connectionStrength:89, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    // ── Куйбышевский район ─────────────────────────────────────────────────────
+    { stationId:'IRK-DIST-017', name:'Куйбышевский р-н — Сергеева', location:'ул. Сергеева, 3а', latitude:'52.2597', longitude:'104.3422', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:87, batteryVoltage:12.5, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-01-28'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-07'), storageRemaining:73, connectionStrength:88, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-018', name:'Куйбышевский р-н — Батарейная', location:'ул. Батарейная, 22', latitude:'52.2451', longitude:'104.3558', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:80, batteryVoltage:12.2, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-06'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-13'), storageRemaining:67, connectionStrength:81, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-019', name:'Куйбышевский р-н — Ново-Иркутская', location:'ул. Ново-Иркутская, 6', latitude:'52.2685', longitude:'104.3565', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:83, batteryVoltage:12.3, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-14'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-15'), storageRemaining:70, connectionStrength:84, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+    { stationId:'IRK-DIST-020', name:'Куйбышевский р-н — Пискунова', location:'ул. Пискунова, 148', latitude:'52.2524', longitude:'104.3278', status:'online',   lastUpdate:new Date(), dataRate:100, batteryLevel:78, batteryVoltage:12.1, firmwareVersion:'v3.1.0', hardwareModel:'СМ-3КВ', installationDate:new Date('2025-02-22'), sensorsCalibrated:true,  lastCalibrationDate:new Date('2025-04-17'), storageRemaining:65, connectionStrength:82, configuration:{samplingRate:100,triggerThreshold:0.01,channels:['Z','NS','EW']}, isManaged:true },
+  ];
+
+  for (const st of districtStations) {
+    const exists = await dbStorage.getStationByStationId(st.stationId);
+    if (!exists) await dbStorage.createStation(st);
+  }
+  console.log('District stations (IRK-DIST-001..020) seeded (skipped if already present).');
+
+  // ── Seed sensors for all managed stations ──────────────────────────────────
+  // Each physical sensor device belongs to exactly one station.
+  // Two sensors per station: one seismometer (foundation) + one accelerometer (free-field).
+  const allManagedStations = [
+    ...['IRK-ST-001','IRK-ST-002','IRK-ST-003','IRK-ST-004','IRK-ST-005','IRK-ST-006','IRK-ST-007','IRK-ST-008'],
+    ...districtStations.map(s => s.stationId)
+  ];
+
+  for (const stId of allManagedStations) {
+    const num = stId.replace(/[^0-9]/g, '').slice(0,3).padStart(3,'0');
+    const prefix = stId.startsWith('IRK-ST') ? 'ST' : 'DT';
+    const codeA = `SS-${prefix}-${num}-A`; // accelerometer
+    const codeB = `SS-${prefix}-${num}-B`; // seismometer
+
+    const existsA = await dbStorage.getSensorBySensorCode(codeA);
+    if (!existsA) {
+      await dbStorage.createSensor({
+        sensorCode: codeA,
+        stationId: stId,
+        model: 'ЦСС-1М (акселерометр)',
+        serialNumber: `SN-${prefix}${num}A`,
+        sensorType: 'accelerometer',
+        axes: 'Z,NS,EW',
+        sensitivity: 5.0,
+        frequencyRange: '0.1–100 Hz',
+        installationDate: new Date('2025-01-10'),
+        calibrationDate: new Date('2025-04-01'),
+        isActive: true,
+        location: 'foundation',
+      });
+    }
+    const existsB = await dbStorage.getSensorBySensorCode(codeB);
+    if (!existsB) {
+      await dbStorage.createSensor({
+        sensorCode: codeB,
+        stationId: stId,
+        model: 'СМ-3КВ (сейсмометр)',
+        serialNumber: `SN-${prefix}${num}B`,
+        sensorType: 'seismometer',
+        axes: 'Z,NS,EW',
+        sensitivity: 28.8,
+        frequencyRange: '0.1–50 Hz',
+        installationDate: new Date('2025-01-10'),
+        calibrationDate: new Date('2025-04-01'),
+        isActive: true,
+        location: 'free_field',
+      });
+    }
+  }
+  console.log('Sensor devices seeded for managed stations.');
 
   console.log('Database initialization complete.');
   

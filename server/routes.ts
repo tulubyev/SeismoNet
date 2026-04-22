@@ -43,7 +43,25 @@ async function runStartupMigrations() {
     `);
     await db.execute(`ALTER TABLE stations ADD COLUMN IF NOT EXISTS is_managed boolean NOT NULL DEFAULT false`);
     await db.execute(`UPDATE stations SET is_managed = true WHERE station_id LIKE 'IRK-%' AND is_managed = false`);
-    console.log('Startup migrations applied (seismic_calculations columns + page_visit_logs + is_managed ensured).');
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS sensors (
+        id SERIAL PRIMARY KEY,
+        sensor_code TEXT NOT NULL UNIQUE,
+        station_id TEXT NOT NULL REFERENCES stations(station_id),
+        model TEXT,
+        serial_number TEXT,
+        sensor_type TEXT NOT NULL DEFAULT 'accelerometer',
+        axes TEXT NOT NULL DEFAULT 'Z,NS,EW',
+        sensitivity REAL,
+        frequency_range TEXT,
+        installation_date TIMESTAMP,
+        calibration_date TIMESTAMP,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        location TEXT,
+        notes TEXT
+      )
+    `);
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table).');
   } catch (e) {
     console.error('Startup migration error (seismic_calculations columns):', e);
   }
@@ -1108,6 +1126,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ok) return res.status(404).json({ message: 'Installation not found' });
       res.json({ success: true });
     } catch (error) { res.status(500).json({ message: 'Error deleting sensor installation' }); }
+  });
+
+  // ─── Sensor Devices API ───────────────────────────────────────────────────────
+
+  app.get('/api/sensors', async (req, res) => {
+    try {
+      const stationId = req.query.stationId as string | undefined;
+      res.json(await storage.getSensors(stationId));
+    } catch { res.status(500).json({ message: 'Error fetching sensors' }); }
+  });
+
+  app.get('/api/sensors/:id', async (req, res) => {
+    try {
+      const sensor = await storage.getSensor(parseInt(req.params.id));
+      if (!sensor) return res.status(404).json({ message: 'Sensor not found' });
+      res.json(sensor);
+    } catch { res.status(500).json({ message: 'Error fetching sensor' }); }
+  });
+
+  app.post('/api/sensors', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      res.status(201).json(await storage.createSensor(req.body));
+    } catch { res.status(500).json({ message: 'Error creating sensor' }); }
+  });
+
+  app.patch('/api/sensors/:id', requireRole(['administrator', 'user']), async (req, res) => {
+    try {
+      const updated = await storage.updateSensor(parseInt(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: 'Sensor not found' });
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Error updating sensor' }); }
+  });
+
+  app.delete('/api/sensors/:id', requireRole(['administrator']), async (req, res) => {
+    try {
+      const ok = await storage.deleteSensor(parseInt(req.params.id));
+      if (!ok) return res.status(404).json({ message: 'Sensor not found' });
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Error deleting sensor' }); }
   });
 
   // ─── Building Norms API ────────────────────────────────────────────────────────

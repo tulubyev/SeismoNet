@@ -324,6 +324,24 @@ export const sensorInstallations = pgTable("sensor_installations", {
   notes: text("notes")
 });
 
+// Physical sensor devices, each belonging to one seismic station
+export const sensors = pgTable("sensors", {
+  id: serial("id").primaryKey(),
+  sensorCode: text("sensor_code").notNull().unique(), // e.g. "SS-001"
+  stationId: text("station_id").notNull().references(() => stations.stationId),
+  model: text("model"),                               // e.g. "SM-3KV", "GeoSIG GMS-18"
+  serialNumber: text("serial_number"),
+  sensorType: text("sensor_type").notNull().default("accelerometer"), // accelerometer | velocimeter | seismometer
+  axes: text("axes").notNull().default("Z,NS,EW"),    // comma-separated active axes
+  sensitivity: real("sensitivity"),                    // V/(m/s) or V/g
+  frequencyRange: text("frequency_range"),             // e.g. "0.1–50 Hz"
+  installationDate: timestamp("installation_date"),
+  calibrationDate: timestamp("calibration_date"),
+  isActive: boolean("is_active").notNull().default(true),
+  location: text("location"),                         // free_field | foundation | ground_floor | roof
+  notes: text("notes")
+});
+
 // Calibration sessions for sensor installations
 export const calibrationSessions = pgTable("calibration_sessions", {
   id: serial("id").primaryKey(),
@@ -464,6 +482,7 @@ export const insertInfrastructureObjectSchema = createInsertSchema(infrastructur
 export const insertSoilProfileSchema = createInsertSchema(soilProfiles).omit({ id: true, createdAt: true });
 export const insertSoilLayerSchema = createInsertSchema(soilLayers).omit({ id: true });
 export const insertSensorInstallationSchema = createInsertSchema(sensorInstallations).omit({ id: true });
+export const insertSensorSchema = createInsertSchema(sensors).omit({ id: true });
 export const insertBuildingNormSchema = createInsertSchema(buildingNorms).omit({ id: true, createdAt: true });
 export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords).omit({ id: true, createdAt: true });
 export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true });
@@ -544,6 +563,9 @@ export type InsertSoilLayer = z.infer<typeof insertSoilLayerSchema>;
 
 export type SensorInstallation = typeof sensorInstallations.$inferSelect;
 export type InsertSensorInstallation = z.infer<typeof insertSensorInstallationSchema>;
+
+export type Sensor = typeof sensors.$inferSelect;
+export type InsertSensor = z.infer<typeof insertSensorSchema>;
 
 export type BuildingNorm = typeof buildingNorms.$inferSelect;
 export type InsertBuildingNorm = z.infer<typeof insertBuildingNormSchema>;
