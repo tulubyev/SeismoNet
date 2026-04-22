@@ -66,10 +66,45 @@ async function runStartupMigrations() {
     // Add object_id and floor columns for building-mounted sensors
     await db.execute(`ALTER TABLE sensors ADD COLUMN IF NOT EXISTS object_id INTEGER REFERENCES infrastructure_objects(id)`);
     await db.execute(`ALTER TABLE sensors ADD COLUMN IF NOT EXISTS floor INTEGER`);
-    // Clean up SEN-O* pseudo-stations from stations table (building sensor channels)
+    // Migrate SEN-O* pseudo-stations into sensors table before removal (idempotent)
+    await db.execute(`
+      INSERT INTO sensors (sensor_code, object_id, floor, location, sensor_type, axes, model, is_active)
+      SELECT
+        SUBSTRING(s.station_id FROM 5) AS sensor_code,
+        CAST(SUBSTRING(s.station_id FROM 'SEN-OBJ(\\d+)-') AS INTEGER) AS object_id,
+        CASE
+          WHEN s.station_id ~ '-F\\d+-ACC'
+          THEN CAST(SUBSTRING(s.station_id FROM '-F(\\d+)-ACC') AS INTEGER)
+          ELSE NULL
+        END AS floor,
+        CASE
+          WHEN s.station_id LIKE '%-FND-%' THEN 'foundation'
+          WHEN s.station_id LIKE '%-RF-%'  THEN 'roof'
+          WHEN s.station_id ~ '-F01-ACC'   THEN 'ground_floor'
+          WHEN s.station_id ~ '-F\\d+-ACC' THEN 'mid_floor'
+          ELSE 'foundation'
+        END AS location,
+        CASE WHEN s.station_id LIKE '%-FND-%' THEN 'seismometer' ELSE 'accelerometer' END AS sensor_type,
+        CASE
+          WHEN s.station_id LIKE '%-Z'  THEN 'Z'
+          WHEN s.station_id LIKE '%-NS' THEN 'NS'
+          WHEN s.station_id LIKE '%-EW' THEN 'EW'
+          ELSE 'Z,NS,EW'
+        END AS axes,
+        CASE WHEN s.station_id LIKE '%-FND-%' THEN 'СМ-3КВ' ELSE 'ЦСС-1М' END AS model,
+        CASE WHEN s.status = 'online' THEN TRUE ELSE FALSE END AS is_active
+      FROM stations s
+      WHERE s.station_id LIKE 'SEN-OBJ%'
+        AND EXISTS (
+          SELECT 1 FROM infrastructure_objects io
+          WHERE io.id = CAST(SUBSTRING(s.station_id FROM 'SEN-OBJ(\\d+)-') AS INTEGER)
+        )
+      ON CONFLICT (sensor_code) DO NOTHING
+    `);
+    // Remove SEN-O* pseudo-stations now that data is preserved in sensors table
     await db.execute(`DELETE FROM sensor_installations WHERE station_id LIKE 'SEN-%'`);
     await db.execute(`DELETE FROM stations WHERE station_id LIKE 'SEN-%'`);
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* cleanup).');
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + cleanup).');
   } catch (e) {
     console.error('Startup migration error (seismic_calculations columns):', e);
   }
