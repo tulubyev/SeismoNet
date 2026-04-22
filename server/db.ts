@@ -50,6 +50,7 @@ export const schema = {
   seismicCalculations,
   calculationNoteHistory,
   comparisonSets: schemaImport.comparisonSets,
+  pageVisitLogs: schemaImport.pageVisitLogs,
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

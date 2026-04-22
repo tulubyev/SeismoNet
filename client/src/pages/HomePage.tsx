@@ -1,4 +1,4 @@
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
@@ -6,11 +6,26 @@ import type { SeismogramRecord } from '@shared/schema';
 import {
   BarChart2, Map,
   ArrowRight, AlertTriangle, CheckCircle2,
-  Settings as SettingsIcon, Globe,
+  Settings as SettingsIcon, Globe, Users, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import type { Alert, InfrastructureObject, SensorInstallation } from '@shared/schema';
+import type { Alert, InfrastructureObject, SensorInstallation, PageVisitLog } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 
 interface BlockDef {
   href: string;
@@ -24,11 +39,21 @@ interface BlockDef {
   status?: 'ok' | 'warn' | 'error' | null;
 }
 
+const countryName = (code: string | null): string => {
+  if (!code) return '—';
+  try {
+    return new Intl.DisplayNames(['ru'], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
 const HomePage: FC = () => {
   const [, navigate] = useLocation();
   const { stations, events } = useSeismicData();
   const { user } = useAuth();
   const isAdmin = user?.role === 'administrator';
+  const [visitsOpen, setVisitsOpen] = useState(false);
 
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
     queryKey: ['/api/seismograms'],
@@ -44,6 +69,10 @@ const HomePage: FC = () => {
   });
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations'],
+  });
+  const { data: visitLogs = [], isLoading: logsLoading } = useQuery<PageVisitLog[]>({
+    queryKey: ['/api/page-visits'],
+    enabled: isAdmin && visitsOpen,
   });
 
   const pageViewMutation = useMutation({
@@ -154,11 +183,19 @@ const HomePage: FC = () => {
     );
   };
 
+  const today = new Date().toISOString().slice(0, 10);
+  const chartData = (pageViewsData?.daily ?? []).map(d => ({
+    date: d.date,
+    count: d.count,
+    label: new Date(d.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
+    isToday: d.date === today,
+  }));
+
   return (
     <div className="min-h-full bg-slate-900">
       <div className="px-6 py-8">
         <div className="max-w-3xl mx-auto space-y-5">
-          {/* Stats — same width as 2-column blocks grid */}
+          {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(() => {
               const viewsToday = pageViewsData?.views_today ?? 0;
@@ -183,11 +220,17 @@ const HomePage: FC = () => {
                       <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
                     </div>
                   ))}
-                  <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700 col-span-2 sm:col-span-1">
-                    <div className="text-2xl font-bold text-sky-400">{pageViewsData?.views ?? 0}</div>
-                    <div className="text-slate-400 text-xs mt-0.5">Просмотров сайта</div>
+                  <button
+                    onClick={() => setVisitsOpen(true)}
+                    className="bg-slate-800/60 rounded-xl p-3 border border-slate-700 col-span-2 sm:col-span-1 text-left hover:bg-slate-700/60 hover:border-sky-500/50 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-2xl font-bold text-sky-400">{pageViewsData?.views ?? 0}</div>
+                      <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-sky-400 transition-colors" />
+                    </div>
+                    <div className="text-slate-400 text-xs mt-0.5 group-hover:text-slate-300 transition-colors">Просмотров сайта</div>
                     <div className={`text-xs mt-1 font-medium ${trendColor}`}>{trendLabel}</div>
-                  </div>
+                  </button>
                 </>
               );
             })()}
@@ -199,8 +242,124 @@ const HomePage: FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Views modal — chart for all users, visit logs for admins only */}
+      <Dialog open={visitsOpen} onOpenChange={setVisitsOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Users className="h-5 w-5 text-sky-400" />
+              Просмотры сайта
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* 14-day bar chart — visible to all users */}
+          <div className="shrink-0 mt-1">
+            <p className="text-slate-400 text-xs mb-2">Динамика за 14 дней</p>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={chartData} margin={{ top: 2, right: 4, left: -24, bottom: 0 }}>
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: '#94a3b8', fontSize: 9 }}
+                    axisLine={{ stroke: '#334155' }}
+                    tickLine={false}
+                    interval={1}
+                  />
+                  <YAxis
+                    tick={{ fill: '#94a3b8', fontSize: 9 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }}
+                    cursor={{ fill: 'rgba(148,163,184,0.08)' }}
+                    formatter={(value: number) => [value, 'Просмотры']}
+                  />
+                  <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                    {chartData.map(entry => (
+                      <Cell
+                        key={entry.date}
+                        fill={entry.isToday ? '#38bdf8' : '#3b82f6'}
+                        opacity={entry.isToday ? 1 : 0.6}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-slate-500 text-sm text-center py-4">Нет данных за период</p>
+            )}
+            <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-sky-400" />
+                Сегодня
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-blue-500 opacity-60" />
+                Предыдущие дни
+              </span>
+            </div>
+          </div>
+
+          {/* Visit log table — admin only */}
+          {isAdmin && (
+            <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3">
+              <p className="text-slate-400 text-xs mb-2 sticky top-0 bg-slate-900 pb-1">
+                Последние визиты ({visitLogs.length})
+              </p>
+              {logsLoading ? (
+                <div className="text-slate-500 text-sm text-center py-8">Загрузка...</div>
+              ) : visitLogs.length === 0 ? (
+                <div className="text-slate-500 text-sm text-center py-8">Нет записей</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 text-left border-b border-slate-800">
+                      <th className="pb-2 pr-3 font-medium">Дата и время</th>
+                      <th className="pb-2 pr-3 font-medium">IP</th>
+                      <th className="pb-2 pr-3 font-medium">Страна</th>
+                      <th className="pb-2 pr-3 font-medium">Регион</th>
+                      <th className="pb-2 font-medium">Город</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visitLogs.map(log => (
+                      <tr key={log.id} className="border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 pr-3 text-slate-300 whitespace-nowrap">
+                          {new Date(log.visitedAt).toLocaleString('ru-RU', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-1.5 pr-3 text-slate-400 font-mono">{log.ip}</td>
+                        <td className="py-1.5 pr-3 text-slate-300">
+                          {log.countryCode && (
+                            <span className="mr-1">{countryFlag(log.countryCode)}</span>
+                          )}
+                          {countryName(log.countryCode)}
+                        </td>
+                        <td className="py-1.5 pr-3 text-slate-400">{log.region ?? '—'}</td>
+                        <td className="py-1.5 text-slate-400">{log.city ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return '';
+  const cp1 = 0x1F1E6 + code.toUpperCase().charCodeAt(0) - 65;
+  const cp2 = 0x1F1E6 + code.toUpperCase().charCodeAt(1) - 65;
+  return String.fromCodePoint(cp1, cp2);
+}
 
 export default HomePage;

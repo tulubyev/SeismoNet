@@ -672,3 +672,19 @@ export type WebSocketMessage = {
   type: WebSocketMessageType;
   payload: any;
 };
+
+// Page visit logs — individual visit records with IP geolocation
+export const pageVisitLogs = pgTable("page_visit_logs", {
+  id: serial("id").primaryKey(),
+  ip: text("ip").notNull(),
+  country: text("country"),
+  countryCode: text("country_code"),
+  region: text("region"),
+  city: text("city"),
+  userAgent: text("user_agent"),
+  visitedAt: timestamp("visited_at").notNull().defaultNow(),
+});
+
+export const insertPageVisitLogSchema = createInsertSchema(pageVisitLogs).omit({ id: true, visitedAt: true });
+export type InsertPageVisitLog = z.infer<typeof insertPageVisitLogSchema>;
+export type PageVisitLog = typeof pageVisitLogs.$inferSelect;

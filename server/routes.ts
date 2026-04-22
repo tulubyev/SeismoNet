@@ -1,17 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
-import { WebSocketMessageType, WebSocketMessage, insertDeveloperSchema, insertSeismicCalculationSchema } from "@shared/schema";
+import { WebSocketMessageType, WebSocketMessage, insertDeveloperSchema, insertSeismicCalculationSchema, pageVisitLogs } from "@shared/schema";
 import { sendSeismicEventNotification, sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendSeismicEventAlert, sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 import { syncEarthquakeData, scheduleEarthquakeSyncJob } from "./services/earthquakeApi";
 import { syncJMAEarthquakeData, scheduleJMAEarthquakeSyncJob } from "./services/jmaEarthquakeApi";
 import { setupAuth, requireRole } from "./auth";
 import { encodeMiniSEED, type MseedChannel } from "./lib/miniseed";
+import geoip from "geoip-lite";
 
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
@@ -28,7 +29,19 @@ async function runStartupMigrations() {
     await db.execute(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_system_status_pageviews ON system_status (component) WHERE component = 'PageViews'`
     );
-    console.log('Startup migrations applied (seismic_calculations columns ensured).');
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS page_visit_logs (
+        id SERIAL PRIMARY KEY,
+        ip TEXT NOT NULL,
+        country TEXT,
+        country_code TEXT,
+        region TEXT,
+        city TEXT,
+        user_agent TEXT,
+        visited_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log('Startup migrations applied (seismic_calculations columns + page_visit_logs ensured).');
   } catch (e) {
     console.error('Startup migration error (seismic_calculations columns):', e);
   }
@@ -1431,9 +1444,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 500, 2000);
+      const logs = await db
+        .select()
+        .from(pageVisitLogs)
+        .orderBy(desc(pageVisitLogs.visitedAt))
+        .limit(limit);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching visit logs' });
+    }
+  });
+
   app.post('/api/page-views', async (req, res) => {
     try {
       const todayKey = `PageViews_${new Date().toISOString().slice(0, 10)}`;
+
+      // Log the visit with IP geolocation (fire-and-forget, don't block response)
+      try {
+        const rawIp =
+          (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+          req.socket.remoteAddress ||
+          '';
+        const ip = rawIp.replace(/^::ffff:/, '');
+        const geo = geoip.lookup(ip);
+        await db.insert(pageVisitLogs).values({
+          ip: ip || 'unknown',
+          country: geo?.country ?? null,
+          countryCode: geo?.country ?? null,
+          region: geo?.region ?? null,
+          city: geo?.city ?? null,
+          userAgent: (req.headers['user-agent'] as string) ?? null,
+        });
+      } catch (_geoErr) {
+        // Geo logging failure must not break the view counter
+      }
 
       const dailyUpdate = await db.execute(sql`
         UPDATE system_status SET value = value + 1, timestamp = NOW()
