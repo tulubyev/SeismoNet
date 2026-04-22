@@ -424,92 +424,97 @@ const HomePage: FC = () => {
                       <span className="text-xs text-slate-600">Наведите на страну</span>
                     )}
                   </div>
-                  <div className="rounded-lg overflow-hidden bg-slate-800/60 border border-slate-700/50" onMouseLeave={() => setMapHover(null)}>
-                    <ComposableMap
-                      projectionConfig={{ scale: 130, center: [10, 10] }}
-                      style={{ width: '100%', height: 'auto' }}
-                      height={210}
-                    >
-                      <Geographies geography="/countries-110m.json">
-                        {({ geographies }) =>
-                          geographies.map(geo => {
-                            const alpha2 = numericToAlpha2(geo.id);
-                            const count = alpha2 ? (countryCounts.get(alpha2) ?? 0) : 0;
-                            const fill = alpha2 ? getCountryColor(alpha2) : '#1e293b';
-                            return (
-                              <Geography
-                                key={geo.rsmKey}
-                                geography={geo}
-                                fill={fill}
-                                stroke="#0f172a"
-                                strokeWidth={0.4}
-                                style={{
-                                  default: { outline: 'none', cursor: alpha2 ? 'pointer' : 'default' },
-                                  hover: { outline: 'none', fill: count > 0 ? '#e879f9' : '#334155' },
-                                  pressed: { outline: 'none' },
-                                }}
-                                onMouseEnter={() => {
-                                  if (alpha2) {
-                                    setMapHover({ name: countryName(alpha2), count });
-                                  }
-                                }}
-                                onMouseLeave={() => setMapHover(null)}
-                              />
-                            );
-                          })
-                        }
-                      </Geographies>
-                    </ComposableMap>
-                  </div>
-                  {/* Legend */}
-                  <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
-                    <span>Меньше</span>
-                    <div className="flex gap-0.5">
-                      {[0.1, 0.3, 0.5, 0.7, 0.9].map(v => {
-                        const r = Math.round(14 + v * (56 - 14));
-                        const g = Math.round(165 + v * (189 - 165));
-                        const b = Math.round(233 + v * (120 - 233));
-                        return <span key={v} className="inline-block w-4 h-3 rounded-sm" style={{ background: `rgb(${r},${g},${b})` }} />;
-                      })}
-                    </div>
-                    <span>Больше</span>
-                  </div>
-
-                  {/* Ranked country list */}
-                  {(() => {
-                    const sorted = [...visitsByCountry]
-                      .filter(r => r.countryCode)
-                      .sort((a, b) => b.count - a.count);
-                    const total = visitsByCountry.reduce((s, r) => s + r.count, 0);
-                    if (sorted.length === 0) return null;
-                    const top = sorted.slice(0, 10);
-                    return (
-                      <div className="mt-3">
-                        <p className="text-slate-400 text-xs mb-1.5">Топ стран по визитам</p>
-                        <div className="space-y-1">
-                          {top.map((row, idx) => {
-                            const pct = total > 0 ? (row.count / total) * 100 : 0;
-                            const code = row.countryCode!;
-                            return (
-                              <div key={code} className="flex items-center gap-2 text-xs">
-                                <span className="text-slate-600 w-4 text-right shrink-0">{idx + 1}</span>
-                                <span className="text-base leading-none shrink-0">{countryFlag(code)}</span>
-                                <span className="text-slate-300 flex-1 truncate">{countryName(code)}</span>
-                                <div className="w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden shrink-0">
-                                  <div
-                                    className="h-full rounded-full bg-sky-500"
-                                    style={{ width: `${pct}%` }}
+                  <div className="flex gap-3 items-start">
+                    {/* Left: map + legend */}
+                    <div className="flex-1 min-w-0">
+                      <div className="rounded-lg overflow-hidden bg-slate-800/60 border border-slate-700/50" onMouseLeave={() => setMapHover(null)}>
+                        <ComposableMap
+                          projectionConfig={{ scale: 130, center: [10, 10] }}
+                          style={{ width: '100%', height: 'auto' }}
+                          height={210}
+                        >
+                          <Geographies geography="/countries-110m.json">
+                            {({ geographies }) =>
+                              geographies.map(geo => {
+                                const alpha2 = numericToAlpha2(geo.id);
+                                const count = alpha2 ? (countryCounts.get(alpha2) ?? 0) : 0;
+                                const fill = alpha2 ? getCountryColor(alpha2) : '#1e293b';
+                                return (
+                                  <Geography
+                                    key={geo.rsmKey}
+                                    geography={geo}
+                                    fill={fill}
+                                    stroke="#0f172a"
+                                    strokeWidth={0.4}
+                                    style={{
+                                      default: { outline: 'none', cursor: alpha2 ? 'pointer' : 'default' },
+                                      hover: { outline: 'none', fill: count > 0 ? '#e879f9' : '#334155' },
+                                      pressed: { outline: 'none' },
+                                    }}
+                                    onMouseEnter={() => {
+                                      if (alpha2) {
+                                        setMapHover({ name: countryName(alpha2), count });
+                                      }
+                                    }}
+                                    onMouseLeave={() => setMapHover(null)}
                                   />
-                                </div>
-                                <span className="text-slate-400 w-8 text-right shrink-0">{row.count}</span>
-                                <span className="text-slate-600 w-9 text-right shrink-0">{pct.toFixed(1)}%</span>
-                              </div>
-                            );
+                                );
+                              })
+                            }
+                          </Geographies>
+                        </ComposableMap>
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                        <span>Меньше</span>
+                        <div className="flex gap-0.5">
+                          {[0.1, 0.3, 0.5, 0.7, 0.9].map(v => {
+                            const r = Math.round(14 + v * (56 - 14));
+                            const g = Math.round(165 + v * (189 - 165));
+                            const b = Math.round(233 + v * (120 - 233));
+                            return <span key={v} className="inline-block w-4 h-3 rounded-sm" style={{ background: `rgb(${r},${g},${b})` }} />;
                           })}
                         </div>
+                        <span>Больше</span>
                       </div>
-                    );
-                  })()}
+                    </div>
+
+                    {/* Right: ranked country list */}
+                    {(() => {
+                      const sorted = [...visitsByCountry]
+                        .filter(r => r.countryCode)
+                        .sort((a, b) => b.count - a.count);
+                      const total = visitsByCountry.reduce((s, r) => s + r.count, 0);
+                      const top = sorted.slice(0, 10);
+                      return (
+                        <div className="w-48 shrink-0">
+                          <p className="text-slate-400 text-xs mb-1.5 font-medium">Топ стран</p>
+                          <div className="space-y-1.5">
+                            {top.map((row, idx) => {
+                              const pct = total > 0 ? (row.count / total) * 100 : 0;
+                              const code = row.countryCode!;
+                              return (
+                                <div key={code} className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <span className="text-slate-600 w-4 text-right shrink-0 tabular-nums">{idx + 1}</span>
+                                    <span className="text-base leading-none shrink-0">{countryFlag(code)}</span>
+                                    <span className="text-slate-300 flex-1 truncate">{countryName(code)}</span>
+                                    <span className="text-slate-400 shrink-0 tabular-nums">{row.count}</span>
+                                  </div>
+                                  <div className="ml-[22px] h-1 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-sky-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
               {/* Filter bar */}
