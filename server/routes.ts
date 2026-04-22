@@ -110,10 +110,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     // Send initial system status
-    storage.getSystemStatus().then(statusItems => {
+    Promise.all([storage.getSystemStatus(), storage.getStations()]).then(([statusItems, allStations]) => {
+      const managed = allStations.filter(s => s.isManaged);
       ws.send(JSON.stringify({
         type: WebSocketMessageType.NETWORK_STATUS,
         payload: {
+          activeStations: managed.filter(s => s.status === 'online').length,
+          totalStations: managed.length,
           dataProcessingHealth: statusItems.find(item => item.component === "Data Processing")?.value || 0,
           networkConnectivityHealth: statusItems.find(item => item.component === "Network Connectivity")?.value || 0,
           storageCapacityHealth: statusItems.find(item => item.component === "Storage Capacity")?.value || 0,
@@ -1632,12 +1635,13 @@ function startSimulation(ws: WebSocket) {
     
     // Update network status occasionally
     if (Math.random() < 0.1) { // 10% chance each interval
-      storage.getSystemStatus().then(statusItems => {
+      Promise.all([storage.getSystemStatus(), storage.getStations()]).then(([statusItems, allStations]) => {
+        const managed = allStations.filter(s => s.isManaged);
         ws.send(JSON.stringify({
           type: WebSocketMessageType.NETWORK_STATUS,
           payload: {
-            activeStations: Math.floor(90 * Math.random() + 80), // Between 80-90
-            totalStations: 94,
+            activeStations: managed.filter(s => s.status === 'online').length,
+            totalStations: managed.length,
             dataProcessingHealth: statusItems.find(item => item.component === "Data Processing")?.value || 0,
             networkConnectivityHealth: statusItems.find(item => item.component === "Network Connectivity")?.value || 0,
             storageCapacityHealth: statusItems.find(item => item.component === "Storage Capacity")?.value || 0,
