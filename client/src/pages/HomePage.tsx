@@ -197,8 +197,7 @@ const HomePage: FC = () => {
   const activeSensors   = sensorInstallations.filter(si => si.isActive).length;
   const totalSensors    = sensorInstallations.length;
 
-  const managedStationIds        = new Set(sensorInstallations.map(si => si.stationId));
-  const managedStations          = stations.filter(s => managedStationIds.has(s.stationId));
+  const managedStations          = stations.filter(s => s.isManaged);
   const totalMonitoringStations  = managedStations.length;
   const activeMonitoringStations = managedStations.filter(s => s.status === 'online').length;
 

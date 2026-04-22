@@ -66,7 +66,8 @@ export const stations = pgTable("stations", {
 
   configuration: jsonb("configuration"),
   connectionStrength: integer("connection_strength"),
-  storageRemaining: integer("storage_remaining")
+  storageRemaining: integer("storage_remaining"),
+  isManaged: boolean("is_managed").notNull().default(false)
 });
 
 // Seismic events

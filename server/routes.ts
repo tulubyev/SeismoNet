@@ -41,7 +41,9 @@ async function runStartupMigrations() {
         visited_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    console.log('Startup migrations applied (seismic_calculations columns + page_visit_logs ensured).');
+    await db.execute(`ALTER TABLE stations ADD COLUMN IF NOT EXISTS is_managed boolean NOT NULL DEFAULT false`);
+    await db.execute(`UPDATE stations SET is_managed = true WHERE station_id LIKE 'IRK-%' AND is_managed = false`);
+    console.log('Startup migrations applied (seismic_calculations columns + page_visit_logs + is_managed ensured).');
   } catch (e) {
     console.error('Startup migration error (seismic_calculations columns):', e);
   }
