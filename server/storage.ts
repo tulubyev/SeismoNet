@@ -1614,6 +1614,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteInfrastructureObject(id: number): Promise<boolean> {
+    await db
+      .delete(schema.sensorInstallations)
+      .where(eq(schema.sensorInstallations.objectId, id));
     const result = await db
       .delete(schema.infrastructureObjects)
       .where(eq(schema.infrastructureObjects.id, id))
@@ -2662,27 +2665,6 @@ const initializeDatabase = async () => {
         metadata: {}
       },
       {
-        objectId: "IRK-OBJ-002",
-        name: "Мост через р. Ушаковка (ул. Байкальская)",
-        address: "ул. Байкальская, Иркутск",
-        objectType: "bridge",
-        constructionYear: 1978,
-        floors: null,
-        latitude: "52.2756",
-        longitude: "104.3312",
-        district: "Октябрьский",
-        developer: "ГлавДорСтрой СССР",
-        structuralSystem: "frame",
-        foundationType: "pile",
-        seismicCategory: "I",
-        designIntensity: 8,
-        technicalCondition: "satisfactory",
-        description: "Железобетонный мост, пролёт 45 м",
-        responsibleOrganization: "ДСИО г. Иркутска",
-        isMonitored: true,
-        metadata: {}
-      },
-      {
         objectId: "IRK-OBJ-003",
         name: "Иркутская ГЭС",
         address: "г. Иркутск, Правый берег Ангары",
@@ -3030,27 +3012,6 @@ const initializeDatabase = async () => {
       isMonitored: false,
     },
     {
-      objectId: "IRK-TEST-003",
-      name: "МБОУ «Школа №3 им. Гагарина»",
-      address: "ул. Академическая, 12, Иркутск",
-      objectType: "school",
-      constructionYear: 1972,
-      floors: 3,
-      latitude: "52.2930",
-      longitude: "104.2820",
-      district: "Октябрьский",
-      developer: null,
-      structuralSystem: "panel",
-      foundationType: "strip",
-      seismicCategory: "II",
-      designIntensity: 7,
-      technicalCondition: "poor",
-      description: "Панельное здание 1972 г. постройки. Требует капитального ремонта.",
-      responsibleOrganization: "Комитет по образованию г. Иркутска",
-      contactPhone: "+7 (3952) 44-12-34",
-      isMonitored: false,
-    },
-    {
       objectId: "IRK-TEST-004",
       name: "Административный центр «Октябрь»",
       address: "ул. Байкальская, 200, Иркутск",
@@ -3094,27 +3055,6 @@ const initializeDatabase = async () => {
       isMonitored: false,
     },
     {
-      objectId: "IRK-TEST-006",
-      name: "Мост «Академический» через р. Иркут",
-      address: "Академический мост, Иркутск",
-      objectType: "bridge",
-      constructionYear: 2011,
-      floors: 1,
-      latitude: "52.2810",
-      longitude: "104.2960",
-      district: "Свердловский",
-      developer: null,
-      structuralSystem: "reinforced_concrete",
-      foundationType: "pile",
-      seismicCategory: "I",
-      designIntensity: 8,
-      technicalCondition: "satisfactory",
-      description: "Железобетонный мост. Периодическое инструментальное обследование.",
-      responsibleOrganization: "Департамент дорог и транспорта г. Иркутска",
-      contactPhone: "+7 (3952) 35-00-00",
-      isMonitored: true,
-    },
-    {
       objectId: "IRK-TEST-007",
       name: "Завод «Иркутсккабель»",
       address: "ул. Станиславского, 32, Иркутск",
@@ -3134,27 +3074,6 @@ const initializeDatabase = async () => {
       responsibleOrganization: "АО «Иркутсккабель»",
       contactPhone: "+7 (3952) 22-11-00",
       isMonitored: false,
-    },
-    {
-      objectId: "IRK-TEST-008",
-      name: "ЖК «Якоби-парк», корп. 2 (СЗ «Регион Сибири»)",
-      address: "ул. Якоби, 11, Иркутск",
-      objectType: "residential",
-      constructionYear: 2024,
-      floors: 20,
-      latitude: "52.2760",
-      longitude: "104.2880",
-      district: "Свердловский",
-      developer: "СЗ «Регион Сибири»",
-      structuralSystem: "monolithic",
-      foundationType: "pile",
-      seismicCategory: "II",
-      designIntensity: 7,
-      technicalCondition: "good",
-      description: "20-этажный монолитный ЖК. КРТ Академгородок. Датчики установлены.",
-      responsibleOrganization: "СЗ «Регион Сибири»",
-      contactPhone: "+7 (3952) 98-00-98",
-      isMonitored: true,
     },
     // ── Ленинский район ────────────────────────────────────────────────────────
     {
@@ -3305,27 +3224,6 @@ const initializeDatabase = async () => {
       contactPhone: "+7 (3952) 21-10-00",
       isMonitored: true,
     },
-    {
-      objectId: "IRK-TEST-016",
-      name: "ЖК «Берег Ангары» (ГК «ДомСтрой»)",
-      address: "набережная Сарафановская, 56, Иркутск",
-      objectType: "residential",
-      constructionYear: 2020,
-      floors: 24,
-      latitude: "52.3100",
-      longitude: "104.3200",
-      district: "Правобережный",
-      developer: "ГК «ДомСтрой»",
-      structuralSystem: "monolithic",
-      foundationType: "pile",
-      seismicCategory: "II",
-      designIntensity: 7,
-      technicalCondition: "good",
-      description: "24-этажный монолитный ЖК на берегу Ангары. Оборудован сейсмодатчиками.",
-      responsibleOrganization: "ГК «ДомСтрой»",
-      contactPhone: "+7 (3952) 39-00-39",
-      isMonitored: true,
-    },
     // ── Иркутский район ───────────────────────────────────────────────────────
     {
       objectId: "IRK-TEST-017",
@@ -3433,16 +3331,13 @@ const initializeDatabase = async () => {
     { stationId: 'IRK-ST-001', objectIdCode: 'IRK-DEV-001',  location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-01-15') },
     { stationId: 'IRK-ST-002', objectIdCode: 'IRK-TEST-004', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-02-20') },
     { stationId: 'IRK-ST-002', objectIdCode: 'IRK-DEV-002',  location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-02-20') },
-    { stationId: 'IRK-ST-003', objectIdCode: 'IRK-TEST-006', location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-03-05') },
     { stationId: 'IRK-ST-003', objectIdCode: 'IRK-TEST-005', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-06-01') },
-    { stationId: 'IRK-ST-004', objectIdCode: 'IRK-TEST-008', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-04-10') },
     { stationId: 'IRK-ST-004', objectIdCode: 'IRK-DEV-008',  location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-03-15') },
     { stationId: 'IRK-ST-005', objectIdCode: 'IRK-TEST-011', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-04-20') },
     { stationId: 'IRK-ST-005', objectIdCode: 'IRK-TEST-010', location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-05-01') },
     { stationId: 'IRK-ST-006', objectIdCode: 'IRK-TEST-015', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-04-10') },
     { stationId: 'IRK-ST-006', objectIdCode: 'IRK-TEST-013', location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-07-01') },
     { stationId: 'IRK-ST-007', objectIdCode: 'IRK-TEST-017', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-05-05') },
-    { stationId: 'IRK-ST-007', objectIdCode: 'IRK-TEST-016', location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-08-01') },
     { stationId: 'IRK-ST-008', objectIdCode: 'IRK-TEST-020', location: 'ground_floor', sensorType: 'accelerometer', installationDate: new Date('2024-05-20') },
     { stationId: 'IRK-ST-008', objectIdCode: 'IRK-TEST-019', location: 'foundation',   sensorType: 'accelerometer', installationDate: new Date('2024-09-01') },
   ];
@@ -4066,7 +3961,6 @@ const initializeDatabase = async () => {
 
     // Get seeded objects by objectId
     const objAdmin  = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-001');
-    const objBridge = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-002');
     const objGES    = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-003');
     const objBGMU   = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-004');
 
@@ -4113,56 +4007,6 @@ const initializeDatabase = async () => {
           sensitivity: 5.0,
           frequencyRange: '0-100 Hz',
           notes: 'Кровельный датчик для оценки отклика верхнего этажа',
-        },
-      ];
-      for (const inst of installs) {
-        await dbStorage.createSensorInstallation(inst);
-      }
-    }
-
-    if (objBridge) {
-      const installs: InsertSensorInstallation[] = [
-        {
-          stationId: 'IRK-ST-003',
-          objectId: objBridge.id,
-          installationLocation: 'foundation',
-          floor: null,
-          measurementAxes: 'Z,NS,EW',
-          installationDate: new Date(2024, 2, 5),
-          isActive: true,
-          calibrationDate: new Date(2024, 2, 20),
-          sensorType: 'seismometer',
-          sensitivity: 28.8,
-          frequencyRange: '0.1-50 Hz',
-          notes: 'Датчик у опоры моста, подводное крепление',
-        },
-        {
-          stationId: 'IRK-ST-003',
-          objectId: objBridge.id,
-          installationLocation: 'mid_floor',
-          floor: null,
-          measurementAxes: 'Z,NS,EW',
-          installationDate: new Date(2024, 2, 5),
-          isActive: true,
-          calibrationDate: new Date(2024, 2, 20),
-          sensorType: 'accelerometer',
-          sensitivity: 5.0,
-          frequencyRange: '0-100 Hz',
-          notes: 'Датчик в середине пролёта на пролётном строении',
-        },
-        {
-          stationId: 'IRK-ST-003',
-          objectId: objBridge.id,
-          installationLocation: 'free_field',
-          floor: null,
-          measurementAxes: 'Z,NS,EW',
-          installationDate: new Date(2024, 2, 5),
-          isActive: true,
-          calibrationDate: new Date(2024, 2, 20),
-          sensorType: 'seismometer',
-          sensitivity: 28.8,
-          frequencyRange: '0.1-50 Hz',
-          notes: 'Референсный датчик свободного поля в 30 м от моста',
         },
       ];
       for (const inst of installs) {
