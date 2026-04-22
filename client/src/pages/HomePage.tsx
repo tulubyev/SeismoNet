@@ -61,6 +61,32 @@ const HomePage: FC = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterIp, setFilterIp] = useState('');
+
+  type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
+  const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
+    { key: 'datetime', label: 'Дата и время' },
+    { key: 'ip',       label: 'IP' },
+    { key: 'country',  label: 'Страна' },
+    { key: 'region',   label: 'Регион' },
+    { key: 'city',     label: 'Город' },
+  ];
+  const [exportColumns, setExportColumns] = useState<Set<ExportColumnKey>>(
+    new Set<ExportColumnKey>(['datetime', 'ip', 'country', 'region', 'city'])
+  );
+  const [exportPickerOpen, setExportPickerOpen] = useState(false);
+
+  const toggleExportColumn = (key: ExportColumnKey) => {
+    setExportColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size === 1) return prev;
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const [mapHover, setMapHover] = useState<{ name: string; count: number } | null>(null);
 
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
@@ -541,41 +567,75 @@ const HomePage: FC = () => {
                     Сбросить
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    const header = ['Дата и время', 'IP', 'Страна', 'Регион', 'Город'];
-                    const rows = filteredLogs.map(log => [
-                      new Date(log.visitedAt).toLocaleString('ru-RU', {
-                        day: '2-digit', month: '2-digit', year: '2-digit',
-                        hour: '2-digit', minute: '2-digit',
-                      }),
-                      log.ip ?? '',
-                      countryName(log.countryCode),
-                      log.region ?? '',
-                      log.city ?? '',
-                    ]);
-                    const sanitize = (v: string) => {
-                      const s = String(v);
-                      return /^[=+\-@]/.test(s) ? `'${s}` : s;
-                    };
-                    const csv = [header, ...rows]
-                      .map(r => r.map(v => `"${sanitize(v).replace(/"/g, '""')}"`).join(','))
-                      .join('\n');
-                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `visitor-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  disabled={filteredLogs.length === 0}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-sky-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
-                  title="Экспорт в CSV"
-                >
-                  <Download className="h-3 w-3" />
-                  CSV
-                </button>
+                <div className="relative flex items-center gap-0.5">
+                  <button
+                    onClick={() => setExportPickerOpen(o => !o)}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-sky-300 transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
+                    title="Выбрать столбцы для экспорта"
+                  >
+                    <SettingsIcon className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const colDefs: { key: ExportColumnKey; header: string; getValue: (log: PageVisitLog) => string }[] = [
+                        { key: 'datetime', header: 'Дата и время', getValue: log => new Date(log.visitedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) },
+                        { key: 'ip',       header: 'IP',           getValue: log => log.ip ?? '' },
+                        { key: 'country',  header: 'Страна',       getValue: log => countryName(log.countryCode) },
+                        { key: 'region',   header: 'Регион',       getValue: log => log.region ?? '' },
+                        { key: 'city',     header: 'Город',        getValue: log => log.city ?? '' },
+                      ];
+                      const active = colDefs.filter(c => exportColumns.has(c.key));
+                      const header = active.map(c => c.header);
+                      const rows = filteredLogs.map(log => active.map(c => c.getValue(log)));
+                      const sanitize = (v: string) => {
+                        const s = String(v);
+                        return /^[=+\-@]/.test(s) ? `'${s}` : s;
+                      };
+                      const csv = [header, ...rows]
+                        .map(r => r.map(v => `"${sanitize(v).replace(/"/g, '""')}"`).join(','))
+                        .join('\n');
+                      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `visitor-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    disabled={filteredLogs.length === 0}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-sky-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
+                    title="Экспорт в CSV"
+                  >
+                    <Download className="h-3 w-3" />
+                    CSV
+                  </button>
+                  {exportPickerOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-3 min-w-[160px]">
+                      <p className="text-slate-400 text-xs font-medium mb-2">Столбцы в экспорте</p>
+                      <div className="flex flex-col gap-1.5">
+                        {ALL_EXPORT_COLUMNS.map(col => (
+                          <label key={col.key} className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={exportColumns.has(col.key)}
+                              onChange={() => toggleExportColumn(col.key)}
+                              className="w-3 h-3 accent-sky-500"
+                            />
+                            <span className="text-xs text-slate-300 group-hover:text-slate-100 transition-colors select-none">
+                              {col.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setExportPickerOpen(false)}
+                        className="mt-3 w-full text-xs text-slate-500 hover:text-slate-300 transition-colors text-center"
+                      >
+                        Закрыть
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <p className="text-slate-400 text-xs shrink-0">
