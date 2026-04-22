@@ -1,6 +1,6 @@
-import { FC } from 'react';
+import { FC, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import type { SeismogramRecord } from '@shared/schema';
 import {
@@ -9,7 +9,8 @@ import {
   Settings as SettingsIcon, Globe,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import type { Alert } from '@shared/schema';
+import type { Alert, InfrastructureObject, SensorInstallation } from '@shared/schema';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 interface BlockDef {
   href: string;
@@ -35,10 +36,33 @@ const HomePage: FC = () => {
   const { data: alerts = [] } = useQuery<Alert[]>({
     queryKey: ['/api/alerts'],
   });
+  const { data: infraObjects = [] } = useQuery<InfrastructureObject[]>({
+    queryKey: ['/api/infrastructure-objects'],
+  });
+  const { data: pageViewsData } = useQuery<{ views: number }>({
+    queryKey: ['/api/page-views'],
+  });
+  const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
+    queryKey: ['/api/sensor-installations'],
+  });
 
-  const unreadAlerts   = alerts.filter(a => !a.isRead).length;
-  const onlineStations = stations.filter(s => s.status === 'online').length;
-  const last24hEvents  = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
+  const pageViewMutation = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/page-views'),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      queryClient.setQueryData(['/api/page-views'], data);
+    },
+  });
+
+  useEffect(() => {
+    pageViewMutation.mutate();
+  }, []);
+
+  const unreadAlerts    = alerts.filter(a => !a.isRead).length;
+  const onlineStations  = stations.filter(s => s.status === 'online').length;
+  const last24hEvents   = events.filter(e => Date.now() - new Date(e.timestamp).getTime() < 86_400_000).length;
+  const activeSensors   = sensorInstallations.filter(si => si.isActive).length;
+  const totalSensors    = sensorInstallations.length;
 
   const blocks: BlockDef[] = [
     {
@@ -133,10 +157,10 @@ const HomePage: FC = () => {
           {/* Stats — same width as 2-column blocks grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Датчиков онлайн', value: `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
-              { label: 'События 24 ч',    value: last24hEvents,                           color: 'text-orange-400'  },
-              { label: 'Записей архива',  value: seismograms.length,                      color: 'text-violet-400'  },
-              { label: 'Оповещений',      value: unreadAlerts,                            color: unreadAlerts > 0 ? 'text-red-400' : 'text-slate-400' },
+              { label: 'Датчиков онлайн',   value: totalSensors > 0 ? `${activeSensors}/${totalSensors}` : `${onlineStations}/${stations.length}`, color: 'text-emerald-400' },
+              { label: 'Активных станций',   value: onlineStations,                                                                                       color: 'text-teal-400'   },
+              { label: 'Объектов в базе',    value: infraObjects.length,                    color: 'text-violet-400' },
+              { label: 'Просмотров сайта',   value: pageViewsData?.views ?? 0,              color: 'text-sky-400'    },
             ].map(s => (
               <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
                 <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>

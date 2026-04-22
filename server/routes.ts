@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
@@ -24,6 +24,9 @@ async function runStartupMigrations() {
     );
     await db.execute(
       `ALTER TABLE seismic_calculations ADD COLUMN IF NOT EXISTS notes_updated_by text`
+    );
+    await db.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_system_status_pageviews ON system_status (component) WHERE component = 'PageViews'`
     );
     console.log('Startup migrations applied (seismic_calculations columns ensured).');
   } catch (e) {
@@ -1391,6 +1394,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Schedule JMA earthquake data synchronization (every 30 minutes)
   const jmaEarthquakeJob = scheduleJMAEarthquakeSyncJob(30);
+
+  // --- Page Views API ---
+
+  app.get('/api/page-views', async (req, res) => {
+    try {
+      const rows = await storage.getSystemStatus();
+      const row = rows.find(r => r.component === 'PageViews');
+      res.json({ views: row ? Math.round(row.value ?? 0) : 0 });
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching page views' });
+    }
+  });
+
+  app.post('/api/page-views', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        INSERT INTO system_status (component, status, value, timestamp, message)
+        VALUES ('PageViews', 'ok', 1, NOW(), 'Home page view counter')
+        ON CONFLICT (component) WHERE component = 'PageViews'
+        DO UPDATE SET value = system_status.value + 1, timestamp = NOW()
+        RETURNING value
+      `);
+      const views = Math.round((result.rows[0] as { value: number })?.value ?? 1);
+      res.json({ views });
+    } catch (error) {
+      res.status(500).json({ message: 'Error updating page views' });
+    }
+  });
 
   return httpServer;
 }
