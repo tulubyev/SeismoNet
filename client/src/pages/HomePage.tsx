@@ -1,13 +1,14 @@
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import type { SeismogramRecord } from '@shared/schema';
 import {
-  BarChart2, Map,
+  BarChart2, Map as MapIcon,
   ArrowRight, AlertTriangle, CheckCircle2,
-  Settings as SettingsIcon, Globe, Users, ChevronRight,
+  Settings as SettingsIcon, Globe, Users, ChevronRight, Search, X,
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
 import type { Alert, InfrastructureObject, SensorInstallation, PageVisitLog } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -54,6 +55,10 @@ const HomePage: FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'administrator';
   const [visitsOpen, setVisitsOpen] = useState(false);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterCountry, setFilterCountry] = useState('');
+  const [filterIp, setFilterIp] = useState('');
 
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
     queryKey: ['/api/seismograms'],
@@ -74,6 +79,46 @@ const HomePage: FC = () => {
     queryKey: ['/api/page-visits'],
     enabled: isAdmin && visitsOpen,
   });
+
+  const countryOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const log of visitLogs) {
+      if (log.countryCode && !seen.has(log.countryCode)) {
+        seen.set(log.countryCode, countryName(log.countryCode));
+      }
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [visitLogs]);
+
+  const filteredLogs = useMemo(() => {
+    return visitLogs.filter(log => {
+      if (filterDateFrom) {
+        const from = new Date(filterDateFrom);
+        if (new Date(log.visitedAt) < from) return false;
+      }
+      if (filterDateTo) {
+        const to = new Date(filterDateTo);
+        to.setHours(23, 59, 59, 999);
+        if (new Date(log.visitedAt) > to) return false;
+      }
+      if (filterCountry && filterCountry !== 'all') {
+        if (log.countryCode !== filterCountry) return false;
+      }
+      if (filterIp) {
+        if (!log.ip?.toLowerCase().includes(filterIp.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [visitLogs, filterDateFrom, filterDateTo, filterCountry, filterIp]);
+
+  const hasActiveFilters = filterDateFrom || filterDateTo || (filterCountry && filterCountry !== 'all') || filterIp;
+
+  const clearFilters = () => {
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterCountry('');
+    setFilterIp('');
+  };
 
   const pageViewMutation = useMutation({
     mutationFn: () => apiRequest('POST', '/api/page-views'),
@@ -102,7 +147,7 @@ const HomePage: FC = () => {
       href:       '/monitoring-hub',
       title:      'Онлайн обзор',
       subtitle:   'Карта событий, объекты инфраструктуры, сейсмические станции',
-      icon:       Map,
+      icon:       MapIcon,
       gradient:   'from-teal-500 to-teal-700',
       shadow:     'shadow-teal-900/40',
       badge:      last24hEvents,
@@ -305,47 +350,110 @@ const HomePage: FC = () => {
 
           {/* Visit log table — admin only */}
           {isAdmin && (
-            <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3">
-              <p className="text-slate-400 text-xs mb-2 sticky top-0 bg-slate-900 pb-1">
-                Последние визиты ({visitLogs.length})
+            <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3 flex flex-col gap-2">
+              {/* Filter bar */}
+              <div className="shrink-0 flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-[120px]">
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={e => setFilterDateFrom(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-sky-500"
+                    title="С даты"
+                  />
+                </div>
+                <div className="relative flex-1 min-w-[120px]">
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={e => setFilterDateTo(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-sky-500"
+                    title="По дату"
+                  />
+                </div>
+                <div className="flex-1 min-w-[130px]">
+                  <Select value={filterCountry || 'all'} onValueChange={v => setFilterCountry(v === 'all' ? '' : v)}>
+                    <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 text-xs h-7 focus:ring-sky-500">
+                      <SelectValue placeholder="Все страны" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-slate-300 text-xs">
+                      <SelectItem value="all">Все страны</SelectItem>
+                      {countryOptions.map(([code, name]) => (
+                        <SelectItem key={code} value={code}>
+                          {countryFlag(code)} {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="relative flex-1 min-w-[120px]">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={filterIp}
+                    onChange={e => setFilterIp(e.target.value)}
+                    placeholder="Фильтр по IP"
+                    className="w-full bg-slate-800 border border-slate-700 rounded pl-6 pr-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
+                  >
+                    <X className="h-3 w-3" />
+                    Сбросить
+                  </button>
+                )}
+              </div>
+
+              <p className="text-slate-400 text-xs shrink-0">
+                {hasActiveFilters
+                  ? `Найдено: ${filteredLogs.length} из ${visitLogs.length}`
+                  : `Последние визиты (${visitLogs.length})`}
               </p>
+
               {logsLoading ? (
                 <div className="text-slate-500 text-sm text-center py-8">Загрузка...</div>
-              ) : visitLogs.length === 0 ? (
-                <div className="text-slate-500 text-sm text-center py-8">Нет записей</div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="text-slate-500 text-sm text-center py-8">
+                  {hasActiveFilters ? 'Ничего не найдено' : 'Нет записей'}
+                </div>
               ) : (
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-slate-500 text-left border-b border-slate-800">
-                      <th className="pb-2 pr-3 font-medium">Дата и время</th>
-                      <th className="pb-2 pr-3 font-medium">IP</th>
-                      <th className="pb-2 pr-3 font-medium">Страна</th>
-                      <th className="pb-2 pr-3 font-medium">Регион</th>
-                      <th className="pb-2 font-medium">Город</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visitLogs.map(log => (
-                      <tr key={log.id} className="border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors">
-                        <td className="py-1.5 pr-3 text-slate-300 whitespace-nowrap">
-                          {new Date(log.visitedAt).toLocaleString('ru-RU', {
-                            day: '2-digit', month: '2-digit', year: '2-digit',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="py-1.5 pr-3 text-slate-400 font-mono">{log.ip}</td>
-                        <td className="py-1.5 pr-3 text-slate-300">
-                          {log.countryCode && (
-                            <span className="mr-1">{countryFlag(log.countryCode)}</span>
-                          )}
-                          {countryName(log.countryCode)}
-                        </td>
-                        <td className="py-1.5 pr-3 text-slate-400">{log.region ?? '—'}</td>
-                        <td className="py-1.5 text-slate-400">{log.city ?? '—'}</td>
+                <div className="overflow-auto flex-1 min-h-0">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-500 text-left border-b border-slate-800">
+                        <th className="pb-2 pr-3 font-medium">Дата и время</th>
+                        <th className="pb-2 pr-3 font-medium">IP</th>
+                        <th className="pb-2 pr-3 font-medium">Страна</th>
+                        <th className="pb-2 pr-3 font-medium">Регион</th>
+                        <th className="pb-2 font-medium">Город</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredLogs.map(log => (
+                        <tr key={log.id} className="border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors">
+                          <td className="py-1.5 pr-3 text-slate-300 whitespace-nowrap">
+                            {new Date(log.visitedAt).toLocaleString('ru-RU', {
+                              day: '2-digit', month: '2-digit', year: '2-digit',
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-1.5 pr-3 text-slate-400 font-mono">{log.ip}</td>
+                          <td className="py-1.5 pr-3 text-slate-300">
+                            {log.countryCode && (
+                              <span className="mr-1">{countryFlag(log.countryCode)}</span>
+                            )}
+                            {countryName(log.countryCode)}
+                          </td>
+                          <td className="py-1.5 pr-3 text-slate-400">{log.region ?? '—'}</td>
+                          <td className="py-1.5 text-slate-400">{log.city ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

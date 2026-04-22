@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, gte, lte, ilike, and } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
@@ -1447,9 +1447,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 500, 2000);
+      const { from, to, country, ip } = req.query as Record<string, string | undefined>;
+
+      const conditions = [];
+      if (from) conditions.push(gte(pageVisitLogs.visitedAt, new Date(from)));
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        conditions.push(lte(pageVisitLogs.visitedAt, toDate));
+      }
+      if (country) conditions.push(eq(pageVisitLogs.countryCode, country.toUpperCase()));
+      if (ip) conditions.push(ilike(pageVisitLogs.ip, `%${ip}%`));
+
       const logs = await db
         .select()
         .from(pageVisitLogs)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(pageVisitLogs.visitedAt))
         .limit(limit);
       res.json(logs);
