@@ -1444,6 +1444,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/page-visits/by-country', requireRole('administrator'), async (req, res) => {
+    try {
+      const rows = await db
+        .select({
+          countryCode: pageVisitLogs.countryCode,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(pageVisitLogs)
+        .where(sql`${pageVisitLogs.countryCode} is not null`)
+        .groupBy(pageVisitLogs.countryCode)
+        .orderBy(desc(sql`count(*)`));
+      res.json(rows);
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching visit counts by country' });
+    }
+  });
+
   app.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 500, 2000);

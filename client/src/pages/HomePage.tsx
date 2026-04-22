@@ -83,6 +83,11 @@ const HomePage: FC = () => {
     enabled: isAdmin && visitsOpen,
   });
 
+  const { data: visitsByCountry = [] } = useQuery<{ countryCode: string | null; count: number }[]>({
+    queryKey: ['/api/page-visits/by-country'],
+    enabled: isAdmin && visitsOpen,
+  });
+
   const countryOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const log of visitLogs) {
@@ -118,13 +123,13 @@ const HomePage: FC = () => {
 
   const countryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const log of visitLogs) {
-      if (log.countryCode) {
-        counts.set(log.countryCode, (counts.get(log.countryCode) ?? 0) + 1);
+    for (const row of visitsByCountry) {
+      if (row.countryCode) {
+        counts.set(row.countryCode, row.count);
       }
     }
     return counts;
-  }, [visitLogs]);
+  }, [visitsByCountry]);
 
   const maxCountryCount = useMemo(() => {
     let max = 0;
@@ -381,7 +386,7 @@ const HomePage: FC = () => {
           {isAdmin && (
             <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3 flex flex-col gap-2">
               {/* World map */}
-              {visitLogs.length > 0 && (
+              {visitsByCountry.length > 0 && (
                 <div className="shrink-0 mb-1">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-slate-400 text-xs">География посетителей</p>
