@@ -1,4 +1,5 @@
-import { FC, useEffect, useState, useMemo } from 'react';
+import { FC, useEffect, useState, useMemo, useCallback } from 'react';
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
@@ -27,6 +28,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+import { numericToAlpha2 } from '@/lib/isoNumericToAlpha2';
 
 interface BlockDef {
   href: string;
@@ -59,6 +61,7 @@ const HomePage: FC = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterIp, setFilterIp] = useState('');
+  const [mapHover, setMapHover] = useState<{ name: string; count: number } | null>(null);
 
   const { data: seismograms = [] } = useQuery<SeismogramRecord[]>({
     queryKey: ['/api/seismograms'],
@@ -112,6 +115,32 @@ const HomePage: FC = () => {
   }, [visitLogs, filterDateFrom, filterDateTo, filterCountry, filterIp]);
 
   const hasActiveFilters = filterDateFrom || filterDateTo || (filterCountry && filterCountry !== 'all') || filterIp;
+
+  const countryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const log of visitLogs) {
+      if (log.countryCode) {
+        counts.set(log.countryCode, (counts.get(log.countryCode) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [visitLogs]);
+
+  const maxCountryCount = useMemo(() => {
+    let max = 0;
+    countryCounts.forEach(v => { if (v > max) max = v; });
+    return max;
+  }, [countryCounts]);
+
+  const getCountryColor = useCallback((iso2: string) => {
+    const count = countryCounts.get(iso2) ?? 0;
+    if (count === 0) return '#1e293b';
+    const intensity = Math.min(count / Math.max(maxCountryCount, 1), 1);
+    const r = Math.round(14 + intensity * (56 - 14));
+    const g = Math.round(165 + intensity * (189 - 165));
+    const b = Math.round(233 + intensity * (120 - 233));
+    return `rgb(${r},${g},${b})`;
+  }, [countryCounts, maxCountryCount]);
 
   const clearFilters = () => {
     setFilterDateFrom('');
@@ -349,6 +378,72 @@ const HomePage: FC = () => {
           {/* Visit log table — admin only */}
           {isAdmin && (
             <div className="flex-1 overflow-auto mt-4 min-h-0 border-t border-slate-800 pt-3 flex flex-col gap-2">
+              {/* World map */}
+              {visitLogs.length > 0 && (
+                <div className="shrink-0 mb-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-slate-400 text-xs">География посетителей</p>
+                    {mapHover ? (
+                      <span className="text-xs bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-slate-200">
+                        <span className="font-medium">{mapHover.name}</span>
+                        <span className="text-sky-400 ml-1">— {mapHover.count} визит{mapHover.count === 1 ? '' : mapHover.count < 5 ? 'а' : 'ов'}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-600">Наведите на страну</span>
+                    )}
+                  </div>
+                  <div className="rounded-lg overflow-hidden bg-slate-800/60 border border-slate-700/50" onMouseLeave={() => setMapHover(null)}>
+                    <ComposableMap
+                      projectionConfig={{ scale: 130, center: [10, 10] }}
+                      style={{ width: '100%', height: 'auto' }}
+                      height={210}
+                    >
+                      <Geographies geography="/countries-110m.json">
+                        {({ geographies }) =>
+                          geographies.map(geo => {
+                            const alpha2 = numericToAlpha2(geo.id);
+                            const count = alpha2 ? (countryCounts.get(alpha2) ?? 0) : 0;
+                            const fill = alpha2 ? getCountryColor(alpha2) : '#1e293b';
+                            return (
+                              <Geography
+                                key={geo.rsmKey}
+                                geography={geo}
+                                fill={fill}
+                                stroke="#0f172a"
+                                strokeWidth={0.4}
+                                style={{
+                                  default: { outline: 'none', cursor: alpha2 ? 'pointer' : 'default' },
+                                  hover: { outline: 'none', fill: count > 0 ? '#e879f9' : '#334155' },
+                                  pressed: { outline: 'none' },
+                                }}
+                                onMouseEnter={() => {
+                                  if (alpha2) {
+                                    setMapHover({ name: countryName(alpha2), count });
+                                  }
+                                }}
+                                onMouseLeave={() => setMapHover(null)}
+                              />
+                            );
+                          })
+                        }
+                      </Geographies>
+                    </ComposableMap>
+                  </div>
+                  {/* Legend */}
+                  <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                    <span>Меньше</span>
+                    <div className="flex gap-0.5">
+                      {[0.1, 0.3, 0.5, 0.7, 0.9].map(v => {
+                        const r = Math.round(14 + v * (56 - 14));
+                        const g = Math.round(165 + v * (189 - 165));
+                        const b = Math.round(233 + v * (120 - 233));
+                        return <span key={v} className="inline-block w-4 h-3 rounded-sm" style={{ background: `rgb(${r},${g},${b})` }} />;
+                      })}
+                    </div>
+                    <span>Больше</span>
+                  </div>
+                </div>
+              )}
               {/* Filter bar */}
               <div className="shrink-0 flex flex-wrap gap-2 items-center">
                 <div className="relative flex-1 min-w-[120px]">
