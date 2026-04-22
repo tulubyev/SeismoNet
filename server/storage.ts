@@ -157,7 +157,7 @@ export interface IStorage {
   deleteSensorInstallation(id: number): Promise<boolean>;
 
   // Sensor device operations
-  getSensors(stationId?: string): Promise<Sensor[]>;
+  getSensors(stationId?: string, objectId?: number): Promise<Sensor[]>;
   getSensor(id: number): Promise<Sensor | undefined>;
   getSensorBySensorCode(code: string): Promise<Sensor | undefined>;
   createSensor(sensor: InsertSensor): Promise<Sensor>;
@@ -1102,8 +1102,9 @@ export class MemStorage implements IStorage {
   private memSensors: Map<number, Sensor> = new Map();
   private memSensorId = 1;
 
-  async getSensors(stationId?: string): Promise<Sensor[]> {
+  async getSensors(stationId?: string, objectId?: number): Promise<Sensor[]> {
     const all = Array.from(this.memSensors.values());
+    if (objectId != null) return all.filter(s => s.objectId === objectId);
     return stationId ? all.filter(s => s.stationId === stationId) : all;
   }
   async getSensor(id: number): Promise<Sensor | undefined> { return this.memSensors.get(id); }
@@ -1923,7 +1924,13 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Sensor device operations ─────────────────────────────────────────────────
 
-  async getSensors(stationId?: string): Promise<Sensor[]> {
+  async getSensors(stationId?: string, objectId?: number): Promise<Sensor[]> {
+    if (objectId != null) {
+      return db.query.sensors.findMany({
+        where: (t, { eq }) => eq(t.objectId, objectId),
+        orderBy: (t, { asc }) => [asc(t.floor), asc(t.sensorCode)]
+      });
+    }
     if (stationId) {
       return db.query.sensors.findMany({
         where: (t, { eq }) => eq(t.stationId, stationId),
@@ -4626,6 +4633,108 @@ const initializeDatabase = async () => {
     }
   }
   console.log('Sensor devices seeded for managed stations.');
+
+  // ── Seed sensors for all infrastructure objects (foundation / floor / roof) ──
+  const existingObjSensors = await dbStorage.getSensors(undefined, undefined);
+  const existingObjSensorCodes = new Set(
+    existingObjSensors.filter(s => s.objectId != null).map(s => s.sensorCode)
+  );
+  const allObjs = await dbStorage.getInfrastructureObjects();
+  const expectedTotal = allObjs.reduce((sum, o) => sum + 6 + Math.max(o.floors ?? 1, 1), 0);
+  const alreadySeeded = existingObjSensorCodes.size;
+  if (alreadySeeded < expectedTotal) {
+    let objSensorCount = 0;
+
+    for (const obj of allObjs) {
+      const floors = Math.max(obj.floors ?? 1, 1);
+      const isMonitored = obj.isMonitored ?? false;
+      const idStr = String(obj.id).padStart(3, '0');
+
+      // Deterministic "offline" indicator: every 11th sensor in non-monitored buildings
+      let sensorIdx = 0;
+      const isOnline = (forceActive: boolean) => {
+        sensorIdx++;
+        if (forceActive || isMonitored) return true;
+        return sensorIdx % 11 !== 0;
+      };
+
+      // Foundation: 3 sensors, one per axis — seismometer (СМ-3КВ)
+      for (const axis of ['Z', 'NS', 'EW']) {
+        const code = `OBJ${idStr}-FND-${axis}`;
+        if (!existingObjSensorCodes.has(code)) {
+          await dbStorage.createSensor({
+            sensorCode: code,
+            stationId: null,
+            objectId: obj.id,
+            floor: null,
+            location: 'foundation',
+            sensorType: 'seismometer',
+            axes: axis,
+            model: 'СМ-3КВ',
+            serialNumber: `SN-O${idStr}-FND-${axis}`,
+            sensitivity: 28.8,
+            frequencyRange: '0.1–50 Hz',
+            installationDate: new Date('2024-06-01'),
+            calibrationDate: new Date('2025-01-15'),
+            isActive: isOnline(isMonitored),
+          });
+          objSensorCount++;
+        }
+      }
+
+      // Floors: 1 three-axis accelerometer per floor (ЦСС-1М)
+      for (let f = 1; f <= floors; f++) {
+        const loc = f === 1 ? 'ground_floor' : 'mid_floor';
+        const code = `OBJ${idStr}-F${String(f).padStart(2, '0')}-ACC`;
+        if (!existingObjSensorCodes.has(code)) {
+          await dbStorage.createSensor({
+            sensorCode: code,
+            stationId: null,
+            objectId: obj.id,
+            floor: f,
+            location: loc,
+            sensorType: 'accelerometer',
+            axes: 'Z,NS,EW',
+            model: 'ЦСС-1М',
+            serialNumber: `SN-O${idStr}-F${String(f).padStart(2,'0')}`,
+            sensitivity: 5.0,
+            frequencyRange: '0.1–100 Hz',
+            installationDate: new Date('2024-06-01'),
+            calibrationDate: new Date('2025-01-15'),
+            isActive: isOnline(false),
+          });
+          objSensorCount++;
+        }
+      }
+
+      // Roof: 3 sensors, one per axis — accelerometer (ЦСС-1М)
+      for (const axis of ['Z', 'NS', 'EW']) {
+        const code = `OBJ${idStr}-RF-${axis}`;
+        if (!existingObjSensorCodes.has(code)) {
+          await dbStorage.createSensor({
+            sensorCode: code,
+            stationId: null,
+            objectId: obj.id,
+            floor: null,
+            location: 'roof',
+            sensorType: 'accelerometer',
+            axes: axis,
+            model: 'ЦСС-1М',
+            serialNumber: `SN-O${idStr}-RF-${axis}`,
+            sensitivity: 5.0,
+            frequencyRange: '0.1–100 Hz',
+            installationDate: new Date('2024-06-01'),
+            calibrationDate: new Date('2025-01-15'),
+            isActive: isOnline(isMonitored),
+          });
+          objSensorCount++;
+        }
+      }
+    }
+    console.log(`Object sensors seeded: ${objSensorCount} sensors across ${allObjs.length} infrastructure objects.`);
+  } else {
+    console.log('Object sensors already present, skipping seed.');
+  }
 
   console.log('Database initialization complete.');
   

@@ -324,11 +324,13 @@ export const sensorInstallations = pgTable("sensor_installations", {
   notes: text("notes")
 });
 
-// Physical sensor devices, each belonging to one seismic station
+// Physical sensor devices, each belonging to one seismic station (or building object)
 export const sensors = pgTable("sensors", {
   id: serial("id").primaryKey(),
   sensorCode: text("sensor_code").notNull().unique(), // e.g. "SS-001"
-  stationId: text("station_id").notNull().references(() => stations.stationId),
+  stationId: text("station_id").references(() => stations.stationId), // nullable for building-mounted sensors
+  objectId: integer("object_id").references(() => infrastructureObjects.id), // FK to building/object
+  floor: integer("floor"),                            // floor number (null = not floor-specific)
   model: text("model"),                               // e.g. "SM-3KV", "GeoSIG GMS-18"
   serialNumber: text("serial_number"),
   sensorType: text("sensor_type").notNull().default("accelerometer"), // accelerometer | velocimeter | seismometer

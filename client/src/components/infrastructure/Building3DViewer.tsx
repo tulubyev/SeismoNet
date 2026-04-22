@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Settings, RotateCcw, Maximize2 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation } from '@shared/schema';
+import type { InfrastructureObject, Sensor } from '@shared/schema';
 
 // ─── Projection helpers ───────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ function drawBox(
 
 interface Props {
   object: InfrastructureObject;
-  sensors: SensorInstallation[];
+  sensors: Sensor[];
   editMode?: boolean;
   onSaveSchema?: (params: SchemaParams) => void;
 }
@@ -138,7 +138,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
   const [azimuth,   setAzimuth]   = useState(-35);
   const [elevation, setElevation] = useState(28);
   const drag = useRef<{ startX: number; startY: number; az: number; el: number } | null>(null);
-  const [hoveredSensor, setHoveredSensor] = useState<SensorInstallation | null>(null);
+  const [hoveredSensor, setHoveredSensor] = useState<Sensor | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const autoRef = useRef(autoRotate);
   useEffect(() => { autoRef.current = autoRotate; }, [autoRotate]);
@@ -162,8 +162,8 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
   const BLDG_D = schemaBldgD;
 
   // Map sensor to world position
-  const sensorWorld = useCallback((inst: SensorInstallation): Pt3 => {
-    const loc = inst.installationLocation ?? 'ground_floor';
+  const sensorWorld = useCallback((inst: Sensor): Pt3 => {
+    const loc = inst.location ?? 'ground_floor';
     const floorN = inst.floor ?? 1;
     let z: number;
     switch (loc) {
@@ -278,7 +278,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
       ctx.beginPath();
       ctx.moveTo(pSensor.x, pSensor.y);
       ctx.lineTo(pBase.x, pBase.y);
-      const loc = inst.installationLocation ?? 'ground_floor';
+      const loc = inst.location ?? 'ground_floor';
       ctx.strokeStyle = SENSOR_COLORS[loc] ?? '#94a3b8';
       ctx.lineWidth = 0.8;
       ctx.setLineDash([3, 4]);
@@ -292,7 +292,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
     sensors.forEach(inst => {
       const sw   = sensorWorld(inst);
       const pp   = proj(sw);
-      const loc  = inst.installationLocation ?? 'ground_floor';
+      const loc  = inst.location ?? 'ground_floor';
       const col  = SENSOR_COLORS[loc] ?? '#94a3b8';
       const r    = sc * 0.45;
 
@@ -314,7 +314,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      const axes = (inst.measurementAxes ?? 'Z,NS,EW').split(',');
+      const axes = (inst.axes ?? 'Z,NS,EW').split(',');
       axes.forEach((ax, i) => {
         const c = AXIS_COLORS[ax.trim()] ?? '#fff';
         ctx.beginPath();
@@ -326,7 +326,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
       ctx.font = `bold ${Math.round(sc * 0.36)}px monospace`;
       ctx.fillStyle = '#e2e8f0';
       ctx.textAlign = 'center';
-      ctx.fillText(inst.stationId, pp.x, pp.y + r * 1.95);
+      ctx.fillText(inst.sensorCode, pp.x, pp.y + r * 1.95);
     });
 
     // Axes
@@ -410,7 +410,7 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
     const cx = canvasRef.current.width  * 0.48;
     const cy = canvasRef.current.height * 0.52;
     const r  = sc * 0.45 + 6;
-    let found: SensorInstallation | null = null;
+    let found: Sensor | null = null;
     for (const inst of sensors) {
       const sw = sensorWorld(inst);
       const pp = project(sw, azimuth, elevation, sc, cx, cy);
@@ -491,10 +491,10 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
         {/* Hovered sensor tooltip */}
         {hoveredSensor && (
           <div className="absolute bottom-2 left-2 bg-slate-800/90 border border-slate-600 text-xs text-slate-200 rounded-lg px-3 py-2 pointer-events-none">
-            <p className="font-bold text-white">{hoveredSensor.stationId}</p>
-            <p className="text-slate-400">{locLabel[hoveredSensor.installationLocation ?? ''] ?? hoveredSensor.installationLocation}</p>
+            <p className="font-bold text-white">{hoveredSensor.sensorCode}</p>
+            <p className="text-slate-400">{locLabel[hoveredSensor.location ?? ''] ?? hoveredSensor.location}</p>
             {hoveredSensor.floor != null && <p className="text-slate-400">Этаж: {hoveredSensor.floor}</p>}
-            <p className="text-slate-400">Оси: {hoveredSensor.measurementAxes}</p>
+            <p className="text-slate-400">Оси: {hoveredSensor.axes}</p>
             <p className={hoveredSensor.isActive ? 'text-emerald-400' : 'text-red-400'}>
               {hoveredSensor.isActive ? '● Активен' : '○ Отключён'}
             </p>
@@ -587,14 +587,14 @@ const Building3DViewer: FC<Props> = ({ object, sensors, editMode = false, onSave
           </p>
           <div className="space-y-1.5">
             {sensors.map(inst => {
-              const loc = inst.installationLocation ?? 'ground_floor';
+              const loc = inst.location ?? 'ground_floor';
               const col = SENSOR_COLORS[loc] ?? '#94a3b8';
-              const axes = (inst.measurementAxes ?? 'Z').split(',');
+              const axes = (inst.axes ?? 'Z').split(',');
               return (
                 <div key={inst.id} className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: col }} />
-                    <span className="text-[11px] text-slate-300 font-mono">{inst.stationId}</span>
+                    <span className="text-[11px] text-slate-300 font-mono">{inst.sensorCode}</span>
                     <span className="text-[10px] text-slate-500 truncate">{locLabel[loc] ?? loc}</span>
                     {inst.floor != null && (
                       <span className="text-[10px] text-slate-500">эт.{inst.floor}</span>

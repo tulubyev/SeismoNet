@@ -47,7 +47,7 @@ async function runStartupMigrations() {
       CREATE TABLE IF NOT EXISTS sensors (
         id SERIAL PRIMARY KEY,
         sensor_code TEXT NOT NULL UNIQUE,
-        station_id TEXT NOT NULL REFERENCES stations(station_id),
+        station_id TEXT REFERENCES stations(station_id),
         model TEXT,
         serial_number TEXT,
         sensor_type TEXT NOT NULL DEFAULT 'accelerometer',
@@ -61,7 +61,15 @@ async function runStartupMigrations() {
         notes TEXT
       )
     `);
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table).');
+    // Make station_id nullable if it was created with NOT NULL
+    await db.execute(`ALTER TABLE sensors ALTER COLUMN station_id DROP NOT NULL`);
+    // Add object_id and floor columns for building-mounted sensors
+    await db.execute(`ALTER TABLE sensors ADD COLUMN IF NOT EXISTS object_id INTEGER REFERENCES infrastructure_objects(id)`);
+    await db.execute(`ALTER TABLE sensors ADD COLUMN IF NOT EXISTS floor INTEGER`);
+    // Clean up SEN-O* pseudo-stations from stations table (building sensor channels)
+    await db.execute(`DELETE FROM sensor_installations WHERE station_id LIKE 'SEN-%'`);
+    await db.execute(`DELETE FROM stations WHERE station_id LIKE 'SEN-%'`);
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* cleanup).');
   } catch (e) {
     console.error('Startup migration error (seismic_calculations columns):', e);
   }
@@ -1133,7 +1141,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sensors', async (req, res) => {
     try {
       const stationId = req.query.stationId as string | undefined;
-      res.json(await storage.getSensors(stationId));
+      const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
+      res.json(await storage.getSensors(stationId, objectId));
     } catch { res.status(500).json({ message: 'Error fetching sensors' }); }
   });
 

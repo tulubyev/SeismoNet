@@ -14,7 +14,7 @@ import {
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
   Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import DeveloperObjectFilter, {
@@ -166,6 +166,15 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
   const [sensorForm, setSensorForm] = useState<typeof BLANK_SENSOR>({ ...BLANK_SENSOR });
 
   const invalidateSensors = () => queryClient.invalidateQueries({ queryKey: ['/api/sensor-installations', obj.id] });
+
+  const { data: objectSensors = [] } = useQuery<Sensor[]>({
+    queryKey: ['/api/sensors', obj.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/sensors?objectId=${obj.id}`);
+      if (!res.ok) throw new Error('Failed to fetch sensors');
+      return res.json();
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string,unknown>) => apiRequest('POST', '/api/sensor-installations', data),
@@ -432,7 +441,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
           <TabsContent value="3d" className="mt-0">
             <Building3DViewer
               object={obj}
-              sensors={sensors}
+              sensors={objectSensors}
               editMode={true}
               onSaveSchema={handleSaveSchema}
             />

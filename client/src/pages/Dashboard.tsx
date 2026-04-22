@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Building2, Radio, Wifi, WifiOff, Activity
 } from 'lucide-react';
-import type { InfrastructureObject } from '@shared/schema';
+import type { InfrastructureObject, Sensor } from '@shared/schema';
 import IrkutskMap from '@/components/dashboard/IrkutskMap';
 
 const Dashboard: FC = () => {
@@ -15,12 +15,18 @@ const Dashboard: FC = () => {
     queryKey: ['/api/infrastructure-objects']
   });
 
-  const onlineStations = stations.filter(s => s.status === 'online').length;
+  const { data: sensors = [] } = useQuery<Sensor[]>({
+    queryKey: ['/api/sensors']
+  });
+
   const monitoredObjects = objects.filter(o => o.isMonitored).length;
   const recentEventsCount = events.filter(e => {
     const ts = new Date(e.timestamp).getTime();
     return Date.now() - ts < 24 * 60 * 60 * 1000;
   }).length;
+
+  const activeSensors = sensors.filter(s => s.isActive).length;
+  const totalSensors = sensors.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -54,7 +60,7 @@ const Dashboard: FC = () => {
               <div>
                 <p className="text-xs text-slate-500">Активных датчиков</p>
                 <p className="text-sm font-semibold text-slate-800">
-                  {onlineStations} / {stations.length}
+                  {activeSensors} / {totalSensors}
                 </p>
               </div>
             </div>
