@@ -179,6 +179,18 @@ const HomePage: FC = () => {
     new Set<ExportColumnKey>(['datetime', 'ip', 'country', 'region', 'city'])
   );
   const [exportPickerOpen, setExportPickerOpen] = useState(false);
+  const exportPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!exportPickerOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportPickerRef.current && !exportPickerRef.current.contains(e.target as Node)) {
+        setExportPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [exportPickerOpen]);
 
   const toggleExportColumn = (key: ExportColumnKey) => {
     setExportColumns(prev => {
@@ -829,7 +841,7 @@ const HomePage: FC = () => {
                     Сбросить
                   </button>
                 )}
-                <div className="relative flex items-center gap-0.5">
+                <div className="relative flex items-center gap-0.5" ref={exportPickerRef}>
                   <button
                     onClick={() => setExportPickerOpen(o => !o)}
                     className="flex items-center gap-1 text-xs text-slate-400 hover:text-sky-300 transition-colors px-1.5 py-1 rounded hover:bg-slate-800"
