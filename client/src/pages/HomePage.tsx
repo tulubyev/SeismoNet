@@ -86,7 +86,74 @@ const HomePage: FC = () => {
     setTrendN(n);
   };
 
-  const [trendChartType, setTrendChartType] = useState<'area' | 'line'>('area');
+  const [trendChartType, setTrendChartType] = useState<'area' | 'line'>(() => {
+    const saved = localStorage.getItem('adminTrendChartType');
+    return (saved === 'line' ? 'line' : 'area') as 'area' | 'line';
+  });
+
+  const handleSetTrendChartType = (type: 'area' | 'line') => {
+    localStorage.setItem('adminTrendChartType', type);
+    setTrendChartType(type);
+  };
+
+  const [pinnedCities, setPinnedCities] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('adminTrendPinnedCities');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [excludedCities, setExcludedCities] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('adminTrendExcludedCities');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
+
+  const handlePinCity = (city: string) => {
+    setPinnedCities(prev => {
+      const isPinned = prev.includes(city);
+      const next = isPinned ? prev.filter(c => c !== city) : [...prev, city];
+      localStorage.setItem('adminTrendPinnedCities', JSON.stringify(next));
+      return next;
+    });
+    setExcludedCities(prev => {
+      if (!prev.includes(city)) return prev;
+      const next = prev.filter(c => c !== city);
+      localStorage.setItem('adminTrendExcludedCities', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleExcludeCity = (city: string) => {
+    setExcludedCities(prev => {
+      const isExcluded = prev.includes(city);
+      const next = isExcluded ? prev.filter(c => c !== city) : [...prev, city];
+      localStorage.setItem('adminTrendExcludedCities', JSON.stringify(next));
+      return next;
+    });
+    setPinnedCities(prev => {
+      if (!prev.includes(city)) return prev;
+      const next = prev.filter(c => c !== city);
+      localStorage.setItem('adminTrendPinnedCities', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleClearCitySelections = () => {
+    setPinnedCities([]);
+    setExcludedCities([]);
+    localStorage.removeItem('adminTrendPinnedCities');
+    localStorage.removeItem('adminTrendExcludedCities');
+  };
 
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
   const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
@@ -138,10 +205,15 @@ const HomePage: FC = () => {
     enabled: isAdmin && visitsOpen,
   });
 
+  const pinnedParam = pinnedCities.join(',');
+  const excludedParam = excludedCities.join(',');
   const { data: multiCityTrend = { cities: [], data: [] }, isLoading: isTrendLoading } = useQuery<{ cities: { key: string; label: string }[]; data: Record<string, string | number>[] }>({
-    queryKey: ['/api/page-visits/by-city/trend/multi', trendDays, trendN],
+    queryKey: ['/api/page-visits/by-city/trend/multi', trendDays, trendN, pinnedParam, excludedParam],
     queryFn: async () => {
-      const r = await fetch(`/api/page-visits/by-city/trend/multi?days=${trendDays}&n=${trendN}`);
+      let url = `/api/page-visits/by-city/trend/multi?days=${trendDays}&n=${trendN}`;
+      if (pinnedParam) url += `&pinned=${encodeURIComponent(pinnedParam)}`;
+      if (excludedParam) url += `&excluded=${encodeURIComponent(excludedParam)}`;
+      const r = await fetch(url);
       if (!r.ok) throw new Error(`Multi-city trend fetch failed: ${r.status}`);
       return r.json();
     },
@@ -488,18 +560,98 @@ const HomePage: FC = () => {
               {/* City trend chart — top N cities */}
               <div className="shrink-0 mb-1">
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                  <p className="text-slate-400 text-xs font-medium">Динамика визитов (топ-{trendN} городов) за {trendDays} дней</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-slate-400 text-xs font-medium">Динамика визитов</p>
+                    {pinnedCities.length > 0 && (
+                      <span className="text-xs text-indigo-400 font-medium">📌 {pinnedCities.length} закреп.</span>
+                    )}
+                    {excludedCities.length > 0 && (
+                      <span className="text-xs text-red-400 font-medium">🚫 {excludedCities.length} скрыто</span>
+                    )}
+                    <p className="text-slate-500 text-xs">топ-{trendN} за {trendDays} дней</p>
+                  </div>
                   <div className="flex items-center gap-2">
+                    {/* City picker button */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setCityPickerOpen(o => !o)}
+                        className={`px-2 py-0.5 text-xs rounded border transition-colors ${cityPickerOpen ? 'bg-indigo-600 border-indigo-500 text-white' : (pinnedCities.length > 0 || excludedCities.length > 0) ? 'bg-indigo-900/60 border-indigo-700 text-indigo-300 hover:bg-indigo-800/60' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                        title="Закрепить или скрыть города"
+                      >
+                        📌 Города
+                      </button>
+                      {cityPickerOpen && (() => {
+                        const cityCountMap = new Map<string, number>();
+                        for (const r of visitsByCity) {
+                          if (!r.city) continue;
+                          cityCountMap.set(r.city, (cityCountMap.get(r.city) ?? 0) + r.count);
+                        }
+                        const availCities = Array.from(cityCountMap.entries())
+                          .map(([city, count]) => ({ city, count }))
+                          .sort((a, b) => b.count - a.count);
+                        return (
+                          <div className="absolute right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 min-w-[240px] max-h-72 overflow-y-auto">
+                            <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-700">
+                              <span className="text-xs text-slate-400 font-medium">Города на графике</span>
+                              {(pinnedCities.length > 0 || excludedCities.length > 0) && (
+                                <button
+                                  onClick={handleClearCitySelections}
+                                  className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                                >
+                                  Сбросить всё
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mb-1.5 px-1 text-xs text-slate-600">
+                              <span className="w-5" />
+                              <span className="flex-1" />
+                              <span className="w-5 text-center" title="Закрепить">📌</span>
+                              <span className="w-5 text-center" title="Скрыть">🚫</span>
+                            </div>
+                            {availCities.length === 0 ? (
+                              <p className="text-xs text-slate-600 py-1">Нет данных</p>
+                            ) : availCities.map(r => {
+                              const city = r.city!;
+                              const pinned = pinnedCities.includes(city);
+                              const excluded = excludedCities.includes(city);
+                              return (
+                                <div
+                                  key={city}
+                                  className={`flex items-center gap-2 px-1 py-0.5 rounded ${excluded ? 'opacity-50' : ''}`}
+                                >
+                                  <span className={`text-xs flex-1 truncate ${pinned ? 'text-indigo-300' : excluded ? 'text-red-400 line-through' : 'text-slate-300'}`}>{city}</span>
+                                  <span className="text-xs text-slate-600 tabular-nums shrink-0">{r.count}</span>
+                                  <button
+                                    onClick={() => handlePinCity(city)}
+                                    className={`w-5 h-5 flex items-center justify-center rounded text-xs transition-colors ${pinned ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-indigo-300'}`}
+                                    title={pinned ? 'Снять закрепление' : 'Закрепить на графике'}
+                                  >
+                                    📌
+                                  </button>
+                                  <button
+                                    onClick={() => handleExcludeCity(city)}
+                                    className={`w-5 h-5 flex items-center justify-center rounded text-xs transition-colors ${excluded ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-red-400'}`}
+                                    title={excluded ? 'Показать снова' : 'Скрыть с графика'}
+                                  >
+                                    🚫
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div className="flex rounded overflow-hidden border border-slate-700">
                       <button
-                        onClick={() => setTrendChartType('area')}
+                        onClick={() => handleSetTrendChartType('area')}
                         className={`px-2 py-0.5 text-xs transition-colors ${trendChartType === 'area' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
                         title="Стековая диаграмма"
                       >
                         ▨ Стек
                       </button>
                       <button
-                        onClick={() => setTrendChartType('line')}
+                        onClick={() => handleSetTrendChartType('line')}
                         className={`px-2 py-0.5 text-xs transition-colors ${trendChartType === 'line' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
                         title="Линейный график"
                       >

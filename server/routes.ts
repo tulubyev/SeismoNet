@@ -1579,7 +1579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(pageVisitLogs.countryCode, 'RU'))
         .groupBy(pageVisitLogs.city, pageVisitLogs.region)
         .orderBy(desc(sql`count(*)`))
-        .limit(20);
+        .limit(100);
       res.json(rows);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching visit counts by city' });
@@ -1641,25 +1641,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       since.setDate(since.getDate() - days + 1);
       since.setHours(0, 0, 0, 0);
 
-      // Get top N cities by total visits in the window
-      const topCities = await db
-        .select({
-          city: pageVisitLogs.city,
-          total: sql<number>`cast(count(*) as integer)`,
-        })
-        .from(pageVisitLogs)
-        .where(
-          and(
-            eq(pageVisitLogs.countryCode, 'RU'),
-            sql`(${pageVisitLogs.city} is not null and ${pageVisitLogs.city} != '')`,
-            gte(pageVisitLogs.visitedAt, since),
-          )
-        )
-        .groupBy(pageVisitLogs.city)
-        .orderBy(desc(sql`count(*)`))
-        .limit(n);
+      // Parse pinned and excluded cities from query parameters
+      const pinnedParam = typeof req.query.pinned === 'string' ? req.query.pinned : '';
+      const excludedParam = typeof req.query.excluded === 'string' ? req.query.excluded : '';
+      const pinnedCities = pinnedParam
+        ? [...new Set(pinnedParam.split(',').map(s => s.trim()).filter(Boolean))]
+        : [];
+      const excludedCities = excludedParam
+        ? [...new Set(excludedParam.split(',').map(s => s.trim()).filter(Boolean))]
+        : [];
 
-      const cityNames = topCities.map(r => r.city as string);
+      // Excluded takes precedence — remove any pinned city that is also excluded
+      const effectivePinned = pinnedCities.filter(c => !excludedCities.includes(c));
+
+      // How many extra top-ranked slots we still need (total capped at n)
+      const extraNeeded = Math.max(0, n - effectivePinned.length);
+
+      let cityNames: string[];
+
+      // Cities to block from top-ranked fill: pinned (already included) + excluded (must not appear)
+      const blockedFromTopRanked = [...effectivePinned, ...excludedCities];
+
+      if (extraNeeded === 0) {
+        // All slots filled by pinned cities (use up to n pinned)
+        cityNames = effectivePinned.slice(0, n);
+      } else {
+        // Get top-ranked cities that are not already pinned or excluded
+        const topCities = await db
+          .select({
+            city: pageVisitLogs.city,
+            total: sql<number>`cast(count(*) as integer)`,
+          })
+          .from(pageVisitLogs)
+          .where(
+            and(
+              eq(pageVisitLogs.countryCode, 'RU'),
+              sql`(${pageVisitLogs.city} is not null and ${pageVisitLogs.city} != '')`,
+              gte(pageVisitLogs.visitedAt, since),
+              blockedFromTopRanked.length > 0
+                ? sql`${pageVisitLogs.city} not in (${sql.join(blockedFromTopRanked.map(c => sql`${c}`), sql`, `)})`
+                : sql`true`,
+            )
+          )
+          .groupBy(pageVisitLogs.city)
+          .orderBy(desc(sql`count(*)`))
+          .limit(extraNeeded);
+
+        const topRanked = topCities.map(r => r.city as string);
+        cityNames = [...effectivePinned, ...topRanked];
+      }
 
       if (cityNames.length === 0) {
         return res.json({ cities: [], data: [] });
