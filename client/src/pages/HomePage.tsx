@@ -73,6 +73,17 @@ const HomePage: FC = () => {
     setTrendDays(days);
   };
 
+  const [trendN, setTrendN] = useState<number>(() => {
+    const saved = localStorage.getItem('adminTrendN');
+    const parsed = saved ? parseInt(saved, 10) : NaN;
+    return [3, 5, 10].includes(parsed) ? parsed : 5;
+  });
+
+  const handleSetTrendN = (n: number) => {
+    localStorage.setItem('adminTrendN', String(n));
+    setTrendN(n);
+  };
+
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
   const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
     { key: 'datetime', label: 'Дата и время' },
@@ -124,9 +135,9 @@ const HomePage: FC = () => {
   });
 
   const { data: multiCityTrend = { cities: [], data: [] }, isLoading: isTrendLoading } = useQuery<{ cities: { key: string; label: string }[]; data: Record<string, string | number>[] }>({
-    queryKey: ['/api/page-visits/by-city/trend/multi', trendDays],
+    queryKey: ['/api/page-visits/by-city/trend/multi', trendDays, trendN],
     queryFn: async () => {
-      const r = await fetch(`/api/page-visits/by-city/trend/multi?days=${trendDays}&n=5`);
+      const r = await fetch(`/api/page-visits/by-city/trend/multi?days=${trendDays}&n=${trendN}`);
       if (!r.ok) throw new Error(`Multi-city trend fetch failed: ${r.status}`);
       return r.json();
     },
@@ -470,20 +481,33 @@ const HomePage: FC = () => {
                 )}
               </div>
 
-              {/* City trend chart — top 5 cities */}
+              {/* City trend chart — top N cities */}
               <div className="shrink-0 mb-1">
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                  <p className="text-slate-400 text-xs font-medium">Динамика визитов (топ-5 городов) за {trendDays} дней</p>
-                  <div className="flex rounded overflow-hidden border border-slate-700">
-                    {([7, 14, 30, 90] as const).map(d => (
-                      <button
-                        key={d}
-                        onClick={() => handleSetTrendDays(d)}
-                        className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
-                      >
-                        {d}д
-                      </button>
-                    ))}
+                  <p className="text-slate-400 text-xs font-medium">Динамика визитов (топ-{trendN} городов) за {trendDays} дней</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex rounded overflow-hidden border border-slate-700">
+                      {([3, 5, 10] as const).map(n => (
+                        <button
+                          key={n}
+                          onClick={() => handleSetTrendN(n)}
+                          className={`px-2 py-0.5 text-xs transition-colors ${trendN === n ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                        >
+                          {n}г
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex rounded overflow-hidden border border-slate-700">
+                      {([7, 14, 30, 90] as const).map(d => (
+                        <button
+                          key={d}
+                          onClick={() => handleSetTrendDays(d)}
+                          className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                        >
+                          {d}д
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {isTrendLoading ? (
@@ -511,7 +535,7 @@ const HomePage: FC = () => {
                         iconSize={7}
                       />
                       {multiCityTrend.cities.map(({ key, label }, idx) => {
-                        const COLORS = ['#38bdf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa'];
+                        const COLORS = ['#38bdf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#facc15', '#f87171', '#4ade80', '#c084fc', '#60a5fa'];
                         return (
                           <Line
                             key={key}
