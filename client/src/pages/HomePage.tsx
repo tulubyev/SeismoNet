@@ -60,6 +60,7 @@ const HomePage: FC = () => {
   const [filterCountry, setFilterCountry] = useState('');
   const [filterIp, setFilterIp] = useState('');
   const [trendCity, setTrendCity] = useState<string>('');
+  const [trendDays, setTrendDays] = useState<number>(30);
 
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
   const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
@@ -117,9 +118,9 @@ const HomePage: FC = () => {
   const trendSelectValue = trendCity || (visitsByCity.length > 0 ? cityToSelectValue(visitsByCity[0].city ?? null) : '');
 
   const { data: cityTrend = [], isLoading: isTrendLoading } = useQuery<{ date: string; count: number }[]>({
-    queryKey: ['/api/page-visits/by-city/trend', trendSelectValue],
+    queryKey: ['/api/page-visits/by-city/trend', trendSelectValue, trendDays],
     queryFn: async () => {
-      const r = await fetch(`/api/page-visits/by-city/trend?city=${encodeURIComponent(trendSelectValue)}&days=30`);
+      const r = await fetch(`/api/page-visits/by-city/trend?city=${encodeURIComponent(trendSelectValue)}&days=${trendDays}`);
       if (!r.ok) throw new Error(`Trend fetch failed: ${r.status}`);
       return r.json();
     },
@@ -459,28 +460,41 @@ const HomePage: FC = () => {
               {/* City trend chart */}
               {visitsByCity.length > 0 && (
                 <div className="shrink-0 mb-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-slate-400 text-xs font-medium">Динамика визитов за 30 дней</p>
-                    <Select
-                      value={trendSelectValue}
-                      onValueChange={v => setTrendCity(v)}
-                    >
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 text-xs h-6 w-40 focus:ring-sky-500">
-                        <SelectValue placeholder="Выберите город" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700 text-slate-300 text-xs max-h-48">
-                        {visitsByCity.slice(0, 10).map((row, idx) => (
-                          <SelectItem key={`${row.city ?? '__unknown__'}-${idx}`} value={cityToSelectValue(row.city ?? null)}>
-                            {row.city && row.city.trim() !== '' ? row.city : 'Неизвестный город'}
-                          </SelectItem>
+                  <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                    <p className="text-slate-400 text-xs font-medium">Динамика визитов за {trendDays} дней</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex rounded overflow-hidden border border-slate-700">
+                        {([7, 14, 30, 90] as const).map(d => (
+                          <button
+                            key={d}
+                            onClick={() => setTrendDays(d)}
+                            className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                          >
+                            {d}д
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                      <Select
+                        value={trendSelectValue}
+                        onValueChange={v => setTrendCity(v)}
+                      >
+                        <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 text-xs h-6 w-40 focus:ring-sky-500">
+                          <SelectValue placeholder="Выберите город" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 text-slate-300 text-xs max-h-48">
+                          {visitsByCity.slice(0, 10).map((row, idx) => (
+                            <SelectItem key={`${row.city ?? '__unknown__'}-${idx}`} value={cityToSelectValue(row.city ?? null)}>
+                              {row.city && row.city.trim() !== '' ? row.city : 'Неизвестный город'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   {isTrendLoading ? (
                     <div className="h-28 bg-slate-800 rounded animate-pulse" />
                   ) : cityTrend.length === 0 ? (
-                    <p className="text-slate-600 text-xs py-2">Нет данных за последние 30 дней</p>
+                    <p className="text-slate-600 text-xs py-2">Нет данных за последние {trendDays} дней</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={110}>
                       <BarChart data={cityTrend} margin={{ top: 2, right: 4, left: -20, bottom: 0 }}>
