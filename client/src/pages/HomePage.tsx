@@ -1,4 +1,5 @@
 import { FC, useEffect, useRef, useState, useMemo } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
@@ -119,16 +120,7 @@ const HomePage: FC = () => {
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const cityPickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!cityPickerOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (cityPickerRef.current && !cityPickerRef.current.contains(e.target as Node)) {
-        setCityPickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [cityPickerOpen]);
+  useClickOutside(cityPickerRef, () => setCityPickerOpen(false), cityPickerOpen);
 
   const handlePinCity = (city: string) => {
     setPinnedCities(prev => {
@@ -181,16 +173,7 @@ const HomePage: FC = () => {
   const [exportPickerOpen, setExportPickerOpen] = useState(false);
   const exportPickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!exportPickerOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (exportPickerRef.current && !exportPickerRef.current.contains(e.target as Node)) {
-        setExportPickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [exportPickerOpen]);
+  useClickOutside(exportPickerRef, () => setExportPickerOpen(false), exportPickerOpen);
 
   const toggleExportColumn = (key: ExportColumnKey) => {
     setExportColumns(prev => {
