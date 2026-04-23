@@ -62,7 +62,16 @@ const HomePage: FC = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterIp, setFilterIp] = useState('');
-  const [trendDays, setTrendDays] = useState<number>(30);
+  const [trendDays, setTrendDays] = useState<number>(() => {
+    const saved = localStorage.getItem('adminTrendDays');
+    const parsed = saved ? parseInt(saved, 10) : NaN;
+    return [7, 14, 30, 90].includes(parsed) ? parsed : 30;
+  });
+
+  const handleSetTrendDays = (days: number) => {
+    localStorage.setItem('adminTrendDays', String(days));
+    setTrendDays(days);
+  };
 
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
   const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
@@ -462,7 +471,7 @@ const HomePage: FC = () => {
                     {([7, 14, 30, 90] as const).map(d => (
                       <button
                         key={d}
-                        onClick={() => setTrendDays(d)}
+                        onClick={() => handleSetTrendDays(d)}
                         className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
                       >
                         {d}д
