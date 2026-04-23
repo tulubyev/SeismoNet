@@ -304,18 +304,25 @@ const HomePage: FC = () => {
               const trendColor = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
 
               const basicStats = [
-                { label: 'Датчиков онлайн',  value: `${activeSensors}/${totalSensors}`, color: 'text-emerald-400' },
-                { label: 'Активных станций',  value: `${activeMonitoringStations}/${totalMonitoringStations}`, color: 'text-teal-400' },
-                { label: 'Объектов в базе',   value: infraObjects.length, color: 'text-violet-400' },
+                { label: 'Датчиков онлайн',  value: `${activeSensors}/${totalSensors}`, color: 'text-emerald-400', href: '/system-management' },
+                { label: 'Активных станций',  value: `${activeMonitoringStations}/${totalMonitoringStations}`, color: 'text-teal-400', href: '/stations' },
+                { label: 'Объектов в базе',   value: infraObjects.length, color: 'text-violet-400', href: '/infrastructure' },
               ];
 
               return (
                 <>
                   {basicStats.map(s => (
-                    <div key={s.label} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
-                      <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                      <div className="text-slate-400 text-xs mt-0.5">{s.label}</div>
-                    </div>
+                    <button
+                      key={s.label}
+                      onClick={() => navigate(s.href)}
+                      className="bg-slate-800/60 rounded-xl p-3 border border-slate-700 text-left hover:bg-slate-700/60 hover:border-sky-500/50 transition-colors cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                        <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-sky-400 transition-colors" />
+                      </div>
+                      <div className="text-slate-400 text-xs mt-0.5 group-hover:text-slate-300 transition-colors">{s.label}</div>
+                    </button>
                   ))}
                   <button
                     onClick={() => setVisitsOpen(true)}
