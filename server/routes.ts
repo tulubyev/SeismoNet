@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { eq, sql, desc, gte, lte, ilike, and } from "drizzle-orm";
+import { eq, sql, desc, gte, lte, ilike, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as dbSchema } from "./db";
 import { storage } from "./storage";
@@ -1630,6 +1630,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(filled);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching city visit trend' });
+    }
+  });
+
+  app.get('/api/page-visits/by-city/trend/multi', requireRole('administrator'), async (req, res) => {
+    try {
+      const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
+      const n = Math.min(Math.max(Number(req.query.n) || 5, 1), 10);
+      const since = new Date();
+      since.setDate(since.getDate() - days + 1);
+      since.setHours(0, 0, 0, 0);
+
+      // Get top N cities by total visits in the window
+      const topCities = await db
+        .select({
+          city: pageVisitLogs.city,
+          total: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(pageVisitLogs)
+        .where(
+          and(
+            eq(pageVisitLogs.countryCode, 'RU'),
+            sql`(${pageVisitLogs.city} is not null and ${pageVisitLogs.city} != '')`,
+            gte(pageVisitLogs.visitedAt, since),
+          )
+        )
+        .groupBy(pageVisitLogs.city)
+        .orderBy(desc(sql`count(*)`))
+        .limit(n);
+
+      const cityNames = topCities.map(r => r.city as string);
+
+      if (cityNames.length === 0) {
+        return res.json({ cities: [], data: [] });
+      }
+
+      // Build stable slug keys to use as Recharts dataKey (avoids dot-path parsing issues)
+      const toSlug = (name: string) => name.replace(/[^a-zA-Z0-9\u0400-\u04FF]/g, '_');
+      const cityMeta = cityNames.map((name, idx) => ({
+        key: `c${idx}_${toSlug(name)}`,
+        label: name,
+      }));
+
+      // Get per-day counts for the top cities using parameterized inArray
+      const rows = await db
+        .select({
+          date: sql<string>`to_char(date_trunc('day', ${pageVisitLogs.visitedAt}), 'YYYY-MM-DD')`,
+          city: pageVisitLogs.city,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(pageVisitLogs)
+        .where(
+          and(
+            eq(pageVisitLogs.countryCode, 'RU'),
+            inArray(pageVisitLogs.city, cityNames),
+            gte(pageVisitLogs.visitedAt, since),
+          )
+        )
+        .groupBy(sql`date_trunc('day', ${pageVisitLogs.visitedAt})`, pageVisitLogs.city)
+        .orderBy(sql`date_trunc('day', ${pageVisitLogs.visitedAt})`);
+
+      // Build a map: date -> label -> count
+      const byDateCity = new Map<string, Map<string, number>>();
+      for (const row of rows) {
+        if (!byDateCity.has(row.date)) byDateCity.set(row.date, new Map());
+        byDateCity.get(row.date)!.set(row.city ?? '', row.count);
+      }
+
+      // Zero-fill all days; use stable slug key in each data row
+      const filled: Record<string, string | number>[] = [];
+      for (let i = 0; i < days; i++) {
+        const d = new Date(since);
+        d.setDate(since.getDate() + i);
+        const dateKey = d.toISOString().slice(0, 10);
+        const entry: Record<string, string | number> = { date: dateKey };
+        const cityMap = byDateCity.get(dateKey);
+        for (const { key, label } of cityMeta) {
+          entry[key] = cityMap?.get(label) ?? 0;
+        }
+        filled.push(entry);
+      }
+
+      res.json({ cities: cityMeta, data: filled });
+    } catch (error) {
+      res.status(500).json({ message: 'Error fetching multi-city visit trend' });
     }
   });
 

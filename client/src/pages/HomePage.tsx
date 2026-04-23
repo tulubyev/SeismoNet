@@ -21,9 +21,12 @@ import {
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   Cell,
 } from 'recharts';
@@ -59,7 +62,6 @@ const HomePage: FC = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterIp, setFilterIp] = useState('');
-  const [trendCity, setTrendCity] = useState<string>('');
   const [trendDays, setTrendDays] = useState<number>(30);
 
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
@@ -112,19 +114,14 @@ const HomePage: FC = () => {
     enabled: isAdmin && visitsOpen,
   });
 
-  const UNKNOWN_CITY_SENTINEL = '__unknown__';
-  const cityToSelectValue = (city: string | null) => city && city.trim() !== '' ? city : UNKNOWN_CITY_SENTINEL;
-
-  const trendSelectValue = trendCity || (visitsByCity.length > 0 ? cityToSelectValue(visitsByCity[0].city ?? null) : '');
-
-  const { data: cityTrend = [], isLoading: isTrendLoading } = useQuery<{ date: string; count: number }[]>({
-    queryKey: ['/api/page-visits/by-city/trend', trendSelectValue, trendDays],
+  const { data: multiCityTrend = { cities: [], data: [] }, isLoading: isTrendLoading } = useQuery<{ cities: { key: string; label: string }[]; data: Record<string, string | number>[] }>({
+    queryKey: ['/api/page-visits/by-city/trend/multi', trendDays],
     queryFn: async () => {
-      const r = await fetch(`/api/page-visits/by-city/trend?city=${encodeURIComponent(trendSelectValue)}&days=${trendDays}`);
-      if (!r.ok) throw new Error(`Trend fetch failed: ${r.status}`);
+      const r = await fetch(`/api/page-visits/by-city/trend/multi?days=${trendDays}&n=5`);
+      if (!r.ok) throw new Error(`Multi-city trend fetch failed: ${r.status}`);
       return r.json();
     },
-    enabled: isAdmin && visitsOpen && trendSelectValue !== '',
+    enabled: isAdmin && visitsOpen,
   });
 
   const countryOptions = useMemo(() => {
@@ -457,70 +454,65 @@ const HomePage: FC = () => {
                 )}
               </div>
 
-              {/* City trend chart */}
-              {visitsByCity.length > 0 && (
-                <div className="shrink-0 mb-1">
-                  <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                    <p className="text-slate-400 text-xs font-medium">Динамика визитов за {trendDays} дней</p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <div className="flex rounded overflow-hidden border border-slate-700">
-                        {([7, 14, 30, 90] as const).map(d => (
-                          <button
-                            key={d}
-                            onClick={() => setTrendDays(d)}
-                            className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
-                          >
-                            {d}д
-                          </button>
-                        ))}
-                      </div>
-                      <Select
-                        value={trendSelectValue}
-                        onValueChange={v => setTrendCity(v)}
+              {/* City trend chart — top 5 cities */}
+              <div className="shrink-0 mb-1">
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <p className="text-slate-400 text-xs font-medium">Динамика визитов (топ-5 городов) за {trendDays} дней</p>
+                  <div className="flex rounded overflow-hidden border border-slate-700">
+                    {([7, 14, 30, 90] as const).map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setTrendDays(d)}
+                        className={`px-2 py-0.5 text-xs transition-colors ${trendDays === d ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
                       >
-                        <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 text-xs h-6 w-40 focus:ring-sky-500">
-                          <SelectValue placeholder="Выберите город" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700 text-slate-300 text-xs max-h-48">
-                          {visitsByCity.slice(0, 10).map((row, idx) => (
-                            <SelectItem key={`${row.city ?? '__unknown__'}-${idx}`} value={cityToSelectValue(row.city ?? null)}>
-                              {row.city && row.city.trim() !== '' ? row.city : 'Неизвестный город'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        {d}д
+                      </button>
+                    ))}
                   </div>
-                  {isTrendLoading ? (
-                    <div className="h-28 bg-slate-800 rounded animate-pulse" />
-                  ) : cityTrend.length === 0 ? (
-                    <p className="text-slate-600 text-xs py-2">Нет данных за последние {trendDays} дней</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={110}>
-                      <BarChart data={cityTrend} margin={{ top: 2, right: 4, left: -20, bottom: 0 }}>
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 9, fill: '#64748b' }}
-                          tickFormatter={d => d.slice(5)}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis tick={{ fontSize: 9, fill: '#64748b' }} allowDecimals={false} />
-                        <Tooltip
-                          contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
-                          labelStyle={{ color: '#94a3b8' }}
-                          itemStyle={{ color: '#38bdf8' }}
-                          formatter={(v: number) => [v, 'визитов']}
-                        />
-                        <Bar dataKey="count" radius={[2, 2, 0, 0]}>
-                          {cityTrend.map((_entry, idx) => (
-                            <Cell key={idx} fill="#0ea5e9" fillOpacity={0.85} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
                 </div>
-              )}
+                {isTrendLoading ? (
+                  <div className="h-36 bg-slate-800 rounded animate-pulse" />
+                ) : multiCityTrend.cities.length === 0 ? (
+                  <p className="text-slate-600 text-xs py-2">Нет данных за последние {trendDays} дней</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={140}>
+                    <LineChart data={multiCityTrend.data} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 9, fill: '#64748b' }}
+                        tickFormatter={d => (d as string).slice(5)}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis tick={{ fontSize: 9, fill: '#64748b' }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
+                        labelStyle={{ color: '#94a3b8' }}
+                        formatter={(v: number, name: string) => [v, name]}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, color: '#94a3b8', paddingTop: 4 }}
+                        iconType="circle"
+                        iconSize={7}
+                      />
+                      {multiCityTrend.cities.map(({ key, label }, idx) => {
+                        const COLORS = ['#38bdf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa'];
+                        return (
+                          <Line
+                            key={key}
+                            type="monotone"
+                            dataKey={key}
+                            name={label}
+                            stroke={COLORS[idx % COLORS.length]}
+                            strokeWidth={1.5}
+                            dot={false}
+                            activeDot={{ r: 3 }}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
 
               {/* Filter bar */}
               <div className="shrink-0 flex flex-wrap gap-2 items-center">
