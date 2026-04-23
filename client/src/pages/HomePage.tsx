@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useMemo } from 'react';
+import { FC, useEffect, useRef, useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
@@ -117,6 +117,18 @@ const HomePage: FC = () => {
   });
 
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const cityPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!cityPickerOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (cityPickerRef.current && !cityPickerRef.current.contains(e.target as Node)) {
+        setCityPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [cityPickerOpen]);
 
   const handlePinCity = (city: string) => {
     setPinnedCities(prev => {
@@ -572,7 +584,7 @@ const HomePage: FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     {/* City picker button */}
-                    <div className="relative">
+                    <div className="relative" ref={cityPickerRef}>
                       <button
                         onClick={() => setCityPickerOpen(o => !o)}
                         className={`px-2 py-0.5 text-xs rounded border transition-colors ${cityPickerOpen ? 'bg-indigo-600 border-indigo-500 text-white' : (pinnedCities.length > 0 || excludedCities.length > 0) ? 'bg-indigo-900/60 border-indigo-700 text-indigo-300 hover:bg-indigo-800/60' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
