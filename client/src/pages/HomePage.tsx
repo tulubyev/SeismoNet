@@ -23,6 +23,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -83,6 +85,8 @@ const HomePage: FC = () => {
     localStorage.setItem('adminTrendN', String(n));
     setTrendN(n);
   };
+
+  const [trendChartType, setTrendChartType] = useState<'area' | 'line'>('area');
 
   type ExportColumnKey = 'datetime' | 'ip' | 'country' | 'region' | 'city';
   const ALL_EXPORT_COLUMNS: { key: ExportColumnKey; label: string }[] = [
@@ -487,6 +491,22 @@ const HomePage: FC = () => {
                   <p className="text-slate-400 text-xs font-medium">Динамика визитов (топ-{trendN} городов) за {trendDays} дней</p>
                   <div className="flex items-center gap-2">
                     <div className="flex rounded overflow-hidden border border-slate-700">
+                      <button
+                        onClick={() => setTrendChartType('area')}
+                        className={`px-2 py-0.5 text-xs transition-colors ${trendChartType === 'area' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                        title="Стековая диаграмма"
+                      >
+                        ▨ Стек
+                      </button>
+                      <button
+                        onClick={() => setTrendChartType('line')}
+                        className={`px-2 py-0.5 text-xs transition-colors ${trendChartType === 'line' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                        title="Линейный график"
+                      >
+                        ∿ Линии
+                      </button>
+                    </div>
+                    <div className="flex rounded overflow-hidden border border-slate-700">
                       {([3, 5, 10] as const).map(n => (
                         <button
                           key={n}
@@ -514,29 +534,66 @@ const HomePage: FC = () => {
                   <div className="h-36 bg-slate-800 rounded animate-pulse" />
                 ) : multiCityTrend.cities.length === 0 ? (
                   <p className="text-slate-600 text-xs py-2">Нет данных за последние {trendDays} дней</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={140}>
-                    <LineChart data={multiCityTrend.data} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+                ) : (() => {
+                  const COLORS = ['#38bdf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#facc15', '#f87171', '#4ade80', '#c084fc', '#60a5fa'];
+                  const commonAxisProps = {
+                    xAxis: (
                       <XAxis
                         dataKey="date"
                         tick={{ fontSize: 9, fill: '#64748b' }}
-                        tickFormatter={d => (d as string).slice(5)}
+                        tickFormatter={(d: string) => d.slice(5)}
                         interval="preserveStartEnd"
                       />
-                      <YAxis tick={{ fontSize: 9, fill: '#64748b' }} allowDecimals={false} />
+                    ),
+                    yAxis: <YAxis tick={{ fontSize: 9, fill: '#64748b' }} allowDecimals={false} />,
+                    tooltip: (
                       <Tooltip
                         contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 11 }}
                         labelStyle={{ color: '#94a3b8' }}
                         formatter={(v: number, name: string) => [v, name]}
                       />
+                    ),
+                    legend: (
                       <Legend
                         wrapperStyle={{ fontSize: 10, color: '#94a3b8', paddingTop: 4 }}
                         iconType="circle"
                         iconSize={7}
                       />
-                      {multiCityTrend.cities.map(({ key, label }, idx) => {
-                        const COLORS = ['#38bdf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#facc15', '#f87171', '#4ade80', '#c084fc', '#60a5fa'];
-                        return (
+                    ),
+                  };
+                  if (trendChartType === 'area') {
+                    return (
+                      <ResponsiveContainer width="100%" height={140}>
+                        <AreaChart data={multiCityTrend.data} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+                          {commonAxisProps.xAxis}
+                          {commonAxisProps.yAxis}
+                          {commonAxisProps.tooltip}
+                          {commonAxisProps.legend}
+                          {multiCityTrend.cities.map(({ key, label }, idx) => (
+                            <Area
+                              key={key}
+                              type="monotone"
+                              dataKey={key}
+                              name={label}
+                              stackId="cities"
+                              stroke={COLORS[idx % COLORS.length]}
+                              fill={COLORS[idx % COLORS.length]}
+                              fillOpacity={0.55}
+                              strokeWidth={1}
+                            />
+                          ))}
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    );
+                  }
+                  return (
+                    <ResponsiveContainer width="100%" height={140}>
+                      <LineChart data={multiCityTrend.data} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+                        {commonAxisProps.xAxis}
+                        {commonAxisProps.yAxis}
+                        {commonAxisProps.tooltip}
+                        {commonAxisProps.legend}
+                        {multiCityTrend.cities.map(({ key, label }, idx) => (
                           <Line
                             key={key}
                             type="monotone"
@@ -547,11 +604,11 @@ const HomePage: FC = () => {
                             dot={false}
                             activeDot={{ r: 3 }}
                           />
-                        );
-                      })}
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
 
               {/* Filter bar */}
