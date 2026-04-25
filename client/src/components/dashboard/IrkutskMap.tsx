@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Map as MapIcon, Search, MapPin, Layers, Radio,
   X, ExternalLink, Building2, Calendar, Shield,
-  CheckCircle2, AlertTriangle
+  CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, SlidersHorizontal
 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
@@ -101,6 +101,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const [complexFilter,      setComplexFilter]      = useState('all');
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
+  const [filtersOpen,        setFiltersOpen]        = useState(false);
 
   const { data: categories = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
   const { data: developers  = [] } = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
@@ -356,81 +357,101 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
   return (
     <Card className={`border-0 shadow-sm w-full ${className}`}>
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 px-4 pt-3">
         <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <MapIcon className="h-4 w-4 text-blue-600" />
-          Карта объектов — г. Иркутск
-          <span className="text-[10px] text-slate-400 font-normal ml-2">52.29°N, 104.30°E</span>
-          <span className="ml-auto text-[11px] text-slate-500 font-normal">
-            На карте: <span className="font-semibold text-blue-600">{filteredObjects.length}</span> из {objects.length}
+          <MapIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
+          <span>Карта объектов — г. Иркутск</span>
+          <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">52.29°N, 104.30°E</span>
+          <span className="text-[11px] text-slate-500 font-normal ml-auto">
+            На карте: <span className="font-semibold text-blue-600">{filteredObjects.length}</span>
+            <span className="text-slate-400"> / {objects.length}</span>
           </span>
+          {activeFilterCount > 0 && !filtersOpen && (
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-0">
+              {activeFilterCount} фильтр{activeFilterCount === 1 ? '' : 'а'}
+            </Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 ml-1 text-slate-400 hover:text-slate-700 flex-shrink-0"
+            onClick={() => setFiltersOpen(v => !v)}
+            title={filtersOpen ? 'Скрыть фильтры' : 'Показать фильтры'}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            {filtersOpen
+              ? <ChevronUp   className="h-3 w-3 ml-0.5" />
+              : <ChevronDown className="h-3 w-3 ml-0.5" />}
+          </Button>
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="pt-0 px-4 pb-4 space-y-3">
 
-        {/* Filter bar */}
-        <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
-          <div className="flex gap-3 items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Поиск по названию, адресу, ID..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-9 text-sm"
-                data-testid="map-input-search"
-              />
+        {/* Collapsible filter bar */}
+        {filtersOpen && (
+          <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
+            <div className="flex gap-3 items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Поиск по названию, адресу, ID..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                  data-testid="map-input-search"
+                />
+              </div>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-9 text-xs text-slate-500 hover:text-red-600 flex-shrink-0" onClick={resetFilters}>
+                  Сбросить ({activeFilterCount})
+                </Button>
+              )}
             </div>
-            {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-slate-500 hover:text-red-600 flex-shrink-0" onClick={resetFilters}>
-                Сбросить ({activeFilterCount})
-              </Button>
-            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Select value={districtFilter} onValueChange={setDistrictFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
+                  <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="Район города" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1001 }}>
+                  <SelectItem value="all">Все районы</SelectItem>
+                  {IRKUTSK_DISTRICTS.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={constructionFilter} onValueChange={setConstructionFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-construction">
+                  <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="Тип конструкции" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1001 }}>
+                  {constructionTypeOptions.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={complexFilter} onValueChange={setComplexFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-complex">
+                  <Building2 className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="ЖК и проекты" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1001 }} className="max-h-72">
+                  <SelectItem value="all">Все ЖК и проекты</SelectItem>
+                  {allComplexes.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Select value={districtFilter} onValueChange={setDistrictFilter}>
-              <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
-                <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                <SelectValue placeholder="Район города" />
-              </SelectTrigger>
-              <SelectContent style={{ zIndex: 1001 }}>
-                <SelectItem value="all">Все районы</SelectItem>
-                {IRKUTSK_DISTRICTS.map(d => (
-                  <SelectItem key={d} value={d}>{d}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={constructionFilter} onValueChange={setConstructionFilter}>
-              <SelectTrigger className="h-9 text-sm" data-testid="map-select-construction">
-                <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                <SelectValue placeholder="Тип конструкции" />
-              </SelectTrigger>
-              <SelectContent style={{ zIndex: 1001 }}>
-                {constructionTypeOptions.map(o => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={complexFilter} onValueChange={setComplexFilter}>
-              <SelectTrigger className="h-9 text-sm" data-testid="map-select-complex">
-                <Building2 className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                <SelectValue placeholder="ЖК и проекты" />
-              </SelectTrigger>
-              <SelectContent style={{ zIndex: 1001 }} className="max-h-72">
-                <SelectItem value="all">Все ЖК и проекты</SelectItem>
-                {allComplexes.map(name => (
-                  <SelectItem key={name} value={name}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Map */}
+        {/* Map — full width, shifts down when filters open */}
         <div
           ref={wrapperRef}
           style={{ resize: 'vertical', overflow: 'hidden', width: '100%', height: '560px', minHeight: '320px', maxHeight: '1000px' }}
