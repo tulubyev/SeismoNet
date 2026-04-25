@@ -14,7 +14,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
-import type { InfrastructureObject, Station, ObjectCategory, SensorInstallation } from '@shared/schema';
+import type { InfrastructureObject, Station, ObjectCategory, SensorInstallation, Developer, DeveloperObject } from '@shared/schema';
 import { sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 declare global {
@@ -99,11 +99,14 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [developerFilter,    setDeveloperFilter]    = useState('all');
+  const [complexFilter,      setComplexFilter]      = useState('all');
+  const [objectNameFilter,   setObjectNameFilter]   = useState('all');
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
   const [filtersOpen,        setFiltersOpen]        = useState(false);
 
-  const { data: categories = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
+  const { data: categories  = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
+  const { data: developers  = [] } = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations', selectedObj?.id],
@@ -124,6 +127,27 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
   }, [objects]);
 
+  // Complexes/projects from selected developer (or all developers)
+  const allComplexes = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const dev of developers) {
+      if (developerFilter !== 'all' && dev.name !== developerFilter) continue;
+      const items: DeveloperObject[] = [
+        ...((Array.isArray(dev.completedObjects) ? dev.completedObjects : []) as DeveloperObject[]),
+        ...((Array.isArray(dev.plannedObjects)   ? dev.plannedObjects   : []) as DeveloperObject[]),
+      ];
+      for (const item of items) {
+        if (item?.name && !seen.has(item.name)) { seen.add(item.name); result.push(item.name); }
+      }
+    }
+    return result.sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [developers, developerFilter]);
+
+  // Reset complex when developer changes
+  useEffect(() => { setComplexFilter('all'); setObjectNameFilter('all'); }, [developerFilter]);
+  useEffect(() => { setObjectNameFilter('all'); }, [complexFilter]);
+
   const filteredObjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     return objects.filter(obj => {
@@ -134,9 +158,14 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
       const matchDistrict     = districtFilter     === 'all' || (obj.district         ?? '') === districtFilter;
       const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
       const matchDeveloper    = developerFilter    === 'all' || (obj.developer        ?? '') === developerFilter;
-      return matchSearch && matchDistrict && matchConstruction && matchDeveloper;
+      const matchComplex      = complexFilter      === 'all' || (() => {
+        const needle = complexFilter.toLowerCase();
+        return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
+      })();
+      const matchObjectName   = objectNameFilter   === 'all' || obj.name === objectNameFilter;
+      return matchSearch && matchDistrict && matchConstruction && matchDeveloper && matchComplex && matchObjectName;
     });
-  }, [objects, search, districtFilter, developerFilter, constructionFilter]);
+  }, [objects, search, districtFilter, developerFilter, complexFilter, objectNameFilter, constructionFilter]);
 
   // Keep ref in sync to avoid stale closures in window function
   useEffect(() => { objectsRef.current = filteredObjects; }, [filteredObjects]);
@@ -144,12 +173,19 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const activeFilterCount = [
     districtFilter !== 'all',
     developerFilter !== 'all',
+    complexFilter !== 'all',
+    objectNameFilter !== 'all',
     constructionFilter !== 'all',
     search !== '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setSearch(''); setDistrictFilter('all'); setDeveloperFilter('all'); setConstructionFilter('all');
+    setSearch('');
+    setDistrictFilter('all');
+    setDeveloperFilter('all');
+    setComplexFilter('all');
+    setObjectNameFilter('all');
+    setConstructionFilter('all');
   };
 
   const objectColor = (obj: InfrastructureObject): string => {
@@ -410,6 +446,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
               )}
             </div>
 
+            {/* Row 1: Район, Тип конструкции, Застройщик */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Select value={districtFilter} onValueChange={setDistrictFilter}>
                 <SelectTrigger className="h-9 text-sm" data-testid="map-select-district">
@@ -445,6 +482,35 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
                   <SelectItem value="all">Все застройщики</SelectItem>
                   {allDevelopers.map(name => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Row 2: Объекты застройщика, Конкретное строение */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Select value={complexFilter} onValueChange={setComplexFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-complex">
+                  <Building2 className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="Объекты застройщика (ЖК / проект)" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1001 }} className="max-h-72">
+                  <SelectItem value="all">Все ЖК и проекты</SelectItem>
+                  {allComplexes.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={objectNameFilter} onValueChange={setObjectNameFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-object">
+                  <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  <SelectValue placeholder="Конкретное строение" />
+                </SelectTrigger>
+                <SelectContent style={{ zIndex: 1001 }} className="max-h-72">
+                  <SelectItem value="all">Все строения</SelectItem>
+                  {filteredObjects.map(obj => (
+                    <SelectItem key={obj.id} value={obj.name}>{obj.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
