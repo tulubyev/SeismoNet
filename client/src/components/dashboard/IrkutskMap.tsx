@@ -375,7 +375,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-0 px-0 pb-4 space-y-3">
+      <CardContent className="pt-5 px-0 pb-4 space-y-3">
 
         {/* Collapsible filter bar */}
         {filtersOpen && (
