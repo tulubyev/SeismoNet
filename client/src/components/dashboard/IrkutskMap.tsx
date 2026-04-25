@@ -447,12 +447,14 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
-          {categories.slice(0, 8).map(cat => (
-            <span key={cat.slug} className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ background: cat.color }} />
-              {cat.name}
-            </span>
-          ))}
+          {categories
+            .filter(cat => !['industrial', 'bridge', 'pipeline', 'dam', 'school'].includes(cat.slug))
+            .map(cat => (
+              <span key={cat.slug} className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ background: cat.color }} />
+                {cat.name}
+              </span>
+            ))}
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-slate-400" /> Без датчиков
           </span>
