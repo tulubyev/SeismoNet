@@ -1,5 +1,4 @@
 import { FC, useEffect, useMemo, useState } from 'react';
-import { Link } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +12,7 @@ import {
 import {
   Building2, Search, MapPin, CheckCircle2, XCircle,
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
-  Plus, Pencil, Trash2, Save, X as IconX, ChevronLeft
+  Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
 import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
@@ -803,16 +802,6 @@ const InfrastructureObjects: FC = () => {
   return (  <>
 
         <div className="p-6 space-y-5">
-
-          {/* Back navigation */}
-          <div>
-            <Link href="/monitoring-hub">
-              <button className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors group">
-                <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-                Онлайн обзор
-              </button>
-            </Link>
-          </div>
 
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
