@@ -348,32 +348,45 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     <>
     <Card className="border-0 shadow-sm w-full">
       <CardHeader className="pb-2 px-4 pt-3">
-        <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <MapIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
-          <span>Карта объектов — г. Иркутск</span>
-          <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">52.29°N, 104.30°E</span>
-          <span className="text-[11px] text-slate-500 font-normal ml-auto">
-            На карте: <span className="font-semibold text-blue-600">{filteredObjects.length}</span>
-            <span className="text-slate-400"> / {objects.length}</span>
-          </span>
-          {activeFilterCount > 0 && !filtersOpen && (
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-0">
-              {activeFilterCount} фильтр{activeFilterCount === 1 ? '' : 'а'}
-            </Badge>
-          )}
+        <div className="relative flex items-center min-h-[32px]">
+
+          {/* Left: title */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <MapIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
+            <span className="text-sm font-semibold text-slate-700">Карта объектов — г. Иркутск</span>
+            <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">52.29°N, 104.30°E</span>
+          </div>
+
+          {/* Centre: object counter */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-500">
+              На карте:&nbsp;<span className="font-semibold text-blue-600">{filteredObjects.length}</span>
+              <span className="text-slate-400"> / {objects.length}</span>
+            </span>
+            {activeFilterCount > 0 && !filtersOpen && (
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 border-0">
+                {activeFilterCount} фильтр{activeFilterCount === 1 ? '' : 'а'}
+              </Badge>
+            )}
+          </div>
+
+          {/* Right: toggle button */}
           <Button
-            variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0 ml-1 text-slate-400 hover:text-slate-700 flex-shrink-0"
+            className={`ml-auto h-8 px-3 gap-1.5 text-xs font-medium flex-shrink-0 ${
+              filtersOpen
+                ? 'bg-orange-500 hover:bg-orange-600 text-white border-0'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white border-0'
+            }`}
             onClick={() => setFiltersOpen(v => !v)}
-            title={filtersOpen ? 'Скрыть фильтры' : 'Показать фильтры'}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
+            {filtersOpen ? 'Скрыть фильтры' : 'Фильтры'}
             {filtersOpen
-              ? <ChevronUp   className="h-3 w-3 ml-0.5" />
-              : <ChevronDown className="h-3 w-3 ml-0.5" />}
+              ? <ChevronUp   className="h-3.5 w-3.5" />
+              : <ChevronDown className="h-3.5 w-3.5" />}
           </Button>
-        </CardTitle>
+        </div>
       </CardHeader>
 
       {filtersOpen && (
