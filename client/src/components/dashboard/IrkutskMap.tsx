@@ -345,7 +345,8 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   const cond = conditionInfo(selectedObj?.technicalCondition ?? null);
 
   return (
-    <Card className={`border-0 shadow-sm w-full ${className}`}>
+    <>
+    <Card className="border-0 shadow-sm w-full">
       <CardHeader className="pb-2 px-4 pt-3">
         <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <MapIcon className="h-4 w-4 text-blue-600 flex-shrink-0" />
@@ -375,10 +376,8 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-5 px-0 pb-4 space-y-3">
-
-        {/* Collapsible filter bar */}
-        {filtersOpen && (
+      {filtersOpen && (
+        <CardContent className="pt-0 px-0 pb-3">
           <div className="mx-4 space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
             <div className="flex gap-3 items-center">
               <div className="relative flex-1">
@@ -438,24 +437,29 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
               </Select>
             </div>
           </div>
-        )}
+        </CardContent>
+      )}
+    </Card>
 
-        {/* Map — full width, shifts down when filters open */}
+    {/* ── Map block — outside the card, gap provided by parent space-y-5 ── */}
+    <div className="space-y-3">
+
+      {/* Map */}
+      <div
+        ref={wrapperRef}
+        style={{ resize: 'vertical', overflow: 'hidden', width: '100%', height: '560px', minHeight: '320px', maxHeight: '1000px' }}
+        className="rounded-lg border border-slate-200"
+        data-testid="map-resize-wrapper"
+      >
         <div
-          ref={wrapperRef}
-          style={{ resize: 'vertical', overflow: 'hidden', width: '100%', height: '560px', minHeight: '320px', maxHeight: '1000px' }}
-          className="rounded-lg border border-slate-200"
-          data-testid="map-resize-wrapper"
-        >
-          <div
-            ref={containerRef}
-            className="rounded-lg overflow-hidden"
-            style={{ width: '100%', height: '100%' }}
-          />
-        </div>
+          ref={containerRef}
+          className="rounded-lg overflow-hidden"
+          style={{ width: '100%', height: '100%' }}
+        />
+      </div>
 
-        {/* Legend */}
-        <div className="mx-4 flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
           {categories
             .filter(cat => !['industrial', 'bridge', 'pipeline', 'dam', 'school'].includes(cat.slug))
             .map(cat => (
@@ -480,7 +484,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
         {/* ── Object detail panel ── */}
         {selectedObj && (
-          <div ref={detailRef} className="mx-4 border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
+          <div ref={detailRef} className="border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
 
             {/* Detail header */}
             <div className="flex items-start justify-between gap-3 px-4 py-3 bg-blue-50 border-b border-blue-100">
@@ -634,8 +638,8 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
           </div>
         )}
 
-      </CardContent>
-    </Card>
+    </div>
+    </>
   );
 };
 
