@@ -14,7 +14,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
-import type { InfrastructureObject, Station, ObjectCategory, Developer, SensorInstallation, DeveloperObject } from '@shared/schema';
+import type { InfrastructureObject, Station, ObjectCategory, SensorInstallation } from '@shared/schema';
 import { sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 declare global {
@@ -98,13 +98,12 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
-  const [complexFilter,      setComplexFilter]      = useState('all');
+  const [developerFilter,    setDeveloperFilter]    = useState('all');
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
   const [filtersOpen,        setFiltersOpen]        = useState(false);
 
   const { data: categories = [] } = useQuery<ObjectCategory[]>({ queryKey: ['/api/object-categories'] });
-  const { data: developers  = [] } = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations', selectedObj?.id],
@@ -117,20 +116,13 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
     return m;
   }, [categories]);
 
-  const allComplexes = useMemo(() => {
+  const allDevelopers = useMemo(() => {
     const seen = new Set<string>();
-    const result: string[] = [];
-    for (const dev of developers) {
-      const items: DeveloperObject[] = [
-        ...((Array.isArray(dev.completedObjects) ? dev.completedObjects : []) as DeveloperObject[]),
-        ...((Array.isArray(dev.plannedObjects)   ? dev.plannedObjects   : []) as DeveloperObject[]),
-      ];
-      for (const item of items) {
-        if (item?.name && !seen.has(item.name)) { seen.add(item.name); result.push(item.name); }
-      }
+    for (const obj of objects) {
+      if (obj.developer && !seen.has(obj.developer)) seen.add(obj.developer);
     }
-    return result.sort((a, b) => a.localeCompare(b, 'ru'));
-  }, [developers]);
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [objects]);
 
   const filteredObjects = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -141,26 +133,23 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         (obj.objectId ?? '').toLowerCase().includes(q);
       const matchDistrict     = districtFilter     === 'all' || (obj.district         ?? '') === districtFilter;
       const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
-      const matchComplex      = complexFilter === 'all' || (() => {
-        const needle = complexFilter.toLowerCase();
-        return obj.name.toLowerCase().includes(needle) || (obj.address ?? '').toLowerCase().includes(needle);
-      })();
-      return matchSearch && matchDistrict && matchConstruction && matchComplex;
+      const matchDeveloper    = developerFilter    === 'all' || (obj.developer        ?? '') === developerFilter;
+      return matchSearch && matchDistrict && matchConstruction && matchDeveloper;
     });
-  }, [objects, search, districtFilter, complexFilter, constructionFilter]);
+  }, [objects, search, districtFilter, developerFilter, constructionFilter]);
 
   // Keep ref in sync to avoid stale closures in window function
   useEffect(() => { objectsRef.current = filteredObjects; }, [filteredObjects]);
 
   const activeFilterCount = [
     districtFilter !== 'all',
-    complexFilter !== 'all',
+    developerFilter !== 'all',
     constructionFilter !== 'all',
     search !== '',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setSearch(''); setDistrictFilter('all'); setComplexFilter('all'); setConstructionFilter('all');
+    setSearch(''); setDistrictFilter('all'); setDeveloperFilter('all'); setConstructionFilter('all');
   };
 
   const objectColor = (obj: InfrastructureObject): string => {
@@ -386,11 +375,11 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-0 px-4 pb-4 space-y-3">
+      <CardContent className="pt-0 px-0 pb-4 space-y-3">
 
         {/* Collapsible filter bar */}
         {filtersOpen && (
-          <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
+          <div className="mx-4 space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50/40">
             <div className="flex gap-3 items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -435,14 +424,14 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
                 </SelectContent>
               </Select>
 
-              <Select value={complexFilter} onValueChange={setComplexFilter}>
-                <SelectTrigger className="h-9 text-sm" data-testid="map-select-complex">
+              <Select value={developerFilter} onValueChange={setDeveloperFilter}>
+                <SelectTrigger className="h-9 text-sm" data-testid="map-select-developer">
                   <Building2 className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                  <SelectValue placeholder="ЖК и проекты" />
+                  <SelectValue placeholder="Застройщик" />
                 </SelectTrigger>
                 <SelectContent style={{ zIndex: 1001 }} className="max-h-72">
-                  <SelectItem value="all">Все ЖК и проекты</SelectItem>
-                  {allComplexes.map(name => (
+                  <SelectItem value="all">Все застройщики</SelectItem>
+                  {allDevelopers.map(name => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -466,7 +455,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+        <div className="mx-4 flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
           {categories
             .filter(cat => !['industrial', 'bridge', 'pipeline', 'dam', 'school'].includes(cat.slug))
             .map(cat => (
@@ -491,7 +480,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
 
         {/* ── Object detail panel ── */}
         {selectedObj && (
-          <div ref={detailRef} className="border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
+          <div ref={detailRef} className="mx-4 border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
 
             {/* Detail header */}
             <div className="flex items-start justify-between gap-3 px-4 py-3 bg-blue-50 border-b border-blue-100">
