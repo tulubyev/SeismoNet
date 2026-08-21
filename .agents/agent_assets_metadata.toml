@@ -6,3 +6,10 @@ id = "52VuYxVhnfNx3TU2dDMkw"
 uri = "file://README.md"
 type = "text"
 title = "README.md — описание проекта SeismoNet"
+
+[[outputs]]
+id = "6YJ_yhRLlzCE8TdgW7ciE"
+uri = "file://seismonet-deck.html"
+type = "text"
+title = "SeismoNet Иркутск — Slide Deck"
+description = "Двуязычная презентация для заказчиков и инвесторов · Bilingual business deck (RU+EN) · 10 slides"

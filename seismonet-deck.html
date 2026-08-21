@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SeismoNet Иркутск — Презентация</title>
+<style>
+  :root {
+    --navy: #0b1120;
+    --navy2: #111827;
+    --navy3: #1e293b;
+    --teal: #00d4b4;
+    --teal2: #00a896;
+    --blue: #3b82f6;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: var(--navy); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text); overflow: hidden; }
+
+  /* ── Deck shell ── */
+  #deck { width: 100vw; height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 56px 72px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .4s ease;
+    overflow: hidden;
+  }
+  .slide.active { opacity: 1; pointer-events: all; }
+
+  /* ── Waveform SVG decoration ── */
+  .wave-bg {
+    position: absolute; bottom: -10px; left: 0; right: 0;
+    height: 120px; opacity: .18; pointer-events: none;
+  }
+
+  /* ── Navigation ── */
+  #nav {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 16px; z-index: 99;
+  }
+  .nav-btn {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+    color: #fff; padding: 8px 20px; border-radius: 999px; cursor: pointer;
+    font-size: 14px; transition: background .2s;
+  }
+  .nav-btn:hover { background: rgba(0,212,180,.25); border-color: var(--teal); }
+  #counter { color: var(--muted); font-size: 13px; min-width: 60px; text-align: center; }
+
+  /* ── Dots ── */
+  #dots { display: flex; gap: 6px; align-items: center; }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,.25); cursor: pointer; transition: background .2s;
+  }
+  .dot.on { background: var(--teal); }
+
+  /* ─────────────────────────────────
+     SLIDE-SPECIFIC STYLES
+  ───────────────────────────────── */
+
+  /* ── Slide 1: Title ── */
+  .s1 { justify-content: center; background: var(--navy); }
+  .s1-logo { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+  .s1-logo .pulse {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--teal), #006d6d);
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+  }
+  .s1-logo .brand { font-size: 22px; font-weight: 700; letter-spacing: .5px; color: var(--teal); }
+  .s1 h1 { font-size: 52px; font-weight: 800; line-height: 1.15; max-width: 820px; }
+  .s1 h1 span { color: var(--teal); }
+  .s1 .sub { margin-top: 12px; font-size: 20px; color: var(--muted); max-width: 680px; }
+  .s1 .sub em { color: var(--text); font-style: normal; }
+  .s1 .url {
+    margin-top: 40px; display: inline-flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 22px; font-size: 15px; color: var(--teal);
+  }
+  .wave-accent {
+    position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
+    opacity: .22; width: 340px;
+  }
+
+  /* ── Section label ── */
+  .stag {
+    display: inline-block; background: rgba(0,212,180,.12); color: var(--teal);
+    border: 1px solid rgba(0,212,180,.3); border-radius: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 4px 12px; margin-bottom: 18px;
+  }
+  .slide h2 { font-size: 36px; font-weight: 800; margin-bottom: 8px; line-height: 1.2; }
+  .slide .biline { font-size: 17px; color: var(--muted); margin-bottom: 32px; }
+
+  /* ── 2-col grid ── */
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .cols4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 24px;
+  }
+  .card .icon { font-size: 28px; margin-bottom: 10px; }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+  /* ── Stat cards ── */
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; text-align: center;
+  }
+  .stat-card .num { font-size: 44px; font-weight: 800; color: var(--teal); line-height: 1; }
+  .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+  /* ── Timeline / steps ── */
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step {
+    display: flex; gap: 16px; align-items: flex-start;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px;
+  }
+  .step-num {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal), var(--teal2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: var(--navy);
+  }
+  .step-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .step-body p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ── Tech pill ── */
+  .pill {
+    display: inline-block; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25);
+    color: var(--blue); border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+    margin: 4px;
+  }
+  .pill.teal { background: rgba(0,212,180,.12); border-color: rgba(0,212,180,.3); color: var(--teal); }
+  .pill.amber { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); color: var(--amber); }
+
+  /* ── Big quote ── */
+  .quote-box {
+    background: linear-gradient(135deg, rgba(0,212,180,.08), rgba(59,130,246,.06));
+    border: 1px solid rgba(0,212,180,.2); border-radius: 16px; padding: 28px 32px;
+    font-size: 20px; line-height: 1.6; font-weight: 500;
+  }
+  .quote-box .q-small { font-size: 14px; color: var(--muted); margin-top: 10px; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--muted); }
+  td:first-child { color: var(--text); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Status dot ── */
+  .sdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .sdot.green { background: #22c55e; }
+  .sdot.amber { background: var(--amber); }
+  .sdot.red { background: var(--red); }
+
+  /* ── Divider line ── */
+  .divline { width: 48px; height: 3px; background: var(--teal); border-radius: 2px; margin: 12px 0 20px; }
+
+  /* ── Slide 10: CTA ── */
+  .s-cta { justify-content: center; align-items: center; text-align: center; }
+  .s-cta h2 { font-size: 48px; font-weight: 800; }
+  .s-cta .url-big {
+    margin-top: 28px; font-size: 32px; font-weight: 800; color: var(--teal);
+    letter-spacing: .5px;
+  }
+  .s-cta .sub { margin-top: 14px; font-size: 16px; color: var(--muted); }
+  .cta-row { display: flex; gap: 20px; justify-content: center; margin-top: 36px; }
+  .cta-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 28px; font-size: 14px;
+  }
+  .cta-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
+  .cta-card .val { color: var(--text); font-weight: 600; }
+
+  /* ── Progress bar ── */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--teal), var(--blue));
+    transition: width .4s ease; z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="deck">
+
+  <!-- ════════════════════ SLIDE 1: TITLE ════════════════════ -->
+  <div class="slide s1 active">
+    <!-- Waveform decoration -->
+    <svg class="wave-accent" viewBox="0 0 340 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,100 20,100 30,60 40,140 50,30 60,170 70,80 80,120 90,95 110,95 120,50 130,150 140,20 150,180 160,85 170,115 180,100 200,100 210,70 220,130 230,45 240,160 250,90 260,110 270,100 290,100 300,65 310,135 320,100 340,100"
+        stroke="#00d4b4" stroke-width="2" fill="none"/>
+    </svg>
+
+    <div class="s1-logo">
+      <div class="pulse">🌐</div>
+      <div class="brand">SeismoNet</div>
+    </div>
+
+    <h1>Сейсмический<br/>мониторинг<br/><span>инфраструктуры Иркутска</span></h1>
+    <p class="sub" style="margin-top:16px;">
+      <em>Seismic Monitoring Platform</em><br/>
+      for Civil &amp; Industrial Infrastructure · Irkutsk, Russia
+    </p>
+
+    <div class="s1 url">
+      🔗 seismonet.ru
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 2: CHALLENGE ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Проблема · Challenge</div>
+    <h2>Иркутск в зоне высокой сейсмической опасности</h2>
+    <p class="biline">Irkutsk is a high seismic-hazard zone — yet most buildings have no monitoring</p>
+    <div class="divline"></div>
+
+    <div class="cols2" style="gap:24px; margin-top:4px;">
+      <div>
+        <div class="cols2" style="gap:14px;">
+          <div class="stat-card">
+            <div class="num" style="color:#ef4444;">8–9</div>
+            <div class="label">Расчётная балльность<br/><em>Design seismic intensity (MSK)</em></div>
+          </div>
+          <div class="stat-card">
+            <div class="num" style="color:var(--amber);">≈50%</div>
+            <div class="label">Зданий без мониторинга<br/><em>Buildings with no sensors</em></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="icon">🏗</div>
+          <h3>Нет данных в реальном времени / No real-time data</h3>
+          <p>Строительные организации не имеют инструментов непрерывного контроля сейсмических воздействий на свои объекты.<br/><em>Developers have no tools to continuously track seismic loads on their buildings.</em></p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">!</div>
+          <div class="step-body">
+            <h4>Байкальский рифт активен / Active Baikal Rift</h4>
+            <p>Регулярные землетрясения M 4–7; байкальская рифтовая зона — одна из наиболее активных в России.<br/><em>Regular M 4–7 events; one of Russia's most active rift zones.</em></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">!</div>
+          <div class="step-body">
+            <h4>Слабый грунт / Poor soil conditions</h4>
+            <p>Значительная часть застройки — на слабых водонасыщенных грунтах, усиливающих колебания в 2–5 раз.<br/><em>Much of the city sits on soft saturated soils that amplify ground motion 2–5×.</em></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">!</div>
+          <div class="step-body">
+            <h4>Рост высотного строительства / Growing high-rise development</h4>
+            <p>Активное строительство жилых комплексов требует постоянного контроля сейсмической нагрузки.<br/><em>Booming residential construction demands continuous seismic load control.</em></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 3: SOLUTION ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Решение · Solution</div>
+    <h2>SeismoNet — цифровая платформа сейсмического мониторинга</h2>
+    <p class="biline">SeismoNet — a unified digital platform connecting sensors, data, and engineering analysis</p>
+    <div class="divline"></div>
+
+    <div class="quote-box" style="margin-bottom:24px;">
+      Единая система, объединяющая сеть датчиков на объектах, концентратор данных в реальном времени и инструменты инженерного анализа — всё в одном веб-приложении.<br/>
+      <span class="q-small">A single system connecting field sensors, a real-time data concentrator, and engineering analysis tools — all in one web application.</span>
+    </div>
+
+    <div class="cols3">
+      <div class="card">
+        <div class="icon">📡</div>
+        <h3>Мониторинг в реальном времени<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Real-time monitoring</em></h3>
+        <p>Живые осциллограммы с каждого канала акселерометра — WebSocket-поток без задержки.<br/><em>Live waveforms from every accelerometer channel via low-latency WebSocket stream.</em></p>
+      </div>
+      <div class="card">
+        <div class="icon">🔬</div>
+        <h3>Инженерный анализ<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Engineering analysis</em></h3>
+        <p>Фурье-спектры, спектры отклика, расчёт усиления грунта (МТСМ/МКЭ), нормативная база СП 14.<br/><em>FFT spectra, response spectra, soil amplification (MTSM/FEM), SP 14 code compliance.</em></p>
+      </div>
+      <div class="card">
+        <div class="icon">🔔</div>
+        <h3>Автоматические оповещения<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Automated alerts</em></h3>
+        <p>Telegram, Email и Slack при превышении пороговых значений ускорений.<br/><em>Telegram, Email &amp; Slack alerts when acceleration thresholds are exceeded.</em></p>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 4: FEATURES ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Возможности · Features</div>
+    <h2>Четыре ключевых модуля</h2>
+    <p class="biline">Four core modules covering the full seismic safety lifecycle</p>
+    <div class="divline"></div>
+
+    <div class="cols2" style="gap:18px;">
+      <div class="card">
+        <div class="icon">🏗</div>
+        <h3>Объекты и застройщики<br/><em style="font-weight:400; color:var(--muted); font-size:11px;">Objects &amp; Developers</em></h3>
+        <p>Реестр инфраструктурных объектов с картой, геологическими профилями скважин, привязкой к застройщикам. Категории грунтов по СП 14.13330.2022.<br/>
+        <em>Infrastructure registry with interactive map, borehole geology, developer linkage. Soil categories per SP 14.13330.2022.</em></p>
+      </div>
+
+      <div class="card">
+        <div class="icon">📊</div>
+        <h3>Станции и датчики<br/><em style="font-weight:400; color:var(--muted); font-size:11px;">Stations &amp; Sensors</em></h3>
+        <p>Управление сетью: статус (онлайн / деградация / отключена), заряд батарей, объём памяти, качество данных. 3D-вид объекта с расположением датчиков.<br/>
+        <em>Network management: online / degraded / offline status, battery, storage, data quality. 3D building view with sensor placement.</em></p>
+      </div>
+
+      <div class="card">
+        <div class="icon">📈</div>
+        <h3>Сейсмограммы и спектры<br/><em style="font-weight:400; color:var(--muted); font-size:11px;">Seismograms &amp; Spectra</em></h3>
+        <p>Каталог событий, просмотр записей, Фурье-спектры, спектры отклика ANSA, calibration AFC. Экспорт в MiniSEED.<br/>
+        <em>Event catalogue, waveform viewer, FFT spectra, ANSA response spectra, calibration AFC. MiniSEED export.</em></p>
+      </div>
+
+      <div class="card">
+        <div class="icon">🧮</div>
+        <h3>Расчёты и нормативы<br/><em style="font-weight:400; color:var(--muted); font-size:11px;">Calculations &amp; Codes</em></h3>
+        <p>История расчётов с версионированием заметок, расчёт усиления грунта (МТСМ), откликов конструкций (МКЭ). Нормативная база: СП 14, СНиП II-7-81*, ОСР-2015.<br/>
+        <em>Versioned calculation history, MTSM soil amplification, FEM structural response. Codes: SP 14, SNiP II-7-81*, OSR-2015.</em></p>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 5: HOW IT WORKS ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Архитектура · How It Works</div>
+    <h2>Полный цикл — от датчика до отчёта</h2>
+    <p class="biline">Full cycle from field sensor to engineering report</p>
+    <div class="divline"></div>
+
+    <div style="display:flex; align-items:center; gap:0; margin-bottom:28px;">
+      <!-- Step boxes with arrows -->
+      <div class="card" style="flex:1; text-align:center; padding:18px 12px;">
+        <div style="font-size:32px;">📡</div>
+        <h3 style="margin-top:8px; font-size:13px;">Акселерометры<br/><em style="color:var(--muted);font-weight:400;font-size:11px;">Field accelerometers</em></h3>
+        <p style="font-size:11px;">Z, NS, EW осей<br/>на каждом объекте</p>
+      </div>
+      <div style="font-size:22px; color:var(--teal); padding:0 8px; flex-shrink:0;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:18px 12px;">
+        <div style="font-size:32px;">📶</div>
+        <h3 style="margin-top:8px; font-size:13px;">Концентратор<br/><em style="color:var(--muted);font-weight:400;font-size:11px;">Data concentrator</em></h3>
+        <p style="font-size:11px;">VPS-сервер<br/>непрерывный поток</p>
+      </div>
+      <div style="font-size:22px; color:var(--teal); padding:0 8px; flex-shrink:0;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:18px 12px;">
+        <div style="font-size:32px;">☁️</div>
+        <h3 style="margin-top:8px; font-size:13px;">Платформа<br/><em style="color:var(--muted);font-weight:400;font-size:11px;">SeismoNet platform</em></h3>
+        <p style="font-size:11px;">PostgreSQL<br/>WebSocket API</p>
+      </div>
+      <div style="font-size:22px; color:var(--teal); padding:0 8px; flex-shrink:0;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:18px 12px;">
+        <div style="font-size:32px;">🖥️</div>
+        <h3 style="margin-top:8px; font-size:13px;">Веб-приложение<br/><em style="color:var(--muted);font-weight:400;font-size:11px;">Web dashboard</em></h3>
+        <p style="font-size:11px;">React · браузер<br/>мобильная версия</p>
+      </div>
+      <div style="font-size:22px; color:var(--teal); padding:0 8px; flex-shrink:0;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:18px 12px;">
+        <div style="font-size:32px;">📄</div>
+        <h3 style="margin-top:8px; font-size:13px;">Отчёты / Alerts<br/><em style="color:var(--muted);font-weight:400;font-size:11px;">Reports &amp; Alerts</em></h3>
+        <p style="font-size:11px;">PDF, Telegram<br/>Email, Slack</p>
+      </div>
+    </div>
+
+    <div class="cols3" style="gap:14px;">
+      <div class="card" style="padding:16px 18px;">
+        <h3 style="font-size:13px;">🌍 Глобальная синхронизация</h3>
+        <p style="font-size:12px;">Автоматический импорт каталогов USGS и JMA (Япония) каждые 30 минут.<br/><em>Auto-sync from USGS &amp; JMA catalogues every 30 min.</em></p>
+      </div>
+      <div class="card" style="padding:16px 18px;">
+        <h3 style="font-size:13px;">🔐 Ролевой доступ</h3>
+        <p style="font-size:12px;">Администратор / Пользователь / Наблюдатель. Безопасная сессионная аутентификация.<br/><em>Admin / User / Viewer roles. Secure session-based auth.</em></p>
+      </div>
+      <div class="card" style="padding:16px 18px;">
+        <h3 style="font-size:13px;">📱 Мобильная версия</h3>
+        <p style="font-size:12px;">Адаптированный интерфейс для работы на планшете и смартфоне прямо на объекте.<br/><em>Responsive mobile interface for on-site tablet &amp; phone use.</em></p>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 6: OBJECTS & CLIENTS ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Объекты · Objects &amp; Clients</div>
+    <h2>Застройщики и инфраструктура Иркутска</h2>
+    <p class="biline">Irkutsk developers and infrastructure already in the system</p>
+    <div class="divline"></div>
+
+    <div class="cols2" style="gap:24px;">
+      <div>
+        <div class="cols2" style="gap:12px; margin-bottom:16px;">
+          <div class="stat-card">
+            <div class="num">10+</div>
+            <div class="label">Застройщиков в реестре<br/><em>Developers in registry</em></div>
+          </div>
+          <div class="stat-card">
+            <div class="num" style="font-size:34px;">📍</div>
+            <div class="label">Интерактивная карта объектов<br/><em>Interactive object map</em></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:10px;">Типы подключённых объектов<br/><em style="color:var(--muted); font-weight:400; font-size:12px;">Types of monitored objects</em></h3>
+          <table>
+            <tr><td>🏢 Жилые ЖК</td><td>Residential complexes</td></tr>
+            <tr><td>🏭 Промышленные объекты</td><td>Industrial facilities</td></tr>
+            <tr><td>🏫 Социальные объекты</td><td>Public buildings</td></tr>
+            <tr><td>🌉 Инфраструктура</td><td>Critical infrastructure</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:14px;">Ведущие застройщики в системе<br/><em style="color:var(--muted); font-weight:400; font-size:12px;">Leading developers registered</em></h3>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="sdot green"></span>
+            <span style="font-size:13px;">ГК «Новый город»</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--muted);">подключён</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="sdot green"></span>
+            <span style="font-size:13px;">Грандстрой</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--muted);">подключён</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="sdot green"></span>
+            <span style="font-size:13px;">ПарапетСтрой</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--muted);">подключён</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="sdot amber"></span>
+            <span style="font-size:13px;">Родные берега</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--muted);">в процессе</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="sdot amber"></span>
+            <span style="font-size:13px;">Монолитстрой-Иркутск</span>
+            <span style="margin-left:auto; font-size:11px; color:var(--muted);">в процессе</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; border-top: 1px solid var(--border); padding-top:10px; margin-top:4px;">
+            <span style="font-size:12px; color:var(--muted);">+ ещё 5 застройщиков / + 5 more developers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 7: ANALYTICS & ALERTS ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Аналитика · Analytics &amp; Alerts</div>
+    <h2>Данные в реальном времени и инженерный анализ</h2>
+    <p class="biline">Live data streams, spectral analysis, and instant alert delivery</p>
+    <div class="divline"></div>
+
+    <div class="cols2" style="gap:24px;">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="font-size:16px;">📈</div>
+          <div class="step-body">
+            <h4>Живые осциллограммы / Live waveforms</h4>
+            <p>WebSocket-поток с каждого канала (Z, NS, EW) без задержки. Возможность записи событий при превышении порогового ускорения.<br/><em>Zero-lag WebSocket stream per channel. Threshold-triggered event recording.</em></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="font-size:16px;">🎵</div>
+          <div class="step-body">
+            <h4>Фурье-спектры и AFC / FFT &amp; Calibration AFC</h4>
+            <p>Анализ частотного содержания записей, калибровка АЧХ датчиков, спектры отклика ANSA.<br/><em>Frequency analysis, sensor AFC calibration, ANSA response spectra.</em></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="font-size:16px;">🌱</div>
+          <div class="step-body">
+            <h4>Грунтовый анализ / Soil analysis</h4>
+            <p>База грунтовых профилей (скважины, литология, Vs30, f₀), коэффициент усиления по МТСМ, карта сейсмического усиления Иркутска.<br/><em>Borehole profiles, Vs30, f₀, MTSM amplification factor, seismic amplification heat map.</em></p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <h3 style="margin-bottom:12px;">Каналы оповещения<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Alert channels</em></h3>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:22px;">✈️</span>
+              <div><strong style="font-size:13px;">Telegram</strong><br/><span style="font-size:11px; color:var(--muted);">Мгновенные push-уведомления / Instant push alerts</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:22px;">📧</span>
+              <div><strong style="font-size:13px;">Email (Unisender)</strong><br/><span style="font-size:11px; color:var(--muted);">Детальный отчёт о событии / Detailed event report</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:22px;">💬</span>
+              <div><strong style="font-size:13px;">Slack</strong><br/><span style="font-size:11px; color:var(--muted);">Интеграция с корпоративным чатом / Corporate chat integration</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:6px;">PDF-отчёты / PDF Reports</h3>
+          <p style="font-size:12px;">Автоматическая генерация отчётов по скважинам, событиям и расчётам с кириллицей, схемами, таблицами.<br/><em>Auto-generated reports for boreholes, events &amp; calculations — with Cyrillic, diagrams, tables.</em></p>
+        </div>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 8: TECHNOLOGY ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Технологии · Technology Stack</div>
+    <h2>Современный и надёжный стек</h2>
+    <p class="biline">Production-grade open-source stack — fully cloud-deployed at seismonet.ru</p>
+    <div class="divline"></div>
+
+    <div class="cols2" style="gap:24px; align-items:start;">
+      <div>
+        <table>
+          <thead>
+            <tr><th>Слой / Layer</th><th>Технология / Technology</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>🖥 Frontend</td><td>React 18 + TypeScript, TanStack Query, Tailwind CSS, shadcn/ui</td></tr>
+            <tr><td>🗺 Карты / Maps</td><td>Leaflet + интерактивные слои</td></tr>
+            <tr><td>📊 Графики / Charts</td><td>Chart.js, D3.js, Canvas API</td></tr>
+            <tr><td>⚙️ Backend</td><td>Node.js · Express.js · TypeScript</td></tr>
+            <tr><td>🔐 Auth</td><td>Passport.js · scrypt · session</td></tr>
+            <tr><td>📡 Real-time</td><td>WebSocket (ws library)</td></tr>
+            <tr><td>🗄 Database</td><td>PostgreSQL · Drizzle ORM</td></tr>
+            <tr><td>📄 PDF</td><td>jsPDF + html2canvas</td></tr>
+            <tr><td>🚀 Deploy</td><td>Replit Autoscale · Cloud Run</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card">
+          <h3 style="margin-bottom:8px;">Ключевые преимущества<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Key technical advantages</em></h3>
+          <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+            <span class="pill teal">Serverless PostgreSQL</span>
+            <span class="pill teal">WebSocket streaming</span>
+            <span class="pill teal">MiniSEED export</span>
+            <span class="pill">USGS / JMA sync</span>
+            <span class="pill">Drizzle ORM migrations</span>
+            <span class="pill">Role-based access</span>
+            <span class="pill amber">seismonet.ru</span>
+            <span class="pill amber">HTTPS / TLS</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px;">Интеграции / Integrations</h3>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:13px;">🌍 <strong>USGS Earthquake API</strong> — глобальный каталог M≥4.5</div>
+            <div style="font-size:13px;">🇯🇵 <strong>JMA API</strong> — данные Японского метеорологического агентства</div>
+            <div style="font-size:13px;">✈️ <strong>Telegram Bot API</strong> — оповещения</div>
+            <div style="font-size:13px;">📧 <strong>Unisender</strong> — email-рассылки</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 9: WHO IS IT FOR ════════════════════ -->
+  <div class="slide">
+    <div class="stag">Аудитория · Who It's For</div>
+    <h2>Кому нужен SeismoNet</h2>
+    <p class="biline">Target stakeholders across the full construction and operations lifecycle</p>
+    <div class="divline"></div>
+
+    <div class="cols3" style="gap:16px; margin-bottom:20px;">
+      <div class="card">
+        <div class="icon">🏗</div>
+        <h3>Застройщики<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Developers</em></h3>
+        <p>Подтверждение сейсмической безопасности объектов, соответствие требованиям СП 14, защита от претензий.<br/><em>Proof of seismic safety, SP 14 compliance, liability protection.</em></p>
+      </div>
+      <div class="card">
+        <div class="icon">🏛</div>
+        <h3>Управляющие компании<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Building operators</em></h3>
+        <p>Непрерывный мониторинг состояния здания в процессе эксплуатации, оперативное реагирование на события.<br/><em>Continuous structural health monitoring during operation &amp; rapid event response.</em></p>
+      </div>
+      <div class="card">
+        <div class="icon">🔬</div>
+        <h3>Изыскательские организации<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Survey organizations</em></h3>
+        <p>База грунтовых профилей, инструменты расчёта усиления грунта, нормативная база для отчётов.<br/><em>Borehole database, soil amplification tools, code-compliant report templates.</em></p>
+      </div>
+    </div>
+
+    <div class="cols2" style="gap:16px;">
+      <div class="card">
+        <div class="icon">📐</div>
+        <h3>Проектировщики<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Structural engineers &amp; designers</em></h3>
+        <p>Реальные данные о воздействиях для проектирования и верификации расчётных моделей.<br/><em>Real loading data for design and numerical model validation.</em></p>
+      </div>
+      <div class="card">
+        <div class="icon">🏢</div>
+        <h3>Страховые и государственные структуры<br/><em style="font-weight:400; color:var(--muted); font-size:12px;">Insurers &amp; public authorities</em></h3>
+        <p>Верифицированная база данных о сейсмической активности и состоянии объектов для аналитики и регулирования.<br/><em>Verified seismic activity &amp; building condition database for analytics &amp; regulation.</em></p>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════ SLIDE 10: CTA ════════════════════ -->
+  <div class="slide s-cta">
+    <svg class="wave-accent" style="left:40px; right:auto; top:30px; transform:none; width:280px; opacity:.15;" viewBox="0 0 340 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,100 20,100 30,60 40,140 50,30 60,170 70,80 80,120 90,95 110,95 120,50 130,150 140,20 150,180 160,85 170,115 180,100 200,100 210,70 220,130 230,45 240,160 250,90 260,110 270,100 290,100 300,65 310,135 320,100 340,100"
+        stroke="#00d4b4" stroke-width="2.5" fill="none"/>
+    </svg>
+    <svg class="wave-accent" style="right:40px; left:auto; bottom:80px; top:auto; transform:none; width:280px; opacity:.12; transform:scaleX(-1);" viewBox="0 0 340 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,100 20,100 30,60 40,140 50,30 60,170 70,80 80,120 90,95 110,95 120,50 130,150 140,20 150,180 160,85 170,115 180,100 200,100 210,70 220,130 230,45 240,160 250,90 260,110 270,100 290,100 300,65 310,135 320,100 340,100"
+        stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+    </svg>
+
+    <div class="s1-logo" style="justify-content:center; margin-bottom:20px;">
+      <div class="pulse">🌐</div>
+      <div class="brand" style="font-size:26px;">SeismoNet</div>
+    </div>
+
+    <h2 style="font-size:40px;">Готовы подключить ваш объект?<br/><span style="color:var(--muted); font-size:28px; font-weight:500;">Ready to connect your building?</span></h2>
+
+    <div class="url-big">seismonet.ru</div>
+    <p class="sub">Иркутск · Россия · Байкальский регион<br/>Irkutsk · Russia · Baikal Region</p>
+
+    <div class="cta-row">
+      <div class="cta-card">
+        <div class="label">Сайт / Website</div>
+        <div class="val">🔗 seismonet.ru</div>
+      </div>
+      <div class="cta-card">
+        <div class="label">Платформа / Platform</div>
+        <div class="val">☁️ Replit · Cloud Run</div>
+      </div>
+      <div class="cta-card">
+        <div class="label">Стек / Stack</div>
+        <div class="val">⚛️ React · Node.js · PostgreSQL</div>
+      </div>
+    </div>
+
+    <svg class="wave-bg" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="0,60 60,60 90,30 120,90 150,10 180,110 210,50 250,70 290,60 340,60 370,35 400,85 430,15 460,105 490,55 530,65 560,60 620,60 650,40 680,80 710,20 740,100 770,55 810,65 840,60 900,60 930,42 960,78 990,25 1020,95 1050,52 1080,68 1110,60 1170,60 1200,38 1230,82 1260,18 1290,102 1320,58 1360,62 1440,60"
+        stroke="#00d4b4" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+
+</div><!-- #deck -->
+
+<!-- ── Navigation ── -->
+<div id="nav">
+  <button class="nav-btn" id="prev">← Назад</button>
+  <div id="dots"></div>
+  <span id="counter">1 / 10</span>
+  <button class="nav-btn" id="next">Далее →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const n = slides.length;
+  let cur = 0;
+
+  // Build dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.addEventListener('click', () => go(i));
+    dotsContainer.appendChild(d);
+  });
+
+  function go(idx) {
+    slides[cur].classList.remove('active');
+    dotsContainer.children[cur].classList.remove('on');
+    cur = (idx + n) % n;
+    slides[cur].classList.add('active');
+    dotsContainer.children[cur].classList.add('on');
+    counter.textContent = `${cur + 1} / ${n}`;
+    progress.style.width = `${((cur + 1) / n) * 100}%`;
+  }
+
+  document.getElementById('next').addEventListener('click', () => go(cur + 1));
+  document.getElementById('prev').addEventListener('click', () => go(cur - 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') go(cur + 1);
+    if (e.key === 'ArrowLeft') go(cur - 1);
+  });
+
+  // Init progress
+  progress.style.width = `${(1 / n) * 100}%`;
+</script>
+</body>
+</html>
