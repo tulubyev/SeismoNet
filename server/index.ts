@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { registerRoutes, runStartupMigrations, initializeResearchNetworks } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db, schema } from "./db";
 import { sql } from "drizzle-orm";
@@ -96,8 +96,6 @@ async function trimNoteHistoryOnStartup() {
 (async () => {
   const server = await registerRoutes(app);
 
-  await trimNoteHistoryOnStartup();
-
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -125,5 +123,11 @@ async function trimNoteHistoryOnStartup() {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+
+    // Run DB startup tasks in the background after the port is open so health
+    // checks never block on network timeouts (e.g. when VPS DB is slow to connect).
+    runStartupMigrations().catch(e => log(`startup migrations error: ${e}`));
+    initializeResearchNetworks().catch(e => log(`initializeResearchNetworks error: ${e}`));
+    trimNoteHistoryOnStartup().catch(e => log(`trimNoteHistoryOnStartup error: ${e}`));
   });
 })();

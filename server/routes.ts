@@ -18,7 +18,7 @@ import geoip from "geoip-lite";
 const clients = new Set<WebSocket>();
 
 // Ensure columns added after initial table creation exist in all environments
-async function runStartupMigrations() {
+export async function runStartupMigrations() {
   try {
     await db.execute(
       `ALTER TABLE seismic_calculations ADD COLUMN IF NOT EXISTS notes_updated_at timestamp`
@@ -111,7 +111,7 @@ async function runStartupMigrations() {
 }
 
 // Function to ensure all research networks are initialized
-async function initializeResearchNetworks() {
+export async function initializeResearchNetworks() {
   console.log('Initializing research networks...');
   
   // Initialize JMA network if it doesn't exist
@@ -145,11 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with passport.js
   setupAuth(app);
   
-  // Apply any missing column migrations before serving requests
-  await runStartupMigrations();
-
-  // Initialize research networks before server startup
-  await initializeResearchNetworks();
+  // Startup DB tasks are deferred to after server.listen() — see server/index.ts
   
   const httpServer = createServer(app);
 
