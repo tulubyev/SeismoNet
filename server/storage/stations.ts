@@ -1,0 +1,113 @@
+import { db, schema } from "../db";
+import { eq } from "drizzle-orm";
+import { InsertRegion, InsertStation, Region, Station, regions, stations } from "@shared/schema";
+
+export const stationsStorage = {
+  // Region operations
+  async getRegions(): Promise<Region[]> {
+    return db.query.regions.findMany();
+  },
+  
+  async getRegion(id: number): Promise<Region | undefined> {
+    return db.query.regions.findFirst({
+      where: (regions, { eq }) => eq(regions.id, id)
+    });
+  },
+  
+  async getRegionByName(name: string): Promise<Region | undefined> {
+    return db.query.regions.findFirst({
+      where: (regions, { eq }) => eq(regions.name, name)
+    });
+  },
+  
+  async createRegion(region: InsertRegion): Promise<Region> {
+    const [newRegion] = await db.insert(schema.regions).values(region).returning();
+    return newRegion;
+  },
+  
+  // Station operations
+  async getStations(): Promise<Station[]> {
+    return db.query.stations.findMany();
+  },
+  
+  async getStationsByRegionId(regionId: number): Promise<Station[]> {
+    return db.query.stations.findMany({
+      where: (stations, { eq }) => eq(stations.regionId, regionId)
+    });
+  },
+  
+  async getStation(id: number): Promise<Station | undefined> {
+    return db.query.stations.findFirst({
+      where: (stations, { eq }) => eq(stations.id, id)
+    });
+  },
+  
+  async getStationByStationId(stationId: string): Promise<Station | undefined> {
+    return db.query.stations.findFirst({
+      where: (stations, { eq }) => eq(stations.stationId, stationId)
+    });
+  },
+  
+  async createStation(station: InsertStation): Promise<Station> {
+    const [newStation] = await db.insert(schema.stations).values(station).returning();
+    return newStation;
+  },
+  
+  async updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined> {
+    const { id: _id, stationId: _sid, ...safeUpdates } = updates;
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ ...safeUpdates, lastUpdate: new Date() })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  },
+
+  async updateStationStatus(stationId: string, status: string): Promise<Station | undefined> {
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ status, lastUpdate: new Date() })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  },
+  
+  async updateStationBatteryInfo(
+    stationId: string, 
+    batteryLevel: number, 
+    batteryVoltage: number, 
+    powerConsumption: number
+  ): Promise<Station | undefined> {
+    // Convert floating point values to integers to avoid the type error
+    const batteryLevelInt = Math.round(batteryLevel);
+    const batteryVoltageInt = Math.round(batteryVoltage * 100) / 100; // Keep two decimal places
+    const powerConsumptionInt = Math.round(powerConsumption * 100) / 100; // Keep two decimal places
+    
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ 
+        batteryLevel: batteryLevelInt, 
+        batteryVoltage: batteryVoltageInt, 
+        powerConsumption: powerConsumptionInt,
+        lastUpdate: new Date() 
+      })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  },
+  
+  async updateStationStorageInfo(stationId: string, storageRemaining: number): Promise<Station | undefined> {
+    // Convert floating point values to integers to avoid the type error
+    const storageRemainingInt = Math.round(storageRemaining);
+    
+    const [updatedStation] = await db
+      .update(schema.stations)
+      .set({ 
+        storageRemaining: storageRemainingInt,
+        lastUpdate: new Date() 
+      })
+      .where(eq(schema.stations.stationId, stationId))
+      .returning();
+    return updatedStation;
+  },
+};

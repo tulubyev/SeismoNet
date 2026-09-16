@@ -38,29 +38,36 @@ npm run db:generate      # drizzle-kit generate -> migrations/
 Монолит: Express 4 + React 18 (Vite) + WebSocket, один процесс, один порт.
 
 ```
-server/index.ts       bootstrap, логгер запросов, Vite middleware (dev) / static (prod), listen(PORT)
-server/routes.ts      ~92 REST-эндпоинтов + WebSocketServer('/ws') + симулятор волновых данных + /api/health
-server/storage.ts     IStorage → DatabaseStorage (drizzle); там же seed-данные (застройщики, нормы, сети)
-server/auth.ts        Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requireRole()
-server/db.ts          pg.Pool + drizzle, объект schema
+server/index.ts        bootstrap, логгер запросов, Vite middleware (dev) / static (prod), listen(PORT), фоновые startup-задачи
+server/routes.ts       registerRoutes(): auth → монтирование доменных роутеров → WebSocket → sync-джобы
+server/routes/*.ts     express.Router по доменам, полные пути "/api/...": health, stations, monitoring (events/alerts/networks/regions),
+                       notifications, earthquakes, infrastructure (+object-categories), developers, calculations (+comparison-sets),
+                       soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views)
+server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage
+server/ws.ts           WebSocketServer('/ws', noServer), broadcastMessage(), симулятор волновых данных
+server/startup.ts      runStartupMigrations() (ad-hoc ALTER TABLE ... IF NOT EXISTS), initializeResearchNetworks()
+server/seed.ts         seedDatabase(): стартовые данные (застройщики, нормы, станции, грунты…), идемпотентно
+server/auth.ts         Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requireRole()
+server/db.ts           pg.Pool + drizzle, объект schema
+server/static.ts       log(), serveStatic() — prod-статика с immutable-кэшем /assets
+server/vite.ts         dev-only, подключается динамическим импортом (в prod-бандл не попадает)
 server/seismicUtils.ts STA/LTA, триангуляция, магнитуда
-server/services/      earthquakeApi (USGS/EMSC), jmaEarthquakeApi, telegram, unisender — sync по setInterval 30 мин
-server/lib/miniseed.ts энкодер miniSEED 2.4 (GET /api/seismograms/:id/mseed)
-shared/schema.ts      единый источник типов для клиента и сервера
-client/src/App.tsx    роутер wouter; все страницы кроме /auth — в ProtectedRoute + AppLayout
-client/src/pages/     25 страниц; крупные: Analysis.tsx (7 вкладок расчётов), Calculations.tsx, InfrastructureObjects.tsx
-client/src/components/ui  shadcn/ui (new-york), не править руками без нужды
-client/src/hooks/     use-auth (Context), useWebSocket, useSeismicData
-client/src/lib/       queryClient, epicenterCalculator, seismicCalculations, waveformUtils, mapUtils
+server/services/       earthquakeApi (USGS/EMSC), jmaEarthquakeApi, telegram, unisender — sync по setInterval 30 мин
+server/lib/            miniseed.ts (энкодер miniSEED 2.4), errors.ts (describeError — одна строка на ошибку в логах)
+shared/schema.ts       единый источник типов для клиента и сервера
+client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
+client/src/pages/      24 страницы; крупные: Analysis.tsx (7 вкладок расчётов), Calculations.tsx, InfrastructureObjects.tsx
+client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
+client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
+client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformUtils, mapUtils
 ```
 
 Конвенции:
 - Алиасы `@` → `client/src`, `@shared` → `shared`. Vite root = `client/`.
 - TanStack Query: ключ кэша = URL (`['/api/stations']`), после мутаций — `invalidateQueries`.
 - Zod-схемы для API берутся из `drizzle-zod` (`insertXxxSchema` в `shared/schema.ts`).
-- Новый эндпоинт: метод в `IStorage` + реализация в `DatabaseStorage` + роут в `routes.ts`.
-- Leaflet подключается с CDN в рантайме (`MapPanel`, `IrkutskMap`, `SoilDatabase`); пакет `leaflet`
-  установлен для типов и `lib/mapUtils.ts`.
+- Новый эндпоинт: метод в `server/storage/types.ts` (IStorage) + реализация в `server/storage/<domain>.ts` + роут в `server/routes/<domain>.ts`.
+- Leaflet бандлится через `client/src/lib/leaflet.ts` (экспортирует `window.L` для старого кода карт).
 - Роли: `administrator | user | viewer` через `requireRole([...])`.
 
 ## Локальная среда (Claude Desktop)
@@ -91,12 +98,8 @@ client/src/lib/       queryClient, epicenterCalculator, seismicCalculations, wav
 
 - Безопасность: fallback `SESSION_SECRET` в `server/auth.ts`; обход `requireRole` и `/api/dev-login`
   при `NODE_ENV !== production`; пароль БД засветился в публичном infra-репо — сменить.
-- Мёртвый код: `client/src/mobile/**`, `client/src/components/layouts/**` (актуален `components/layout/`),
-  `pages/EventMap.tsx`, `pages/EventHistory.tsx` не в роутере.
-- Неиспользуемые зависимости: `@neondatabase/serverless`, `@sendgrid/mail`, `@slack/web-api`,
-  `react-simple-maps`, `world-atlas`, `memorystore`, `framer-motion` — удалять после проверки импортов.
-- Симулятор данных в `routes.ts` (`startSimulation`) шлёт синтетические волны для станций
+- Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
-- Тестов и CI нет. `npm run check` — baseline 70 ошибок типов (16.09.2026), все в старом коде (routes.ts, storage.ts, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
+- Тестов и CI нет. `npm run check` — baseline 63 ошибки типов (16.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
 - Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
   (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).

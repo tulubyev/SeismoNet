@@ -1,0 +1,73 @@
+import { db, schema } from "../db";
+import { eq } from "drizzle-orm";
+import { InsertSoilLayer, InsertSoilProfile, SoilLayer, SoilProfile, soilLayers, soilProfiles } from "@shared/schema";
+
+export const soilStorage = {
+  // ─── Soil profile operations ──────────────────────────────────────────────────
+
+  async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
+    if (objectId !== undefined) {
+      return db.query.soilProfiles.findMany({
+        where: (t, { eq }) => eq(t.objectId, objectId)
+      });
+    }
+    return db.query.soilProfiles.findMany();
+  },
+
+  async getSoilProfile(id: number): Promise<SoilProfile | undefined> {
+    return db.query.soilProfiles.findFirst({
+      where: (t, { eq }) => eq(t.id, id)
+    });
+  },
+
+  async getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined> {
+    const all = await db.query.soilProfiles.findMany();
+    let nearest: SoilProfile | undefined;
+    let minDist = Infinity;
+    for (const p of all) {
+      if (!p.latitude || !p.longitude) continue;
+      const dlat = parseFloat(String(p.latitude)) - lat;
+      const dlng = parseFloat(String(p.longitude)) - lng;
+      const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+      if (dist < minDist) { minDist = dist; nearest = p; }
+    }
+    return minDist < 0.1 ? nearest : undefined;
+  },
+
+  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
+    const [newProfile] = await db.insert(schema.soilProfiles).values(profile).returning();
+    return newProfile;
+  },
+
+  async updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined> {
+    const [updated] = await db.update(schema.soilProfiles).set(data).where(eq(schema.soilProfiles.id, id)).returning();
+    return updated;
+  },
+
+  async deleteSoilProfile(id: number): Promise<boolean> {
+    const result = await db.delete(schema.soilProfiles).where(eq(schema.soilProfiles.id, id)).returning();
+    return result.length > 0;
+  },
+
+  async getSoilLayers(profileId: number): Promise<SoilLayer[]> {
+    return db.query.soilLayers.findMany({
+      where: (t, { eq }) => eq(t.profileId, profileId),
+      orderBy: (t, { asc }) => [asc(t.layerNumber)]
+    });
+  },
+
+  async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {
+    const [newLayer] = await db.insert(schema.soilLayers).values(layer).returning();
+    return newLayer;
+  },
+
+  async updateSoilLayer(id: number, data: Partial<InsertSoilLayer>): Promise<SoilLayer | undefined> {
+    const [updated] = await db.update(schema.soilLayers).set(data).where(eq(schema.soilLayers.id, id)).returning();
+    return updated;
+  },
+
+  async deleteSoilLayer(id: number): Promise<boolean> {
+    const result = await db.delete(schema.soilLayers).where(eq(schema.soilLayers.id, id)).returning();
+    return result.length > 0;
+  },
+};

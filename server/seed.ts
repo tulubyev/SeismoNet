@@ -2,11 +2,11 @@
 // skips itself, so this is safe to run on every start (see server/index.ts).
 import { eq, and } from "drizzle-orm";
 import { db, schema } from "./db";
-import { DatabaseStorage, storage } from "./storage";
+import { storage } from "./storage";
 import type { InsertAlert, InsertBuildingNorm, InsertDeveloper, InsertEvent, InsertInfrastructureObject, InsertMaintenanceRecord, InsertObjectCategory, InsertRegion, InsertResearchNetwork, InsertSeismogramRecord, InsertSensorInstallation, InsertStation, InsertSystemStatus, InsertUser } from "@shared/schema";
 
 export async function seedDatabase(): Promise<void> {
-  const dbStorage = new DatabaseStorage();
+  const dbStorage = storage;
 
   // Remove legacy international stations that don't belong to the Irkutsk network
   const LEGACY_STATION_IDS = ["PNWST-03", "SOCAL-12", "ALASKA-07", "FIJI-01"];
