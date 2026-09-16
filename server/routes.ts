@@ -107,7 +107,7 @@ export async function runStartupMigrations() {
     await db.execute(`DELETE FROM stations WHERE station_id LIKE 'SEN-%'`);
     console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + cleanup).');
   } catch (e) {
-    console.error('Startup migration error (seismic_calculations columns):', e);
+    console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }
 }
 
@@ -154,7 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.execute(sql`select 1`);
       res.json({ status: "ok", db: "up", uptime: Math.round(process.uptime()) });
     } catch (err) {
-      res.status(503).json({ status: "degraded", db: "down", error: String(err) });
+      res.status(503).json({ status: "degraded", db: "down", error: describeError(err) });
     }
   });
 

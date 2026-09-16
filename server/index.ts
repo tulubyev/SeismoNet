@@ -4,6 +4,7 @@ import { serveStatic, log } from "./static";
 import { db, schema } from "./db";
 import { sql } from "drizzle-orm";
 import { NOTE_HISTORY_LIMIT } from "./storage";
+import { seedDatabase } from "./seed";
 import { describeError } from "./lib/errors";
 
 const app = express();
@@ -90,7 +91,7 @@ async function trimNoteHistoryOnStartup() {
 
     log(`note history cleanup: trimmed ${trimmed} calculation(s) to ${NOTE_HISTORY_LIMIT} entries`);
   } catch (err) {
-    log(`note history cleanup error: ${err}`);
+    log(`note history cleanup error: ${describeError(err)}`);
   }
 }
 
@@ -134,8 +135,9 @@ process.on("unhandledRejection", (reason) => {
 
     // Run DB startup tasks in the background after the port is open so health
     // checks never block on network timeouts (e.g. when VPS DB is slow to connect).
-    runStartupMigrations().catch(e => log(`startup migrations error: ${e}`));
-    initializeResearchNetworks().catch(e => log(`initializeResearchNetworks error: ${e}`));
-    trimNoteHistoryOnStartup().catch(e => log(`trimNoteHistoryOnStartup error: ${e}`));
+    runStartupMigrations().catch(e => log(`startup migrations error: ${describeError(e)}`));
+    seedDatabase().catch(e => log(`seed error: ${describeError(e)}`));
+    initializeResearchNetworks().catch(e => log(`initializeResearchNetworks error: ${describeError(e)}`));
+    trimNoteHistoryOnStartup().catch(e => log(`trimNoteHistoryOnStartup error: ${describeError(e)}`));
   });
 })();

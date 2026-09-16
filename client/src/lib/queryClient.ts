@@ -12,7 +12,6 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  console.log(`Making ${method} request to ${url}`, data ? { data } : '');
   
   try {
     const res = await fetch(url, {
@@ -25,14 +24,8 @@ export async function apiRequest(
       credentials: "include",
     });
     
-    console.log(`Response from ${url}:`, { 
-      status: res.status, 
-      statusText: res.statusText,
-      headers: Object.fromEntries(res.headers.entries())
-    });
     
     if (res.status === 401) {
-      console.warn('Authentication error - redirecting to login');
       return res;
     }
     
@@ -51,7 +44,6 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
-    console.log(`Query request to ${url}`);
     
     try {
       const res = await fetch(url, {
@@ -61,15 +53,9 @@ export const getQueryFn: <T>(options: {
         credentials: "include",
       });
 
-      console.log(`Query response from ${url}:`, { 
-        status: res.status, 
-        statusText: res.statusText
-      });
       
       if (res.status === 401) {
-        console.warn('Authentication error in query');
         if (unauthorizedBehavior === "returnNull") {
-          console.log('Returning null for unauthorized query');
           return null;
         }
       }

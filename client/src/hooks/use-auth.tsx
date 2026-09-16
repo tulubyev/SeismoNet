@@ -34,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        console.log('Fetching current user data');
         const res = await fetch("/api/user", {
           method: "GET",
           headers: {
@@ -43,15 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: "include" // Important for cookies
         });
         
-        console.log('User data response status:', res.status);
         
         if (res.status === 401) {
-          console.log('User not authenticated, returning null');
           return null;
         }
         
         const userData = await res.json();
-        console.log('User data fetched successfully:', userData);
         return userData;
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -66,7 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Mutation for login
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      console.log('Attempting login with credentials:', { username: credentials.username });
       
       const res = await fetch("/api/login", {
         method: "POST",
@@ -78,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include"
       });
       
-      console.log('Login response status:', res.status);
       
       if (!res.ok) {
         const errorData = await res.json();
@@ -87,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const userData = await res.json();
-      console.log('Login successful, user data:', userData);
       return userData;
     },
     onSuccess: (loggedInUser: User) => {
@@ -115,11 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Mutation for registration
   const registerMutation = useMutation({
     mutationFn: async (userData: InsertUser) => {
-      console.log('Attempting registration with user data:', { 
-        username: userData.username,
-        email: userData.email,
-        role: userData.role
-      });
       
       const res = await fetch("/api/register", {
         method: "POST",
@@ -131,7 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include"
       });
       
-      console.log('Registration response status:', res.status);
       
       if (!res.ok) {
         const errorData = await res.json();
@@ -140,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const newUserData = await res.json();
-      console.log('Registration successful, user data:', newUserData);
       return newUserData;
     },
     onSuccess: (newUser: User) => {
@@ -168,7 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Mutation for logout
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      console.log('Attempting to logout user');
       
       const res = await fetch("/api/logout", {
         method: "POST",
@@ -178,7 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include"
       });
       
-      console.log('Logout response status:', res.status);
       
       if (!res.ok) {
         const errorData = await res.json();
@@ -187,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     onSuccess: () => {
-      console.log('Logout successful, clearing user data');
       queryClient.setQueryData(["/api/user"], null);
       
       toast({
