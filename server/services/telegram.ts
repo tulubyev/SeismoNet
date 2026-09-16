@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { describeError } from '../lib/errors';
 
 interface TelegramMessage {
   chatId: string | number;
@@ -43,7 +44,7 @@ export async function sendTelegramMessage(
       return false;
     }
   } catch (error) {
-    console.error('Error sending Telegram message:', error);
+    console.error(`Telegram send failed: ${describeError(error)}`);
     return false;
   }
 }

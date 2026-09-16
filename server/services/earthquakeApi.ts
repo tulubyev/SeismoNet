@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { storage } from '../storage';
+import { describeError } from '../lib/errors';
 import { InsertEvent } from '@shared/schema';
 
 // USGS Earthquake API URLs
@@ -107,7 +108,7 @@ async function fetchUSGSEarthquakes(
     const response = await axios.get<USGSEarthquakeResponse>(url);
     return response.data;
   } catch (error) {
-    console.error('Error fetching USGS earthquake data:', error);
+    console.error(`USGS fetch failed: ${describeError(error)}`);
     throw error;
   }
 }
@@ -188,7 +189,7 @@ export async function syncEarthquakeData(
     console.log(`Added ${newEventCount} new earthquakes to database`);
     return newEventCount;
   } catch (error) {
-    console.error('Error syncing earthquake data:', error);
+    console.error(`USGS sync failed: ${describeError(error)}`);
     throw error;
   }
 }
@@ -202,13 +203,13 @@ export function scheduleEarthquakeSyncJob(intervalMinutes = 30): NodeJS.Timeout 
   
   // Run immediately on startup
   syncEarthquakeData(4.5, 'week').catch(err => {
-    console.error('Initial earthquake sync failed:', err);
+    console.error(`Initial USGS sync failed: ${describeError(err)}`);
   });
   
   // Then schedule regular updates
   return setInterval(() => {
     syncEarthquakeData(4.5, 'day').catch(err => {
-      console.error('Scheduled earthquake sync failed:', err);
+      console.error(`Scheduled USGS sync failed: ${describeError(err)}`);
     });
   }, intervalMinutes * 60 * 1000);
 }

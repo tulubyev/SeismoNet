@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { describeError } from '../lib/errors';
 
 interface EmailParams {
   to: string;
@@ -55,7 +56,7 @@ export async function sendEmail(
       return false;
     }
   } catch (error) {
-    console.error('Error sending email via Unisender:', error);
+    console.error(`Unisender send failed: ${describeError(error)}`);
     return false;
   }
 }

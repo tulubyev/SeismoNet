@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { storage } from '../storage';
+import { describeError } from '../lib/errors';
 import { InsertEvent } from '@shared/schema';
 
 // Japan Meteorological Agency (JMA) API URLs
@@ -50,7 +51,7 @@ async function fetchJMAEarthquakes(): Promise<JMAEarthquakeEvent[]> {
     const response = await axios.get<JMAEarthquakeEvent[]>(JMA_EVENT_LIST_URL);
     return response.data;
   } catch (error) {
-    console.error('Error fetching JMA earthquake data:', error);
+    console.error(`JMA event list fetch failed: ${describeError(error)}`);
     throw error;
   }
 }
@@ -60,16 +61,11 @@ async function fetchJMAEarthquakes(): Promise<JMAEarthquakeEvent[]> {
  * @param eventId JMA event ID
  * @returns Promise that resolves to the detailed event information
  */
+// Throws when JMA publishes no detail file for the event (common); the caller
+// falls back to the list entry and logs a single line.
 async function fetchJMAEarthquakeDetails(eventId: string): Promise<JMAEarthquakeDetails> {
-  try {
-    const detailUrl = getJMAEventDetailsUrl(eventId);
-    console.log(`Fetching earthquake details from JMA: ${detailUrl}`);
-    const response = await axios.get<JMAEarthquakeDetails>(detailUrl);
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching JMA earthquake details for event ${eventId}:`, error);
-    throw error;
-  }
+  const response = await axios.get<JMAEarthquakeDetails>(getJMAEventDetailsUrl(eventId));
+  return response.data;
 }
 
 /**
@@ -107,15 +103,13 @@ async function convertJMAEventToEvent(event: JMAEarthquakeEvent): Promise<Insert
     try {
       details = await fetchJMAEarthquakeDetails(event.eid);
     } catch (detailError) {
-      // Handle case where details page returns 404 or other error
-      console.warn(`Could not fetch details for JMA event ${event.eid}, using basic info instead`);
+      // JMA publishes no detail file for many events — fall back to list data.
+      console.warn(`JMA ${event.eid}: no details (${describeError(detailError)}), using basic info`);
       useBasicInfo = true;
     }
     
     // If we couldn't get details or the details are incomplete, use basic info
     if (useBasicInfo || !details || !details.earthquake || !details.earthquake.hypocenters || details.earthquake.hypocenters.length < 1) {
-      console.log(`Using basic info for JMA event ${event.eid}`);
-      
       // Parse date from JMA format (trying to handle their date format)
       // Event dates are a bit unpredictable, so we need to be careful
       let timestamp = new Date(); // Default to current date/time
@@ -244,7 +238,7 @@ async function convertJMAEventToEvent(event: JMAEarthquakeEvent): Promise<Insert
       }
     };
   } catch (error) {
-    console.error(`Error converting JMA event ${event.eid}:`, error);
+    console.error(`JMA ${event.eid}: conversion failed — ${describeError(error)}`);
     return null;
   }
 }
@@ -286,7 +280,7 @@ export async function syncJMAEarthquakeData(): Promise<number> {
     console.log(`Added ${newEventCount} new earthquakes from JMA to database`);
     return newEventCount;
   } catch (error) {
-    console.error('Error syncing JMA earthquake data:', error);
+    console.error(`JMA sync failed: ${describeError(error)}`);
     throw error;
   }
 }
@@ -300,13 +294,13 @@ export function scheduleJMAEarthquakeSyncJob(intervalMinutes = 30): NodeJS.Timeo
   
   // Run immediately on startup
   syncJMAEarthquakeData().catch(err => {
-    console.error('Initial JMA earthquake sync failed:', err);
+    console.error(`Initial JMA sync failed: ${describeError(err)}`);
   });
   
   // Then schedule regular updates
   return setInterval(() => {
     syncJMAEarthquakeData().catch(err => {
-      console.error('Scheduled JMA earthquake sync failed:', err);
+      console.error(`Scheduled JMA sync failed: ${describeError(err)}`);
     });
   }, intervalMinutes * 60 * 1000);
 }
