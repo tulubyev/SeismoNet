@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes, runStartupMigrations, initializeResearchNetworks } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./static";
 import { db, schema } from "./db";
 import { sql } from "drizzle-orm";
 import { NOTE_HISTORY_LIMIT } from "./storage";
@@ -114,6 +114,10 @@ process.on("unhandledRejection", (reason) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    // Non-literal specifier keeps esbuild from bundling ./vite (and thus `vite`
+    // + vite.config plugins) into dist/index.js, where they'd be missing devDeps.
+    const viteEntry = "./vite";
+    const { setupVite } = await import(viteEntry);
     await setupVite(app, server);
   } else {
     serveStatic(app);
