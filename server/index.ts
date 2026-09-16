@@ -93,6 +93,12 @@ async function trimNoteHistoryOnStartup() {
   }
 }
 
+// Safety net: a rejected promise in a background task (DB flap, external API)
+// must not take the whole server down.
+process.on("unhandledRejection", (reason) => {
+  log(`unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+});
+
 (async () => {
   const server = await registerRoutes(app);
 

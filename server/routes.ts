@@ -181,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: WebSocketMessageType.STATION_STATUS,
         payload: stations
       }));
-    });
+    }).catch(err => console.error('WS initial send failed:', err instanceof Error ? err.message : err));
     
     // Send initial system status
     Promise.all([storage.getSystemStatus(), storage.getStations()]).then(([statusItems, allStations]) => {
@@ -197,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           apiPerformanceHealth: statusItems.find(item => item.component === "API Performance")?.value || 0
         }
       }));
-    });
+    }).catch(err => console.error('WS initial send failed:', err instanceof Error ? err.message : err));
     
     // Send recent events
     storage.getRecentEvents(5).then(events => {
@@ -205,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: WebSocketMessageType.EVENT_NOTIFICATION,
         payload: events
       }));
-    });
+    }).catch(err => console.error('WS initial send failed:', err instanceof Error ? err.message : err));
     
     // Send research networks data
     storage.getResearchNetworks().then(networks => {
@@ -213,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: WebSocketMessageType.DATA_EXCHANGE,
         payload: networks
       }));
-    });
+    }).catch(err => console.error('WS initial send failed:', err instanceof Error ? err.message : err));
     
     // Handle messages from clients (e.g., filter changes, data requests)
     ws.on('message', async (data) => {
