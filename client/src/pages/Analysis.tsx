@@ -1,6 +1,5 @@
 import { FC, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import type { jsPDF } from 'jspdf';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -970,6 +969,7 @@ const AmplificationTab: FC<AmpTabProps> = ({
   const peakAmp = ampResult ? ampResult.reduce((b, p) => p.amp > b.amp ? p : b, { freq: 0, amp: 0 }) : null;
 
   const exportMtsmPdf = useCallback(async () => {
+    const [{ jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas')]);
     if (!ampResult || ampResult.length === 0) return;
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });

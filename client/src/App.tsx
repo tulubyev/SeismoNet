@@ -5,38 +5,48 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
-import { FC } from "react";
+import { FC, Suspense, lazy } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 
 import HomePage from "@/pages/HomePage";
 import Dashboard from "@/pages/Dashboard";
-import Stations from "@/pages/Stations";
-import AddStation from "@/pages/AddStation";
-import Analysis from "@/pages/Analysis";
-import Settings from "@/pages/Settings";
+const Stations = lazy(() => import("@/pages/Stations"));
+const AddStation = lazy(() => import("@/pages/AddStation"));
+const Analysis = lazy(() => import("@/pages/Analysis"));
+const Settings = lazy(() => import("@/pages/Settings"));
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
-import InfrastructureObjects from "@/pages/InfrastructureObjects";
-import BuildingNorms from "@/pages/BuildingNorms";
-import Seismograms from "@/pages/Seismograms";
-import SeismoLive from "@/pages/SeismoLive";
-import Archive from "@/pages/Archive";
-import DevelopersPage from "@/pages/Developers";
-import SoilDatabase from "@/pages/SoilDatabase";
-import SystemManagement from "@/pages/SystemManagement";
-import Calculations from "@/pages/Calculations";
-import SeismoNetProject from "@/pages/SeismoNetProject";
-import DataAnalysis from "@/pages/DataAnalysis";
-import MonitoringHub from "@/pages/MonitoringHub";
-import AboutProject from "@/pages/AboutProject";
-import Partners from "@/pages/Partners";
-import AboutEarthquakes from "@/pages/AboutEarthquakes";
-import SeismicBasics from "@/pages/SeismicBasics";
-import Interesting from "@/pages/Interesting";
+const InfrastructureObjects = lazy(() => import("@/pages/InfrastructureObjects"));
+const BuildingNorms = lazy(() => import("@/pages/BuildingNorms"));
+const Seismograms = lazy(() => import("@/pages/Seismograms"));
+const SeismoLive = lazy(() => import("@/pages/SeismoLive"));
+const Archive = lazy(() => import("@/pages/Archive"));
+const DevelopersPage = lazy(() => import("@/pages/Developers"));
+const SoilDatabase = lazy(() => import("@/pages/SoilDatabase"));
+const SystemManagement = lazy(() => import("@/pages/SystemManagement"));
+const Calculations = lazy(() => import("@/pages/Calculations"));
+const SeismoNetProject = lazy(() => import("@/pages/SeismoNetProject"));
+const DataAnalysis = lazy(() => import("@/pages/DataAnalysis"));
+const MonitoringHub = lazy(() => import("@/pages/MonitoringHub"));
+const AboutProject = lazy(() => import("@/pages/AboutProject"));
+const Partners = lazy(() => import("@/pages/Partners"));
+const AboutEarthquakes = lazy(() => import("@/pages/AboutEarthquakes"));
+const SeismicBasics = lazy(() => import("@/pages/SeismicBasics"));
+const Interesting = lazy(() => import("@/pages/Interesting"));
+
+// Heavy pages are code-split (React.lazy) so the first load only ships the
+// shell + HomePage/Dashboard; the layout stays mounted while a chunk loads.
+const PageFallback = () => (
+  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+    Загрузка…
+  </div>
+);
 
 const withLayout = (Component: FC) => () => (
   <AppLayout>
-    <Component />
+    <Suspense fallback={<PageFallback />}>
+      <Component />
+    </Suspense>
   </AppLayout>
 );
 

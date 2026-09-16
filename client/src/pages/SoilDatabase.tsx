@@ -1,4 +1,5 @@
 import { FC, useEffect, useRef, useState, useMemo } from 'react';
+import '@/lib/leaflet';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -153,7 +154,7 @@ function exportProfileCsv(profile: SoilProfile, layers: SoilLayer[]) {
 
 // ─── Leaflet map ───────────────────────────────────────────────────────────────
 
-declare global { interface Window { L: any; } }
+declare global { interface Window { } }
 const esc = (s: string | null | undefined) => (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const SoilMap: FC<{
@@ -267,16 +268,7 @@ const SoilMap: FC<{
   };
 
   useEffect(() => {
-    if (!window.L) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-      script.onload = initMap;
-      document.head.appendChild(script);
-    } else if (!initRef.current) { initMap(); }
+    if (!initRef.current) initMap();
     return () => {
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; initRef.current = false; }
     };

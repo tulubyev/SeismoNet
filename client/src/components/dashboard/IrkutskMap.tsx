@@ -1,4 +1,5 @@
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
+import '@/lib/leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,7 @@ import type { InfrastructureObject, Station, ObjectCategory, SensorInstallation,
 import { sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 declare global {
-  interface Window { L: any; __mapOpenObj?: (id: number) => void; }
+  interface Window { __mapOpenObj?: (id: number) => void; }
 }
 
 const esc = (s: string | null | undefined): string =>
@@ -327,19 +328,7 @@ const IrkutskMap: FC<IrkutskMapProps> = ({ objects, stations, className = '' }) 
   }, []);
 
   useEffect(() => {
-    if (!window.L) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-      script.onload = initMap;
-      document.head.appendChild(script);
-    } else if (!initializedRef.current) {
-      initMap();
-    }
+    if (!initializedRef.current) initMap();
 
     return () => {
       if (mapRef.current) {

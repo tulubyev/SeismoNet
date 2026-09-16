@@ -4,6 +4,7 @@ import { serveStatic, log } from "./static";
 import { db, schema } from "./db";
 import { sql } from "drizzle-orm";
 import { NOTE_HISTORY_LIMIT } from "./storage";
+import { describeError } from "./lib/errors";
 
 const app = express();
 app.use(express.json());
@@ -96,7 +97,7 @@ async function trimNoteHistoryOnStartup() {
 // Safety net: a rejected promise in a background task (DB flap, external API)
 // must not take the whole server down.
 process.on("unhandledRejection", (reason) => {
-  log(`unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+  log(`unhandled rejection: ${describeError(reason)}`);
 });
 
 (async () => {

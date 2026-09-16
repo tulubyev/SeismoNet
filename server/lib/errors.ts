@@ -14,6 +14,10 @@ export function describeError(error: unknown): string {
     const url = error.config?.url ?? "";
     return status ? `HTTP ${status} ${method} ${url}` : `${error.code ?? "network error"} ${method} ${url}`;
   }
-  if (error instanceof Error) return error.message;
+  // pg wraps connection failures in an AggregateError with an empty message
+  if (error instanceof AggregateError && error.errors.length > 0) {
+    return `${(error as any).code ?? error.name}: ${describeError(error.errors[0])}`;
+  }
+  if (error instanceof Error) return error.message || (error as any).code || error.name;
   return String(error);
 }

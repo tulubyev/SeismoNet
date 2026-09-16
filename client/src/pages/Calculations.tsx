@@ -1,5 +1,5 @@
 import { FC, RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { jsPDF } from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import * as Diff from 'diff';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -27,7 +27,6 @@ import {
   Eye, Search, Database, FileBarChart, History, GitCompareArrows, X,
   StickyNote, Save, Loader2, Bookmark, Link2, FolderOpen, Check, ImageDown, FileText,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import type {
   SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet, CalculationNoteHistory,
   KeyPeriodTableRow, RespSpectrumResults, MtsmAmplResults, ResonanceResults,
@@ -948,6 +947,7 @@ const RespDetail: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const { toast } = useToast();
 
   const exportPdf = async () => {
+    const [{ jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas')]);
     setIsExportingPdf(true);
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -1432,6 +1432,7 @@ const CompareDialog: FC<CompareDialogProps> = ({
   }, [calcs, calcType]);
 
   const exportChartImage = async () => {
+    const { default: html2canvas } = await import('html2canvas');
     const el = chartContainerRef.current;
     if (!el) {
       toast({ title: 'Нет данных для экспорта', description: 'График недоступен.', variant: 'destructive' });

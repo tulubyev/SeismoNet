@@ -1,4 +1,5 @@
 import { FC, useEffect, useRef } from 'react';
+import '@/lib/leaflet';
 import { Card } from '@/components/ui/card';
 import { Station, Event } from '@shared/schema';
 import { Filter, Maximize } from 'lucide-react';
@@ -10,12 +11,6 @@ interface MapPanelProps {
   fullscreen?: boolean;
 }
 
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
 const MapPanel: FC<MapPanelProps> = ({ stations, events, className = '', fullscreen = false }) => {
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -23,20 +18,8 @@ const MapPanel: FC<MapPanelProps> = ({ stations, events, className = '', fullscr
   
   useEffect(() => {
     // Check if Leaflet is available
-    if (!window.L) {
-      // Load Leaflet if not available
-      const linkEl = document.createElement('link');
-      linkEl.rel = 'stylesheet';
-      linkEl.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(linkEl);
-      
-      const scriptEl = document.createElement('script');
-      scriptEl.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-      scriptEl.onload = initializeMap;
-      document.head.appendChild(scriptEl);
-    } else if (!mapInitializedRef.current) {
-      initializeMap();
-    } else {
+    if (!mapInitializedRef.current) initializeMap();
+    else {
       updateMap();
     }
     
