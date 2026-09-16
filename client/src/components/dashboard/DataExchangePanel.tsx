@@ -1,4 +1,5 @@
-import { FC, useEffect, useRef } from 'react';
+import { FC, useMemo } from 'react';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { ResearchNetwork } from '@shared/schema';
 import { Globe, Earth, GlobeLock, Goal } from 'lucide-react';
@@ -9,101 +10,14 @@ interface DataExchangePanelProps {
 }
 
 const DataExchangePanel: FC<DataExchangePanelProps> = ({ researchNetworks }) => {
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstanceRef = useRef<any>(null);
-  
-  // Setup Chart.js when component mounts
-  useEffect(() => {
-    // Load Chart.js if not available
-    if (!window.Chart && !document.getElementById('chartjs-script')) {
-      const script = document.createElement('script');
-      script.id = 'chartjs-script';
-      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
-      script.onload = initializeChart;
-      document.head.appendChild(script);
-    } else if (window.Chart) {
-      initializeChart();
-    }
-    
-    return () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.destroy();
-      }
-    };
-  }, []);
-  
-  // Update chart when networks change
-  useEffect(() => {
-    updateChart();
-  }, [researchNetworks]);
-  
-  const initializeChart = () => {
-    if (!chartRef.current || !window.Chart) return;
-    
-    const ctx = chartRef.current.getContext('2d');
-    if (!ctx) return;
-    
-    // Create mock data for the chart
-    const labels = Array.from({ length: 24 }, (_, i) => `${i}h`);
-    const data = {
-      labels,
-      datasets: [
-        {
-          label: 'Data Exchange',
-          data: Array.from({ length: 24 }, () => Math.random() * 6 + 1),
-          borderColor: 'hsl(var(--chart-1))',
-          backgroundColor: 'hsla(var(--chart-1), 0.1)',
-          tension: 0.4,
-          fill: true
-        }
-      ]
-    };
-    
-    chartInstanceRef.current = new window.Chart(ctx, {
-      type: 'line',
-      data,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false
-          }
-        },
-        scales: {
-          x: {
-            grid: {
-              display: false
-            }
-          },
-          y: {
-            grid: {
-              color: 'hsla(var(--border), 0.2)',
-            },
-            ticks: {
-              callback: (value: number) => `${value} MB/s`
-            }
-          }
-        }
-      }
-    });
-  };
-  
-  const updateChart = () => {
-    if (!chartInstanceRef.current) return;
-    
-    // Update chart with new data
-    chartInstanceRef.current.data.datasets[0].data = Array.from(
-      { length: 24 }, 
-      () => Math.random() * 6 + 1
-    );
-    chartInstanceRef.current.update();
-  };
-  
+  // Mock 24-hour throughput series (the real feed is not wired up yet);
+  // regenerated when the network list changes, like the original Chart.js code.
+  const throughput = useMemo(
+    () => Array.from({ length: 24 }, (_, i) => ({ hour: `${i}h`, mbps: +(Math.random() * 6 + 1).toFixed(2) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [researchNetworks],
+  );
+
   // Get appropriate icon for network based on region
   const getNetworkIcon = (network: ResearchNetwork) => {
     const region = network.region?.toLowerCase() || '';
@@ -178,7 +92,14 @@ const DataExchangePanel: FC<DataExchangePanelProps> = ({ researchNetworks }) => 
         </div>
         
         <div className="h-48">
-          <canvas ref={chartRef}></canvas>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={throughput} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={3} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10 }} width={48} tickFormatter={(v: number) => `${v} MB/s`} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number) => [`${v} MB/s`, 'Throughput']} />
+              <Area type="monotone" dataKey="mbps" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.15} strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
         
         <div className="pt-4 border-t border-slate-light">

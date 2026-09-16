@@ -11,7 +11,8 @@
     "db:push": "node --env-file=.env node_modules/drizzle-kit/bin.cjs push",
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
     "setup": "bash scripts/dev-setup.sh",
-    "tunnel": "bash scripts/db-tunnel.sh"
+    "tunnel": "bash scripts/db-tunnel.sh",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -52,7 +53,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
-    "d3": "^7.9.0",
     "date-fns": "^3.6.0",
     "diff": "^9.0.0",
     "drizzle-orm": "^0.39.1",
@@ -107,7 +107,8 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
     "typescript": "5.6.3",
-    "vite": "^5.4.14"
+    "vite": "^5.4.14",
+    "vitest": "^2.1.9"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

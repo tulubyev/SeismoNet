@@ -11,6 +11,7 @@ npm run setup            # первый запуск: npm install + .env + SSH-�
 npm run tunnel -- start  # SSH-туннель: localhost:5433 -> VPS PostgreSQL (status|stop)
 npm run dev              # tsx + Vite middleware, http://localhost:5000 (PORT переопределяет)
 npm run check            # tsc --noEmit (baseline ошибок см. ниже)
+npm test                 # vitest: client/src/lib/numeric/*.test.ts
 npm run build            # vite build -> dist/public, esbuild server -> dist/index.js
 npm start                # production: node dist/index.js
 npm run db:push          # drizzle-kit push — МЕНЯЕТ СХЕМУ ОБЩЕЙ БД, только осознанно
@@ -56,10 +57,13 @@ server/services/       earthquakeApi (USGS/EMSC), jmaEarthquakeApi, telegram, un
 server/lib/            miniseed.ts (энкодер miniSEED 2.4), errors.ts (describeError — одна строка на ошибку в логах)
 shared/schema.ts       единый источник типов для клиента и сервера
 client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
-client/src/pages/      24 страницы; крупные: Analysis.tsx (7 вкладок расчётов), Calculations.tsx, InfrastructureObjects.tsx
+client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
+                       Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
-client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformUtils, mapUtils
+client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
+client/src/lib/numeric/ чистые численные методы с тестами: fft (спектр, H/V), amplification (МТСМ, Thomson-Haskell),
+                       responseSpectrum (Newmark-β SDOF), scenarios (каталог Байкала, синтетические акселерограммы), resonance (calcRisk)
 ```
 
 Конвенции:
@@ -90,7 +94,7 @@ client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epi
   Сейчас UI, seed и тексты жёстко про Иркутск — таблица `regions` есть, но не используется как измерение.
 - Продуктовый backlog: `docs/проект_доработок.md` (PDF на кириллице, PDF для МТСМ, страница `/map`,
   статус датчиков по зданию, экспорты CSV/Excel, живые счётчики на HomePage).
-- Технический backlog: `docs/INFRASTRUCTURE.md` (разбить storage.ts/routes.ts/Analysis.tsx, TimescaleDB,
+- Технический backlog: `docs/INFRASTRUCTURE.md` (TimescaleDB,
   MQTT/Kafka ingest, Redis, наблюдаемость). Планы: `docs/opensees-integration-plan.md`, `docs/task-*.md`.
 - История изменений: `docs/COMPLETED_FEATURES.md`. Архитектура: `docs/ARCHITECTURE.md`.
 
@@ -100,6 +104,6 @@ client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epi
   при `NODE_ENV !== production`; пароль БД засветился в публичном infra-репо — сменить.
 - Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
-- Тестов и CI нет. `npm run check` — baseline 63 ошибки типов (16.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
+- CI нет; тесты только для `lib/numeric`. `npm run check` — baseline 49 ошибок типов (16.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
 - Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
   (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).
