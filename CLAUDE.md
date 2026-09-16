@@ -1,0 +1,102 @@
+# SeismoNet — контекст для Claude
+
+Система сейсмического мониторинга инфраструктурных объектов (Иркутск, далее — Махачкала, Алматы,
+Улан-Батор). Язык UI и документации — русский; нормативная база — СП 14.13330, СНиП II-7-81*, ГОСТ 17516.1.
+Заказчик/владелец — ЕЦСЭМ, «Байкальская Инновационная Компания». Подпроект АПК «Байкал».
+
+## Команды
+
+```bash
+npm run setup            # первый запуск: npm install + .env + SSH-туннель к БД
+npm run tunnel -- start  # SSH-туннель: localhost:5433 -> VPS PostgreSQL (status|stop)
+npm run dev              # tsx + Vite middleware, http://localhost:5000 (PORT переопределяет)
+npm run check            # tsc --noEmit (baseline ошибок см. ниже)
+npm run build            # vite build -> dist/public, esbuild server -> dist/index.js
+npm start                # production: node dist/index.js
+npm run db:push          # drizzle-kit push — МЕНЯЕТ СХЕМУ ОБЩЕЙ БД, только осознанно
+npm run db:generate      # drizzle-kit generate -> migrations/
+```
+
+`.env` читается через `node --env-file` — dotenv в коде нет. Шаблон: `.env.example`.
+
+## База данных
+
+**Единственная БД — `seismonet_db` на VPS 62.217.178.173**, системный PostgreSQL 16, порт 5432,
+пользователь `tulubyev`. Локального PostgreSQL нет и не нужно.
+
+- Mac: через `scripts/db-tunnel.sh` → `DATABASE_URL=postgres://tulubyev:***@localhost:5433/seismonet_db`.
+- VPS (Docker): `DATABASE_URL=postgres://tulubyev:***@172.28.0.1:5432/seismonet_db` (`host.docker.internal` тоже работает).
+- Снаружи 5432 закрыт UFW — поэтому Replit-деплой не мог подключиться. Не открывать порт; деплоить на VPS (`docs/DEPLOY.md`).
+- `server/db.ts`: `VPS_DATABASE_URL || DATABASE_URL`, `pg.Pool`, `ssl: false`.
+- Схема: `shared/schema.ts` (26 таблиц, drizzle + drizzle-zod). Миграции `migrations/0000–0005` + ad-hoc
+  `runStartupMigrations()` в `server/routes.ts` (добавляет колонки `IF NOT EXISTS` при старте).
+- Пока проект не задеплоен на VPS, `seismonet_db` — де-факто dev-база. После деплоя для экспериментов
+  со схемой создать `seismonet_dev_db` там же и переключить `.env`.
+
+## Архитектура
+
+Монолит: Express 4 + React 18 (Vite) + WebSocket, один процесс, один порт.
+
+```
+server/index.ts       bootstrap, логгер запросов, Vite middleware (dev) / static (prod), listen(PORT)
+server/routes.ts      ~92 REST-эндпоинтов + WebSocketServer('/ws') + симулятор волновых данных + /api/health
+server/storage.ts     IStorage → DatabaseStorage (drizzle); там же seed-данные (застройщики, нормы, сети)
+server/auth.ts        Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requireRole()
+server/db.ts          pg.Pool + drizzle, объект schema
+server/seismicUtils.ts STA/LTA, триангуляция, магнитуда
+server/services/      earthquakeApi (USGS/EMSC), jmaEarthquakeApi, telegram, unisender — sync по setInterval 30 мин
+server/lib/miniseed.ts энкодер miniSEED 2.4 (GET /api/seismograms/:id/mseed)
+shared/schema.ts      единый источник типов для клиента и сервера
+client/src/App.tsx    роутер wouter; все страницы кроме /auth — в ProtectedRoute + AppLayout
+client/src/pages/     25 страниц; крупные: Analysis.tsx (7 вкладок расчётов), Calculations.tsx, InfrastructureObjects.tsx
+client/src/components/ui  shadcn/ui (new-york), не править руками без нужды
+client/src/hooks/     use-auth (Context), useWebSocket, useSeismicData
+client/src/lib/       queryClient, epicenterCalculator, seismicCalculations, waveformUtils, mapUtils
+```
+
+Конвенции:
+- Алиасы `@` → `client/src`, `@shared` → `shared`. Vite root = `client/`.
+- TanStack Query: ключ кэша = URL (`['/api/stations']`), после мутаций — `invalidateQueries`.
+- Zod-схемы для API берутся из `drizzle-zod` (`insertXxxSchema` в `shared/schema.ts`).
+- Новый эндпоинт: метод в `IStorage` + реализация в `DatabaseStorage` + роут в `routes.ts`.
+- Leaflet подключается с CDN в рантайме (`MapPanel`, `IrkutskMap`, `SoilDatabase`); пакет `leaflet`
+  установлен для типов и `lib/mapUtils.ts`.
+- Роли: `administrator | user | viewer` через `requireRole([...])`.
+
+## Локальная среда (Claude Desktop)
+
+- `.claude/launch.json` → конфигурация `seismonet-dev` для браузерной панели (`preview_start`).
+- Вход в dev: страница `/auth`, кнопка dev-login (`POST /api/dev-login`, только `NODE_ENV !== production`).
+- Без туннеля сервер стартует, но все `/api/*` с БД отдают 500 — сначала `npm run tunnel -- start`.
+- Claude не подключается к VPS по SSH и не запускает `db:push` без явной просьбы.
+
+## Деплой
+
+`Dockerfile` (multi-stage, node:20-alpine) + `docker-compose.prod.yml` (Traefik labels, сеть `traefik-public`).
+Пошагово — `docs/DEPLOY.md`. Инфраструктура сервера описана в репо `tulubyev/vps-server-infra`.
+
+## Направление проекта
+
+- Аппаратные узлы: списанные инфоматы «Искра» → Raspberry Pi 4/5 + MEMS-акселерометр (ADXL345 пилот,
+  ADXL357/промышленные MEMS далее), данные в miniSEED, регистрация в FDSN.
+- Мультирегиональность: Иркутск (ИЗК СО РАН), Махачкала (ГАУ РД «Сейсмобезопасность»), Алматы, Улан-Батор (ИАГ МАН).
+  Сейчас UI, seed и тексты жёстко про Иркутск — таблица `regions` есть, но не используется как измерение.
+- Продуктовый backlog: `docs/проект_доработок.md` (PDF на кириллице, PDF для МТСМ, страница `/map`,
+  статус датчиков по зданию, экспорты CSV/Excel, живые счётчики на HomePage).
+- Технический backlog: `docs/INFRASTRUCTURE.md` (разбить storage.ts/routes.ts/Analysis.tsx, TimescaleDB,
+  MQTT/Kafka ingest, Redis, наблюдаемость). Планы: `docs/opensees-integration-plan.md`, `docs/task-*.md`.
+- История изменений: `docs/COMPLETED_FEATURES.md`. Архитектура: `docs/ARCHITECTURE.md`.
+
+## Известные проблемы / TODO
+
+- Безопасность: fallback `SESSION_SECRET` в `server/auth.ts`; обход `requireRole` и `/api/dev-login`
+  при `NODE_ENV !== production`; пароль БД засветился в публичном infra-репо — сменить.
+- Мёртвый код: `client/src/mobile/**`, `client/src/components/layouts/**` (актуален `components/layout/`),
+  `pages/EventMap.tsx`, `pages/EventHistory.tsx` не в роутере.
+- Неиспользуемые зависимости: `@neondatabase/serverless`, `@sendgrid/mail`, `@slack/web-api`,
+  `react-simple-maps`, `world-atlas`, `memorystore`, `framer-motion` — удалять после проверки импортов.
+- Симулятор данных в `routes.ts` (`startSimulation`) шлёт синтетические волны для станций
+  `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
+- Тестов и CI нет. `npm run check` — baseline 70 ошибок типов (16.09.2026), все в старом коде (routes.ts, storage.ts, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
+- Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
+  (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).

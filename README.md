@@ -66,7 +66,7 @@
 | Backend | Node.js, Express.js, TypeScript |
 | Auth | Passport.js (session, scrypt) |
 | Real-time | WebSocket (ws) |
-| Database | PostgreSQL (Neon serverless) |
+| Database | PostgreSQL 16 (системный инстанс на VPS, драйвер `pg`) |
 | ORM | Drizzle ORM + Drizzle Kit |
 | PDF | jsPDF + html2canvas |
 | Build | Vite (frontend), esbuild (server) |
@@ -85,9 +85,16 @@ client/          — React-приложение
 
 server/          — Express-сервер
   index.ts       — точка входа, инициализация
-  routes.ts      — REST API маршруты
+  routes.ts      — REST API маршруты + WebSocket /ws + /api/health
   storage.ts     — интерфейс к базе данных
-  auth.ts        — аутентификация
+  auth.ts        — аутентификация (сессии в PostgreSQL в production)
+  db.ts          — pg.Pool + drizzle
+  services/      — USGS/EMSC, JMA, Telegram, Unisender
+  lib/miniseed.ts — экспорт miniSEED
+
+scripts/
+  db-tunnel.sh   — SSH-туннель к БД на VPS (dev)
+  dev-setup.sh   — подготовка локальной среды
 
 shared/
   schema.ts      — Drizzle-схема БД + Zod-типы (общие для клиента и сервера)
@@ -95,46 +102,50 @@ shared/
 
 ---
 
-## Быстрый старт
+## Быстрый старт (разработка)
 
 ### Требования
-- Node.js 20+
-- PostgreSQL (или Neon serverless)
+- Node.js 20+ (проверено на 24)
+- SSH-доступ к VPS `62.217.178.173` (там живёт единственная БД проекта `seismonet_db`)
 
 ### Установка
 
 ```bash
 git clone https://github.com/tulubyev/SeismoNet.git
 cd SeismoNet
-npm install
+npm run setup          # npm install + .env из шаблона + SSH-туннель к БД
 ```
 
 ### Переменные окружения
 
-Создайте файл `.env`:
+`npm run setup` создаст `.env` из `.env.example`. Заполнить минимум:
 
 ```env
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-SESSION_SECRET=your-secret-key
-TELEGRAM_BOT_TOKEN=...       # опционально
-TELEGRAM_CHAT_ID=...         # опционально
-UNISENDER_API_KEY=...        # опционально
-SLACK_BOT_TOKEN=...          # опционально
+DATABASE_URL=postgres://tulubyev:<пароль>@localhost:5433/seismonet_db   # через туннель
+SESSION_SECRET=<openssl rand -hex 32>
 ```
 
-### Инициализация базы данных
+Опционально: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `UNISENDER_API_KEY`, `PORT`.
+
+### База данных
+
+Локального PostgreSQL нет. БД одна — на VPS, доступ с Mac через SSH-туннель:
 
 ```bash
-npm run db:push
+npm run tunnel -- start     # localhost:5433 -> VPS:5432
+npm run tunnel -- status
+npm run tunnel -- stop
 ```
 
-### Запуск в режиме разработки
+Схема уже развёрнута. `npm run db:push` меняет схему общей базы — запускать осознанно.
+
+### Запуск
 
 ```bash
 npm run dev
 ```
 
-Приложение будет доступно по адресу: `http://localhost:5000`
+Приложение: `http://localhost:5000` (порт — `PORT` в `.env`). Вход в dev — кнопка на `/auth`.
 
 ### Продакшн-сборка
 
@@ -142,6 +153,26 @@ npm run dev
 npm run build
 npm start
 ```
+
+## Деплой
+
+VPS (Docker + Traefik + системный PostgreSQL): см. [docs/DEPLOY.md](docs/DEPLOY.md).
+Инфраструктура сервера — репо [vps-server-infra](https://github.com/tulubyev/vps-server-infra).
+
+## Контекст для AI-ассистентов
+
+Файл [CLAUDE.md](CLAUDE.md) — архитектура, конвенции, известные проблемы, направление проекта.
+
+## Чистка после Replit
+
+Проект переехал с Replit 16.09.2026. Если в локальном клоне остались Replit-ветки:
+
+```bash
+git remote | grep '^subrepl-' | xargs -n1 git remote remove
+git branch --format='%(refname:short)' | grep -E '^(subrepl-|replit-agent)$' | xargs git branch -D
+```
+
+Резервная копия этих веток — `../SeismoNet-replit-branches.bundle` (`git bundle`).
 
 ---
 

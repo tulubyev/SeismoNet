@@ -1,0 +1,30 @@
+# SeismoNet на VPS (62.217.178.173) — Вариант A из vps-server-infra/docs/NEW-PROJECT.md
+# Запуск:  docker compose -f docker-compose.prod.yml up -d --build
+# БД: системный PostgreSQL 16 хоста, из контейнера доступен как 172.28.0.1:5432
+services:
+  seismonet:
+    build: .
+    container_name: seismonet-app
+    restart: always
+    env_file: .env
+    expose:
+      - "5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.seismonet.rule=Host(`seismonet.ru`) || Host(`www.seismonet.ru`)"
+      - "traefik.http.routers.seismonet.entrypoints=websecure"
+      - "traefik.http.routers.seismonet.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.seismonet.middlewares=seismonet-www-redirect"
+      - "traefik.http.services.seismonet.loadbalancer.server.port=5000"
+      - "traefik.http.middlewares.seismonet-www-redirect.redirectregex.regex=^https://www\\.seismonet\\.ru/(.*)"
+      - "traefik.http.middlewares.seismonet-www-redirect.redirectregex.replacement=https://seismonet.ru/$${1}"
+      - "traefik.http.middlewares.seismonet-www-redirect.redirectregex.permanent=true"
+
+networks:
+  traefik-public:
+    external: true

@@ -4,3 +4,13 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# secrets / local config
+.env
+.env.*
+!.env.example
+cookies.txt
+
+# local artifacts
+backup/backups/
+*.tsbuildinfo

@@ -2,6 +2,8 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "./db";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
@@ -32,8 +34,17 @@ export function setupAuth(app: Express) {
   // Set a secure SESSION_SECRET from environment or use a default for development
   const sessionSecret = process.env.SESSION_SECRET || "seismic-network-dev-secret";
   
+  // In production sessions live in PostgreSQL (table "session") so they survive
+  // container restarts; in development the default MemoryStore is fine.
+  const PgStore = connectPgSimple(session);
+  const store =
+    process.env.NODE_ENV === "production"
+      ? new PgStore({ pool, tableName: "session", createTableIfMissing: true })
+      : undefined;
+
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
+    store,
     resave: false,
     saveUninitialized: false,
     cookie: {

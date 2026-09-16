@@ -146,11 +146,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
   // Startup DB tasks are deferred to after server.listen() — see server/index.ts
-  
+
+  // Liveness/readiness probe for Docker/Traefik: checks the DB round-trip.
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await db.execute(sql`select 1`);
+      res.json({ status: "ok", db: "up", uptime: Math.round(process.uptime()) });
+    } catch (err) {
+      res.status(503).json({ status: "degraded", db: "down", error: String(err) });
+    }
+  });
+
   const httpServer = createServer(app);
 
-  // Set up WebSocket server
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // Set up WebSocket server on /ws only. `noServer` + a manual upgrade handler
+  // lets other upgrade requests (Vite HMR in dev) pass through untouched — with
+  // `{ server, path }` the ws library would reject them with 400.
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url ?? '/', 'http://localhost');
+    if (pathname !== '/ws') return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
 
   wss.on('connection', (ws) => {
     // Add the new client to the set of connected clients
