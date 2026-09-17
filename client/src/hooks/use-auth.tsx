@@ -14,7 +14,6 @@ type AuthContextType = {
   error: Error | null;
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<User, Error, InsertUser>;
 };
 
 type LoginData = Pick<InsertUser, "username" | "password">;
@@ -105,52 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Mutation for registration
-  const registerMutation = useMutation({
-    mutationFn: async (userData: InsertUser) => {
-      
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify(userData),
-        credentials: "include"
-      });
-      
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        console.error('Registration error:', errorData);
-        throw new Error(errorData.error || "Registration failed");
-      }
-      
-      const newUserData = await res.json();
-      return newUserData;
-    },
-    onSuccess: (newUser: User) => {
-      queryClient.setQueryData(["/api/user"], newUser);
-      
-      // Refresh user data to ensure everything is in sync
-      refetchUser();
-      
-      toast({
-        title: "Registration successful",
-        description: `Welcome, ${newUser.fullName}!`,
-      });
-    },
-    onError: (error: Error) => {
-      console.error('Registration mutation error:', error);
-      
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   // Mutation for logout
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -197,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         loginMutation,
         logoutMutation,
-        registerMutation,
       }}
     >
       {children}
