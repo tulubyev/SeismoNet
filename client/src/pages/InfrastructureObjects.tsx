@@ -22,6 +22,7 @@ import DeveloperObjectFilter, {
   DEVELOPER_FILTER_DEFAULT,
 } from '@/components/DeveloperObjectFilter';
 import { apiRequest } from '@/lib/queryClient';
+import { usePermission } from '@/hooks/use-permission';
 import { SP14_K1_OPTIONS, SP14_K2_OPTIONS, sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
@@ -154,6 +155,7 @@ const SENSOR_TYPE_OPTS = [
 const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[] }> = ({ obj, sensors, categories }) => {
   const cond    = conditionInfo(obj.technicalCondition);
   const queryClient = useQueryClient();
+  const { can } = usePermission();
 
   // K₁/K₂ edit state
   const [showK1K2Edit, setShowK1K2Edit] = useState(false);
@@ -451,7 +453,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
           <TabsContent value="sensors" className="mt-0 space-y-3">
 
             {/* Add sensor button */}
-            {!showSensorForm && (
+            {!showSensorForm && can('objects', 'write') && (
               <Button
                 size="sm"
                 className="w-full h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
@@ -646,13 +648,15 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                         >
                           <Pencil className="h-3 w-3" />
                         </button>
-                        <button
-                          className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors"
-                          onClick={() => { if (confirm(`Удалить датчик ${inst.stationId}?`)) deleteMutation.mutate(inst.id); }}
-                          title="Удалить"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        {can('objects', 'write') && (
+                          <button
+                            className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors"
+                            onClick={() => { if (confirm(`Удалить датчик ${inst.stationId}?`)) deleteMutation.mutate(inst.id); }}
+                            title="Удалить"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1">

@@ -22,6 +22,7 @@ import {
 import type { Developer, DeveloperLicense, DeveloperObject } from '@shared/schema';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 
 // ─── Lookups ──────────────────────────────────────────────────────────────────
 
@@ -447,6 +448,7 @@ const DeveloperDetail: FC<{
   onEdit: () => void;
   onDelete: () => void;
 }> = ({ dev, onEdit, onDelete }) => {
+  const { can } = usePermission();
   const completed = (dev.completedObjects ?? []) as DeveloperObject[];
   const planned   = (dev.plannedObjects ?? [])   as DeveloperObject[];
   const licenses  = (dev.licenses ?? [])         as DeveloperLicense[];
@@ -467,9 +469,11 @@ const DeveloperDetail: FC<{
             <Button size="sm" variant="outline" className="h-7" onClick={onEdit}>
               <Pencil className="h-3 w-3" />
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-red-600 hover:bg-red-50" onClick={onDelete}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {can('objects', 'write') && (
+              <Button size="sm" variant="outline" className="h-7 text-red-600 hover:bg-red-50" onClick={onDelete}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-2"><StatusBadge status={dev.monitoringStatus} /></div>
@@ -635,6 +639,7 @@ function mapDevToForm(d: Developer): typeof BLANK {
 const DevelopersPage: FC = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { can } = usePermission();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -693,9 +698,11 @@ const DevelopersPage: FC = () => {
             Реестр застройщиков · юридические данные · лицензии · объекты · программа мониторинга
           </p>
         </div>
-        <Button onClick={openCreate} data-testid="button-add-developer">
-          <Plus className="h-4 w-4 mr-1" />Добавить застройщика
-        </Button>
+        {can('objects', 'write') && (
+          <Button onClick={openCreate} data-testid="button-add-developer">
+            <Plus className="h-4 w-4 mr-1" />Добавить застройщика
+          </Button>
+        )}
       </div>
 
       {/* KPI row */}

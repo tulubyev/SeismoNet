@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
+import { usePermission } from '@/hooks/use-permission';
+import type { Module } from '@shared/permissions';
 import type { Alert, InfrastructureObject, SensorInstallation, PageVisitLog } from '@shared/schema';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import {
@@ -44,6 +46,7 @@ interface BlockDef {
   badge?: string | number | null;
   badgeLabel?: string;
   status?: 'ok' | 'warn' | 'error' | null;
+  module?: Module;
 }
 
 const countryName = (code: string | null): string => {
@@ -59,7 +62,8 @@ const HomePage: FC = () => {
   const [, navigate] = useLocation();
   const { stations, events } = useSeismicData();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'administrator';
+  const { can } = usePermission();
+  const isAdmin = can('analytics');
   const [visitsOpen, setVisitsOpen] = useState(false);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -299,6 +303,7 @@ const HomePage: FC = () => {
       badge:      last24hEvents,
       badgeLabel: 'событий за 24 ч',
       status:     last24hEvents > 5 ? 'warn' : 'ok',
+      module:     'monitoring',
     },
     {
       href:       '/data-analysis',
@@ -310,6 +315,7 @@ const HomePage: FC = () => {
       badge:      seismograms.length,
       badgeLabel: 'записей в архиве',
       status:     'ok',
+      module:     'spectral',
     },
     {
       href:       '/system-management',
@@ -321,6 +327,7 @@ const HomePage: FC = () => {
       badge:      unreadAlerts > 0 ? unreadAlerts : null,
       badgeLabel: unreadAlerts > 0 ? 'непрочитанных оповещений' : '',
       status:     isAdmin ? 'ok' : 'warn',
+      module:     'monitoring',
     },
     {
       href:       '/seismonet-project',
@@ -333,6 +340,8 @@ const HomePage: FC = () => {
       status:     null,
     },
   ];
+
+  const visibleBlocks = blocks.filter(b => !b.module || can(b.module));
 
   const renderBlock = (block: BlockDef) => {
     const Icon = block.icon;
@@ -436,7 +445,7 @@ const HomePage: FC = () => {
 
           {/* Blocks — always 2 per row */}
           <div className="grid grid-cols-2 gap-5">
-            {blocks.map(renderBlock)}
+            {visibleBlocks.map(renderBlock)}
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { FC, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
+import { ROLE_LABELS, type Role } from '@shared/permissions';
 import {
   SquareDashedBottom,
   Gauge,
@@ -96,15 +97,15 @@ const Sidebar: FC = () => {
 
   const getRoleBadge = () => {
     if (!user) return null;
-    if (user.role === 'administrator') {
+    if (user.role === 'superadmin') {
       return (
         <div className="flex items-center text-xs text-amber-300 mt-0.5">
           <Shield className="h-3 w-3 mr-1" />
-          <span>Администратор</span>
+          <span>{ROLE_LABELS.superadmin}</span>
         </div>
       );
     }
-    return <p className="text-xs text-slate-300 capitalize mt-0.5">{user.role}</p>;
+    return <p className="text-xs text-slate-300 capitalize mt-0.5">{ROLE_LABELS[user.role as Role] ?? user.role}</p>;
   };
 
   return (

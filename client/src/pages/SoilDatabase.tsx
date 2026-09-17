@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { usePermission } from '@/hooks/use-permission';
 import type { SoilProfile, SoilLayer, InfrastructureObject } from '@shared/schema';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -602,6 +603,7 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
 
 const SoilDatabase: FC = () => {
   const { toast } = useToast();
+  const { can } = usePermission();
   const qc = useQueryClient();
   const [search, setSearch]         = useState('');
   const [catFilter, setCatFilter]   = useState('all');
@@ -714,9 +716,11 @@ const SoilDatabase: FC = () => {
                       className="pl-8 h-9 text-sm"
                     />
                   </div>
-                  <Button size="sm" className="h-9" onClick={() => setAddOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Добавить
-                  </Button>
+                  {can('soil', 'write') && (
+                    <Button size="sm" className="h-9" onClick={() => setAddOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Добавить
+                    </Button>
+                  )}
                 </div>
                 <Select value={catFilter} onValueChange={setCatFilter}>
                   <SelectTrigger className="h-9 text-sm">
@@ -808,15 +812,17 @@ const SoilDatabase: FC = () => {
                       >
                         <Download className="h-3 w-3 mr-1" /> CSV
                       </Button>
-                      <Button
-                        size="sm" variant="ghost"
-                        className="h-7 text-xs text-red-500 hover:text-red-700"
-                        onClick={() => {
-                          if (confirm('Удалить профиль?')) deleteMutation.mutate(selected.id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      {can('soil', 'write') && (
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 text-xs text-red-500 hover:text-red-700"
+                          onClick={() => {
+                            if (confirm('Удалить профиль?')) deleteMutation.mutate(selected.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>

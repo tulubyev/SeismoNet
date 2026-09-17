@@ -1,6 +1,7 @@
 import { FC, ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
+import { ROLE_LABELS, type Role } from '@shared/permissions';
 import {
   ArrowDown, ArrowUp, ArrowLeft,
   LogOut, UserCircle, Bell,
@@ -279,7 +280,7 @@ const TopBar: FC = () => {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="text-xs">
               <div className="font-semibold">{user?.username}</div>
-              <div className="text-slate-500 font-normal">{user?.role}</div>
+              <div className="text-slate-500 font-normal">{ROLE_LABELS[user?.role as Role] ?? user?.role}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem

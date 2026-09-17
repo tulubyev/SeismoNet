@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Activity, Plus, Trash2, Save, AlertTriangle, CheckCircle2, FlaskConical, Waves, BarChart3, Zap, Layers as LayersIcon, Building2, TriangleAlert } from 'lucide-react';
 import type { SensorInstallation, SeismogramRecord, CalibrationSession, CalibrationAfc, SoilProfile, InfrastructureObject } from '@shared/schema';
@@ -53,6 +54,7 @@ function isExpired(d: string | Date): boolean {
 
 const Analysis: FC = () => {
   const { toast } = useToast();
+  const { can } = usePermission();
 
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: seismograms = [] }   = useQuery<SeismogramRecord[]>({ queryKey: ['/api/seismograms'] });
@@ -190,19 +192,24 @@ const Analysis: FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="calibration" className="space-y-4">
+      <Tabs defaultValue={can('calibration') ? 'calibration' : 'waveforms'} className="space-y-4">
         <div className="overflow-x-auto">
           <TabsList className="flex w-max min-w-full">
-            <TabsTrigger value="calibration"   className="text-xs gap-1 flex-1 min-w-[7rem]"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
-            <TabsTrigger value="afc"           className="text-xs gap-1 flex-1 min-w-[5rem]"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
+            {can('calibration') && (<>
+              <TabsTrigger value="calibration"   className="text-xs gap-1 flex-1 min-w-[7rem]"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
+              <TabsTrigger value="afc"           className="text-xs gap-1 flex-1 min-w-[5rem]"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
+            </>)}
             <TabsTrigger value="waveforms"     className="text-xs gap-1 flex-1 min-w-[8rem]"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
             <TabsTrigger value="spectrum"      className="text-xs gap-1 flex-1 min-w-[6rem]"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
-            <TabsTrigger value="amplification" className="text-xs gap-1 flex-1 min-w-[6rem]"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
-            <TabsTrigger value="response"      className="text-xs gap-1 flex-1 min-w-[5rem]"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
-            <TabsTrigger value="resonance"     className="text-xs gap-1 flex-1 min-w-[6rem]"><TriangleAlert className="h-3.5 w-3.5" />Резонанс</TabsTrigger>
+            {can('mtsm') && (<>
+              <TabsTrigger value="amplification" className="text-xs gap-1 flex-1 min-w-[6rem]"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
+              <TabsTrigger value="response"      className="text-xs gap-1 flex-1 min-w-[5rem]"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
+              <TabsTrigger value="resonance"     className="text-xs gap-1 flex-1 min-w-[6rem]"><TriangleAlert className="h-3.5 w-3.5" />Резонанс</TabsTrigger>
+            </>)}
           </TabsList>
         </div>
 
+        {can('calibration') && (<>
         <TabsContent value="calibration" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="border-0 shadow-sm">
@@ -424,6 +431,7 @@ const Analysis: FC = () => {
             </Card>
           </div>
         </TabsContent>
+        </>)}
 
         <TabsContent value="waveforms" className="space-y-4">
           <Card className="border-0 shadow-sm">
@@ -595,6 +603,7 @@ const Analysis: FC = () => {
           )}
         </TabsContent>
 
+        {can('mtsm') && (<>
         <TabsContent value="amplification" className="space-y-4">
           <AmplificationTab
             objects={objects}
@@ -629,6 +638,7 @@ const Analysis: FC = () => {
             toast={toast}
           />
         </TabsContent>
+        </>)}
       </Tabs>
     </div>
   );
