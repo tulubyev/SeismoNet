@@ -5,6 +5,7 @@ import { scheduleJMAEarthquakeSyncJob } from "./services/jmaEarthquakeApi";
 import { setupAuth } from "./auth";
 import { attachWebSocket } from "./ws";
 import healthRouter from "./routes/health";
+import usersRouter from "./routes/users";
 import stationsRouter from "./routes/stations";
 import monitoringRouter from "./routes/monitoring";
 import notificationsRouter from "./routes/notifications";
@@ -28,6 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   app.use(healthRouter);
+  app.use(usersRouter);
   app.use(stationsRouter);
   app.use(monitoringRouter);
   app.use(notificationsRouter);
