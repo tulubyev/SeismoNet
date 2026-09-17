@@ -74,4 +74,8 @@ export const usersStorage = {
       .returning();
     return updatedUser;
   },
+
+  async setLastLogin(id: number): Promise<void> {
+    await db.update(schema.users).set({ lastLogin: new Date(), updatedAt: new Date() }).where(eq(schema.users.id, id));
+  },
 };

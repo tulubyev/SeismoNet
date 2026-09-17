@@ -22,6 +22,7 @@ export interface IStorage {
   updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined>;
   updateUserRole(id: number, role: Role): Promise<User | undefined>;
   updateUserStatus(id: number, active: boolean): Promise<User | undefined>;
+  setLastLogin(id: number): Promise<void>;
 
   // User ↔ object binding
   getUserObjectIds(userId: number): Promise<number[]>;
