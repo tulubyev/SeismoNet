@@ -20,8 +20,17 @@ const isProd = process.env.NODE_ENV === "production";
 const isDev = process.env.NODE_ENV === "development";
 
 // ─── Login rate limit: 5 failures per key per minute (in-memory, single process) ──
-const LIMIT = 5, WINDOW_MS = 60_000;
+const LIMIT = 5, WINDOW_MS = 60_000, MAX_ENTRIES = 10_000;
 const attempts = new Map<string, { count: number; since: number }>();
+
+/** Drop every entry whose window has expired, so a flood of one-shot keys can't grow the map forever. */
+function sweep(): void {
+  const now = Date.now();
+  attempts.forEach((a, k) => {
+    if (now - a.since > WINDOW_MS) attempts.delete(k);
+  });
+}
+
 export const loginLimiter = {
   check(key: string): boolean {
     const a = attempts.get(key);
@@ -29,13 +38,28 @@ export const loginLimiter = {
     return a.count < LIMIT;
   },
   fail(key: string): void {
+    // Prune expired entries on every failure so a flood of one-shot keys
+    // (e.g. nonexistent usernames, which skip scrypt and are cheap to mint)
+    // can't grow the map without bound. MAX_ENTRIES is a hard backstop: if
+    // failures somehow keep arriving faster than the window expires them,
+    // drop the oldest tracking rather than grow forever.
+    sweep();
+    if (attempts.size >= MAX_ENTRIES) {
+      const oldestKey = attempts.keys().next().value;
+      if (oldestKey !== undefined) attempts.delete(oldestKey);
+    }
     const a = attempts.get(key);
     if (!a || Date.now() - a.since > WINDOW_MS) attempts.set(key, { count: 1, since: Date.now() });
     else a.count++;
   },
   reset(key: string): void { attempts.delete(key); },
   _clear(): void { attempts.clear(); },
+  /** Number of tracked keys — exposed for tests to verify the sweep actually removes stale entries. */
+  _size(): number { return attempts.size; },
 };
+
+/** A deactivated account must not resurrect a session on the next request. */
+export const activeOrFalse = (u?: SelectUser): SelectUser | false => (u && u.active ? u : false);
 
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET;
@@ -56,7 +80,7 @@ export function setupAuth(app: Express) {
   }));
   app.use(passport.initialize());
   app.use(passport.session());
-  app.use(attachObjectScope);
+  app.use("/api", attachObjectScope);
 
   passport.use(new LocalStrategy(async (username, password, done) => {
     try {
@@ -72,7 +96,7 @@ export function setupAuth(app: Express) {
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
-    try { done(null, await storage.getUser(id)); } catch (error) { done(error, null); }
+    try { done(null, activeOrFalse(await storage.getUser(id))); } catch (error) { done(error, null); }
   });
 
   app.post("/api/login", (req, res, next) => {
