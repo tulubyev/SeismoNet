@@ -1,40 +1,37 @@
-import { FC, useEffect, useState } from "react";
+import { FC, FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Loader2, LogIn, ShieldAlert } from "lucide-react";
+import { Activity, Loader2, LogIn } from "lucide-react";
 import type { User } from "@shared/schema";
 
 const AuthPage: FC = () => {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { user, loginMutation } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [devBusy, setDevBusy] = useState(false);
 
-  useEffect(() => {
-    if (user) navigate("/");
-  }, [user, navigate]);
+  useEffect(() => { if (user) navigate("/"); }, [user, navigate]);
 
-  const handleLogin = async () => {
-    setLoading(true);
-    setError(null);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    loginMutation.mutate({ username: username.trim(), password });
+  };
+
+  // Vite drops this block from production builds (import.meta.env.DEV is a constant).
+  const devLogin = async () => {
+    setDevBusy(true);
     try {
-      const r = await fetch("/api/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        credentials: "include",
-      });
+      const r = await fetch("/api/dev-login", { method: "POST", credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const u: User = await r.json();
-      queryClient.setQueryData(["/api/user"], u);
+      queryClient.setQueryData(["/api/user"], (await r.json()) as User);
       navigate("/");
-    } catch (e: any) {
-      setError(e.message || "Не удалось войти");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setDevBusy(false); }
   };
 
   return (
@@ -45,38 +42,28 @@ const AuthPage: FC = () => {
             <Activity className="h-7 w-7 text-white" />
           </div>
           <CardTitle className="text-white text-xl">Сеть сейсмических наблюдений</CardTitle>
-          <CardDescription className="text-slate-400">
-            г. Иркутск · вход в систему мониторинга
-          </CardDescription>
+          <CardDescription className="text-slate-400">Вход в систему мониторинга</CardDescription>
         </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border border-amber-700/40 bg-amber-900/20 p-3 text-amber-200 text-xs flex gap-2">
-            <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5" />
-            <span>
-              Режим отладки: авторизация упрощена. Нажмите «Вход», чтобы продолжить
-              как <strong>dev_superadmin</strong>.
-            </span>
-          </div>
-
-          <Button
-            type="button"
-            className="w-full h-11 text-base bg-blue-600 hover:bg-blue-500"
-            onClick={handleLogin}
-            disabled={loading}
-            data-testid="button-login"
-          >
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <><LogIn className="h-5 w-5 mr-2" /> Вход</>}
-          </Button>
-
-          {error && (
-            <p className="text-sm text-red-400 text-center">{error}</p>
-          )}
-
-          <p className="text-center text-[11px] text-slate-500">
-            После завершения отладки восстановите проверку учётных данных
-            в <code>server/auth.ts</code> и <code>client/src/pages/auth-page.tsx</code>.
-          </p>
+        <CardContent>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-slate-300">Логин</Label>
+              <Input id="username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required autoFocus className="bg-slate-800 border-slate-700 text-white" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-slate-300">Пароль</Label>
+              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-slate-800 border-slate-700 text-white" />
+            </div>
+            {loginMutation.isError && <p className="text-sm text-red-400">{loginMutation.error.message}</p>}
+            <Button type="submit" className="w-full h-11 text-base bg-blue-600 hover:bg-blue-500" disabled={loginMutation.isPending} data-testid="button-login">
+              {loginMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <><LogIn className="h-5 w-5 mr-2" /> Войти</>}
+            </Button>
+            {import.meta.env.DEV && (
+              <Button type="button" variant="ghost" className="w-full text-slate-400" onClick={devLogin} disabled={devBusy}>
+                Войти как dev (только локально)
+              </Button>
+            )}
+          </form>
         </CardContent>
       </Card>
     </div>
