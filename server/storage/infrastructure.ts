@@ -1,20 +1,21 @@
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 import { Developer, InfrastructureObject, InsertDeveloper, InsertInfrastructureObject, InsertObjectCategory, ObjectCategory, infrastructureObjects, objectCategories, sensorInstallations } from "@shared/schema";
+import type { ObjectScope } from "./types";
 
 export const infrastructureStorage = {
   // ─── Infrastructure object operations ────────────────────────────────────────
 
-  async getInfrastructureObjects(): Promise<InfrastructureObject[]> {
+  async getInfrastructureObjects(scope?: ObjectScope): Promise<InfrastructureObject[]> {
     return db.query.infrastructureObjects.findMany({
-      orderBy: (t, { asc }) => [asc(t.name)]
+      where: scope ? (t, { inArray }) => inArray(t.id, scope.objectIds.length ? scope.objectIds : [-1]) : undefined,
+      orderBy: (t, { asc }) => [asc(t.name)],
     });
   },
 
-  async getInfrastructureObject(id: number): Promise<InfrastructureObject | undefined> {
-    return db.query.infrastructureObjects.findFirst({
-      where: (t, { eq }) => eq(t.id, id)
-    });
+  async getInfrastructureObject(id: number, scope?: ObjectScope): Promise<InfrastructureObject | undefined> {
+    if (scope && !scope.objectIds.includes(id)) return undefined;
+    return db.query.infrastructureObjects.findFirst({ where: (t, { eq }) => eq(t.id, id) });
   },
 
   async getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined> {

@@ -1,10 +1,14 @@
 import type { Alert, BuildingNorm, CalculationNoteHistory, CalibrationAfc, CalibrationSession, ComparisonSet, Developer, Event, InfrastructureObject, InsertAlert, InsertBuildingNorm, InsertCalculationNoteHistory, InsertCalibrationAfc, InsertCalibrationSession, InsertComparisonSet, InsertDeveloper, InsertEvent, InsertInfrastructureObject, InsertMaintenanceRecord, InsertObjectCategory, InsertRegion, InsertResearchNetwork, InsertSeismicCalculation, InsertSeismogramRecord, InsertSensor, InsertSensorInstallation, InsertSoilLayer, InsertSoilProfile, InsertStation, InsertSystemStatus, InsertUser, InsertWaveformData, MaintenanceRecord, ObjectCategory, Region, ResearchNetwork, SeismicCalculation, SeismogramRecord, Sensor, SensorInstallation, SoilLayer, SoilProfile, Station, SystemStatus, User, WaveformData, waveformData } from "@shared/schema";
+import type { Role } from "@shared/permissions";
 
 const _rawNoteHistoryLimit = Number(process.env.NOTE_HISTORY_LIMIT);
 export const NOTE_HISTORY_LIMIT =
   Number.isInteger(_rawNoteHistoryLimit) && _rawNoteHistoryLimit >= 1
     ? _rawNoteHistoryLimit
     : 50;
+
+/** Row filter for the `staff` role: only these infrastructure objects (and things attached to them). undefined = no filter. */
+export type ObjectScope = { objectIds: number[] } | undefined;
 
 // Interface for storage operations
 
@@ -16,9 +20,13 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined>;
-  updateUserRole(id: number, role: 'administrator' | 'user' | 'viewer'): Promise<User | undefined>;
+  updateUserRole(id: number, role: Role): Promise<User | undefined>;
   updateUserStatus(id: number, active: boolean): Promise<User | undefined>;
-  
+
+  // User ↔ object binding
+  getUserObjectIds(userId: number): Promise<number[]>;
+  setUserObjects(userId: number, objectIds: number[]): Promise<void>;
+
   // Region operations
   getRegions(): Promise<Region[]>;
   getRegion(id: number): Promise<Region | undefined>;
@@ -26,7 +34,7 @@ export interface IStorage {
   createRegion(region: InsertRegion): Promise<Region>;
   
   // Station operations
-  getStations(): Promise<Station[]>;
+  getStations(scope?: ObjectScope): Promise<Station[]>;
   getStationsByRegionId(regionId: number): Promise<Station[]>;
   getStation(id: number): Promise<Station | undefined>;
   getStationByStationId(stationId: string): Promise<Station | undefined>;
@@ -73,8 +81,8 @@ export interface IStorage {
   markAllAlertsAsRead(): Promise<void>;
 
   // Infrastructure object operations
-  getInfrastructureObjects(): Promise<InfrastructureObject[]>;
-  getInfrastructureObject(id: number): Promise<InfrastructureObject | undefined>;
+  getInfrastructureObjects(scope?: ObjectScope): Promise<InfrastructureObject[]>;
+  getInfrastructureObject(id: number, scope?: ObjectScope): Promise<InfrastructureObject | undefined>;
   getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined>;
   createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject>;
   updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined>;
@@ -101,14 +109,14 @@ export interface IStorage {
   deleteSoilLayer(id: number): Promise<boolean>;
 
   // Sensor installation operations
-  getSensorInstallations(objectId?: number): Promise<SensorInstallation[]>;
+  getSensorInstallations(objectId?: number, scope?: ObjectScope): Promise<SensorInstallation[]>;
   getSensorInstallation(id: number): Promise<SensorInstallation | undefined>;
   createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation>;
   updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined>;
   deleteSensorInstallation(id: number): Promise<boolean>;
 
   // Sensor device operations
-  getSensors(stationId?: string, objectId?: number): Promise<Sensor[]>;
+  getSensors(stationId?: string, objectId?: number, scope?: ObjectScope): Promise<Sensor[]>;
   getSensor(id: number): Promise<Sensor | undefined>;
   getSensorBySensorCode(code: string): Promise<Sensor | undefined>;
   createSensor(sensor: InsertSensor): Promise<Sensor>;
@@ -149,7 +157,7 @@ export interface IStorage {
   deleteDeveloper(id: number): Promise<boolean>;
 
   // Seismic calculation operations
-  getSeismicCalculations(calcType?: string, limit?: number): Promise<SeismicCalculation[]>;
+  getSeismicCalculations(calcType?: string, limit?: number, scope?: ObjectScope): Promise<SeismicCalculation[]>;
   getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined>;
   createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
   updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined>;

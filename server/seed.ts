@@ -3,6 +3,7 @@
 import { eq, and } from "drizzle-orm";
 import { db, schema } from "./db";
 import { storage } from "./storage";
+import { hashPassword } from "./lib/password";
 import type { InsertAlert, InsertBuildingNorm, InsertDeveloper, InsertEvent, InsertInfrastructureObject, InsertMaintenanceRecord, InsertObjectCategory, InsertRegion, InsertResearchNetwork, InsertSeismogramRecord, InsertSensorInstallation, InsertStation, InsertSystemStatus, InsertUser } from "@shared/schema";
 
 export async function seedDatabase(): Promise<void> {
@@ -32,8 +33,8 @@ export async function seedDatabase(): Promise<void> {
         username: "admin",
         fullName: "System Administrator",
         email: "admin@seismic-network.org",
-        password: "password", // In a real system, this would be hashed
-        role: "administrator",
+        password: "password",
+        role: "superadmin",
         active: true,
         organization: "Seismic Network Research Center",
         jobTitle: "Network Administrator",
@@ -43,8 +44,8 @@ export async function seedDatabase(): Promise<void> {
         username: "fieldtech",
         fullName: "Field Technician",
         email: "fieldtech@seismic-network.org",
-        password: "tech123", // In a real system, this would be hashed
-        role: "user",
+        password: "tech123",
+        role: "device_manager",
         active: true,
         organization: "Seismic Network Research Center",
         jobTitle: "Field Technician",
@@ -54,16 +55,17 @@ export async function seedDatabase(): Promise<void> {
         username: "researcher",
         fullName: "Seismic Researcher",
         email: "researcher@seismic-network.org",
-        password: "password", // In a real system, this would be hashed
-        role: "viewer",
+        password: "password",
+        role: "seismologist",
         active: true,
         organization: "University Research Institute",
         jobTitle: "Researcher",
         specialization: "Seismic Analysis"
       }
     ];
-    
+
     for (const user of sampleUsers) {
+      user.password = await hashPassword(user.password);
       await dbStorage.createUser(user);
     }
   }

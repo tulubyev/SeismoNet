@@ -1,6 +1,7 @@
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 import { InsertUser, User, users } from "@shared/schema";
+import type { Role } from "@shared/permissions";
 
 export const usersStorage = {
   // User operations
@@ -50,7 +51,7 @@ export const usersStorage = {
     return updatedUser;
   },
   
-  async updateUserRole(id: number, role: 'administrator' | 'user' | 'viewer'): Promise<User | undefined> {
+  async updateUserRole(id: number, role: Role): Promise<User | undefined> {
     const [updatedUser] = await db
       .update(schema.users)
       .set({

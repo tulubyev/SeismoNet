@@ -1,13 +1,16 @@
 import { db, schema } from "../db";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { CalculationNoteHistory, ComparisonSet, InsertCalculationNoteHistory, InsertComparisonSet, InsertSeismicCalculation, SeismicCalculation } from "@shared/schema";
-import { NOTE_HISTORY_LIMIT } from "./types";
+import { NOTE_HISTORY_LIMIT, type ObjectScope } from "./types";
 
 export const calculationsStorage = {
   // ─── Seismic calculation operations ──────────────────────────────────────────
-  async getSeismicCalculations(calcType?: string, limit = 50): Promise<SeismicCalculation[]> {
+  async getSeismicCalculations(calcType?: string, limit = 50, scope?: ObjectScope): Promise<SeismicCalculation[]> {
+    const conds = [];
+    if (calcType) conds.push(eq(schema.seismicCalculations.calcType, calcType));
+    if (scope) conds.push(inArray(schema.seismicCalculations.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
     return db.query.seismicCalculations.findMany({
-      where: calcType ? (t, { eq }) => eq(t.calcType, calcType) : undefined,
+      where: conds.length ? and(...conds) : undefined,
       orderBy: (t, { desc }) => [desc(t.createdAt)],
       limit,
     });

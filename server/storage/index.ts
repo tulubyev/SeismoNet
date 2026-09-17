@@ -11,9 +11,10 @@ import { sensorsStorage } from "./sensors";
 import { normsStorage } from "./norms";
 import { seismogramsStorage } from "./seismograms";
 import { calibrationStorage } from "./calibration";
+import { userObjectsStorage } from "./userObjects";
 
 export { NOTE_HISTORY_LIMIT } from "./types";
-export type { IStorage } from "./types";
+export type { IStorage, ObjectScope } from "./types";
 
 // One object per domain, merged into the single `storage` the rest of the
 // server imports. The IStorage annotation keeps the surface identical.
@@ -30,4 +31,5 @@ export const storage: IStorage = {
   ...normsStorage,
   ...seismogramsStorage,
   ...calibrationStorage,
+  ...userObjectsStorage,
 };

@@ -1,17 +1,16 @@
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
 import { InsertSensor, InsertSensorInstallation, Sensor, SensorInstallation, sensorInstallations, sensors } from "@shared/schema";
+import type { ObjectScope } from "./types";
 
 export const sensorsStorage = {
   // ─── Sensor installation operations ──────────────────────────────────────────
 
-  async getSensorInstallations(objectId?: number): Promise<SensorInstallation[]> {
-    if (objectId !== undefined) {
-      return db.query.sensorInstallations.findMany({
-        where: (t, { eq }) => eq(t.objectId, objectId)
-      });
-    }
-    return db.query.sensorInstallations.findMany();
+  async getSensorInstallations(objectId?: number, scope?: ObjectScope): Promise<SensorInstallation[]> {
+    const conds: SQL[] = [];
+    if (objectId !== undefined) conds.push(eq(schema.sensorInstallations.objectId, objectId));
+    if (scope) conds.push(inArray(schema.sensorInstallations.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
+    return db.query.sensorInstallations.findMany({ where: conds.length ? and(...conds) : undefined });
   },
 
   async getSensorInstallation(id: number): Promise<SensorInstallation | undefined> {
@@ -41,20 +40,17 @@ export const sensorsStorage = {
 
   // ─── Sensor device operations ─────────────────────────────────────────────────
 
-  async getSensors(stationId?: string, objectId?: number): Promise<Sensor[]> {
-    if (objectId != null) {
-      return db.query.sensors.findMany({
-        where: (t, { eq }) => eq(t.objectId, objectId),
-        orderBy: (t, { asc }) => [asc(t.floor), asc(t.sensorCode)]
-      });
-    }
-    if (stationId) {
-      return db.query.sensors.findMany({
-        where: (t, { eq }) => eq(t.stationId, stationId),
-        orderBy: (t, { asc }) => [asc(t.sensorCode)]
-      });
-    }
-    return db.query.sensors.findMany({ orderBy: (t, { asc }) => [asc(t.stationId), asc(t.sensorCode)] });
+  async getSensors(stationId?: string, objectId?: number, scope?: ObjectScope): Promise<Sensor[]> {
+    const conds: SQL[] = [];
+    if (objectId != null) conds.push(eq(schema.sensors.objectId, objectId));
+    else if (stationId) conds.push(eq(schema.sensors.stationId, stationId));
+    if (scope) conds.push(inArray(schema.sensors.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
+    const orderBy = objectId != null
+      ? [asc(schema.sensors.floor), asc(schema.sensors.sensorCode)]
+      : stationId
+        ? [asc(schema.sensors.sensorCode)]
+        : [asc(schema.sensors.stationId), asc(schema.sensors.sensorCode)];
+    return db.query.sensors.findMany({ where: conds.length ? and(...conds) : undefined, orderBy });
   },
 
   async getSensor(id: number): Promise<Sensor | undefined> {
