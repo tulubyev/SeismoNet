@@ -59,7 +59,7 @@
 | Блок | Файл | Назначение / методы |
 |---|---|---|
 | **Bootstrap** | `index.ts` | Express + JSON middleware, логгер запросов с подавлением «шумных» 304 для polling-маршрутов, Vite-dev mid-ware, единый порт 5000. |
-| **Auth** | `auth.ts` | Passport local strategy, `scrypt` для паролей, express-session (memory/PG), `requireRole(['administrator','user','viewer'])` middleware. |
+| **Auth** | `auth.ts` | Passport local strategy, `scrypt` для паролей, express-session (memory/PG), `requirePermission(module, level)` middleware (6 ролей, `shared/permissions.ts`) + `attachObjectScope` (ограничивает `staff` объектами из `user_objects`). |
 | **REST API** | `routes.ts` (72 эндпоинта) | См. таблицу разделов ниже. |
 | **WebSocket** | `routes.ts:58–145, 1218+` | `WebSocketServer({ path: '/ws' })`, `Set<WebSocket>` клиентов, `broadcastMessage()`, `setInterval` для симуляции данных. |
 | **Сейсмо-утилиты** | `seismicUtils.ts` | STA/LTA-детектор, расчёт расстояния по разности времён P/S, триангуляция эпицентра, формулы магнитуды. |

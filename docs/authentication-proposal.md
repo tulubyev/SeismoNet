@@ -10,7 +10,8 @@ This document outlines the authentication system implementation for the Regional
 - **Secure Password Storage**: Implementation of password hashing using scrypt with salt for secure storage.
 - **Express Session Management**: Session-based authentication using express-session with configurable storage options (PostgreSQL for production, memory store for development).
 - **API Endpoints**:
-  - `/api/register`: User registration endpoint
+  - `/api/register`: User registration endpoint — **removed** in the 2026-09 roles rework; users are
+    now created by a superadmin via `POST /api/users` (see `docs/roles-specification.md`)
   - `/api/login`: User login endpoint
   - `/api/logout`: User logout endpoint
   - `/api/user`: Get current authenticated user information

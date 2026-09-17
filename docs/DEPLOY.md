@@ -61,19 +61,28 @@ docker image prune -f
 ## Обновление с ролями
 
 Миграция 0006 (6 ролей + `user_objects`) применяется **до** выкладки кода, с Mac через туннель —
-на VPS в build-стадии `drizzle-kit` нет.
+на VPS в build-стадии `drizzle-kit` нет. Миграция необратима вперёд (forward-only): в файле нет
+`DOWN`-скрипта, откат — только восстановлением дампа БД, снятого до `migrate:roles`.
 
 ```bash
 # 1. Mac: туннель поднят, .env указывает на localhost:5433
 npm run migrate:roles          # печатает гистограмму ролей и список перехэшированных логинов
 
-# 2. Mac: отдать код
+# 2. VPS pre-flight: SESSION_SECRET должен быть задан и не тривиален, иначе сервер не стартует
+ssh tulubyev@62.217.178.173 \
+  "grep -q '^SESSION_SECRET=.\{16,\}' /var/www/seismonet/.env || echo 'SESSION_SECRET missing — server will not start'"
+
+# 3. Mac: отдать код
 git push
 
-# 3. VPS
+# 4. VPS
 cd /var/www/seismonet && git pull && docker compose -f docker-compose.prod.yml up -d --build
 
-# 4. Mac: dev-login должен быть недоступен в production
+# 5. Mac (через туннель): сбросить все сессии, минуя открытый dev-login старой версии —
+#    сессия, выпущенная им, живёт до 24 ч и иначе останется валидной после апгрейда
+psql "$DATABASE_URL" -c 'DELETE FROM session;'
+
+# 6. Mac: dev-login должен быть недоступен в production
 curl -s -o /dev/null -w '%{http_code}\n' -X POST https://seismonet.ru/api/dev-login   # → 404
 ```
 
@@ -86,8 +95,9 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://seismonet.ru/api/dev-lo
 - [ ] Сменить пароль пользователя `tulubyev` в PostgreSQL — он лежал в открытом виде в публичном
       infra-репо (`docker/postgres-projects/docker-compose.yml`) и в чатах. После смены обновить
       `.env` всех проектов на VPS и `.env` на Mac.
-- [ ] Убрать временный dev-bypass в `server/auth.ts` (`/api/dev-login`, обход `requireRole` вне production) —
-      в production он уже неактивен, но лучше удалить.
+- [x] `/api/dev-login` регистрируется только при `NODE_ENV === 'development'` (см. `server/auth.ts`,
+      `if (isDev) { app.post("/api/dev-login", ...) }`) — в production маршрут не существует, убирать нечего.
+      `requireRole` из кода удалён целиком; доступ проверяет `requirePermission(module, level)` (см. `docs/ARCHITECTURE.md`).
 
 ## Локальная разработка (Mac) с той же БД
 
