@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { requirePermission } from "../auth";
 import { hashPassword } from "../lib/password";
+import { describeError } from "../lib/errors";
 import { insertUserSchema, type User } from "@shared/schema";
 import { ROLES } from "@shared/permissions";
 
@@ -26,63 +27,94 @@ const patchSchema = z.object({
 });
 
 router.get("/api/users", guard("read"), async (_req, res) => {
-  res.json((await storage.getUsers()).map(safe));
+  try {
+    res.json((await storage.getUsers()).map(safe));
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 
 router.post("/api/users", guard("write"), async (req, res) => {
-  const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
-  const { password, ...rest } = parsed.data;
-  if (await storage.getUserByUsername(rest.username)) return res.status(409).json({ error: "Логин уже занят" });
-  if (await storage.getUserByEmail(rest.email)) return res.status(409).json({ error: "Email уже используется" });
-  const user = await storage.createUser({ ...rest, password: await hashPassword(password), active: true });
-  res.status(201).json(safe(user));
+  try {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    const { password, ...rest } = parsed.data;
+    if (await storage.getUserByUsername(rest.username)) return res.status(409).json({ error: "Логин уже занят" });
+    if (await storage.getUserByEmail(rest.email)) return res.status(409).json({ error: "Email уже используется" });
+    const user = await storage.createUser({ ...rest, password: await hashPassword(password), active: true });
+    res.status(201).json(safe(user));
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 
 router.patch("/api/users/:id", guard("write"), async (req, res) => {
-  const id = idOf(req.params.id);
-  if (!id) return res.status(400).json({ error: "bad id" });
-  const parsed = patchSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
-  const me = req.user as User;
-  const target = await storage.getUser(id);
-  if (!target) return res.status(404).json({ error: "not found" });
+  try {
+    const id = idOf(req.params.id);
+    if (!id) return res.status(400).json({ error: "bad id" });
+    const parsed = patchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    const me = req.user as User;
+    const target = await storage.getUser(id);
+    if (!target) return res.status(404).json({ error: "not found" });
 
-  // A superadmin may not lock themselves out, and the last superadmin stays one.
-  const demoting = parsed.data.role !== undefined && parsed.data.role !== "superadmin" && target.role === "superadmin";
-  const deactivating = parsed.data.active === false && target.role === "superadmin";
-  if ((demoting || deactivating) && (id === me.id || (await storage.getUsers()).filter(u => u.role === "superadmin" && u.active).length <= 1)) {
-    return res.status(409).json({ error: "Нельзя убрать последнего активного суперадмина" });
+    // A superadmin may not lock themselves out, and the last superadmin stays one.
+    const demoting = parsed.data.role !== undefined && parsed.data.role !== "superadmin" && target.role === "superadmin";
+    const deactivating = parsed.data.active === false && target.role === "superadmin";
+    if ((demoting || deactivating) && (id === me.id || (await storage.getUsers()).filter(u => u.role === "superadmin" && u.active).length <= 1)) {
+      return res.status(409).json({ error: "Нельзя убрать последнего активного суперадмина" });
+    }
+    if (parsed.data.email && parsed.data.email !== target.email && (await storage.getUserByEmail(parsed.data.email))) {
+      return res.status(409).json({ error: "Email уже используется" });
+    }
+    const updated = await storage.updateUser(id, parsed.data);
+    if (!updated) return res.status(404).json({ error: "not found" });
+    res.json(safe(updated));
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
   }
-  if (parsed.data.email && parsed.data.email !== target.email && (await storage.getUserByEmail(parsed.data.email))) {
-    return res.status(409).json({ error: "Email уже используется" });
-  }
-  const updated = await storage.updateUser(id, parsed.data);
-  res.json(safe(updated!));
 });
 
 router.post("/api/users/:id/password", guard("write"), async (req, res) => {
-  const id = idOf(req.params.id);
-  const parsed = z.object({ password: z.string().min(8) }).safeParse(req.body);
-  if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
-  if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
-  await storage.updateUser(id, { password: await hashPassword(parsed.data.password) });
-  res.sendStatus(204);
+  try {
+    const id = idOf(req.params.id);
+    const parsed = z.object({ password: z.string().min(8) }).safeParse(req.body);
+    if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
+    if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
+    await storage.updateUser(id, { password: await hashPassword(parsed.data.password) });
+    res.sendStatus(204);
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 
 router.get("/api/users/:id/objects", guard("read"), async (req, res) => {
-  const id = idOf(req.params.id);
-  if (!id) return res.status(400).json({ error: "bad id" });
-  res.json(await storage.getUserObjectIds(id));
+  try {
+    const id = idOf(req.params.id);
+    if (!id) return res.status(400).json({ error: "bad id" });
+    res.json(await storage.getUserObjectIds(id));
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 
 router.put("/api/users/:id/objects", guard("write"), async (req, res) => {
-  const id = idOf(req.params.id);
-  const parsed = z.object({ objectIds: z.array(z.number().int().positive()) }).safeParse(req.body);
-  if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
-  if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
-  await storage.setUserObjects(id, parsed.data.objectIds);
-  res.json(await storage.getUserObjectIds(id));
+  try {
+    const id = idOf(req.params.id);
+    const parsed = z.object({ objectIds: z.array(z.number().int().positive()) }).safeParse(req.body);
+    if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
+    if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
+    await storage.setUserObjects(id, parsed.data.objectIds);
+    res.json(await storage.getUserObjectIds(id));
+  } catch (error) {
+    console.error(`users route error: ${describeError(error)}`);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 
 export default router;
