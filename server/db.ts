@@ -53,6 +53,7 @@ export const schema = {
   calculationNoteHistory,
   comparisonSets: schemaImport.comparisonSets,
   pageVisitLogs: schemaImport.pageVisitLogs,
+  userObjects: schemaImport.userObjects,
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;

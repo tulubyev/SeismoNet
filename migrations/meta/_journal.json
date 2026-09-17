@@ -36,6 +36,20 @@
       "when": 1776654283738,
       "tag": "0004_add_k1_k2_to_infrastructure_objects",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776700000000,
+      "tag": "0005_add_notes_updated_columns_to_calculations",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789600000000,
+      "tag": "0006_roles",
+      "breakpoints": true
     }
   ]
 }

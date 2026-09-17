@@ -1,9 +1,9 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, real, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric, real, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Define user roles
-export const userRoleEnum = pgEnum('user_role', ['administrator', 'user', 'viewer']);
+export const userRoleEnum = pgEnum('user_role', ['superadmin', 'designer', 'seismologist', 'data_analyst', 'device_manager', 'staff']);
 
 // User accounts
 export const users = pgTable("users", {
@@ -12,7 +12,7 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  role: userRoleEnum("role").notNull().default('viewer'),
+  role: userRoleEnum("role").notNull().default('staff'),
   active: boolean("active").notNull().default(true),
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -24,6 +24,12 @@ export const users = pgTable("users", {
   specialization: text("specialization"),
   preferences: jsonb("preferences")
 });
+
+// staff ↔ infrastructure objects they may see (docs/roles-specification.md, роль staff)
+export const userObjects = pgTable("user_objects", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  objectId: integer("object_id").notNull().references(() => infrastructureObjects.id, { onDelete: "cascade" }),
+}, (t) => ({ pk: primaryKey({ columns: [t.userId, t.objectId] }) }));
 
 // Geographic regions for grouping stations
 export const regions = pgTable("regions", {
@@ -468,6 +474,9 @@ export const comparisonSets = pgTable("comparison_sets", {
 // ─── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
+export const insertUserObjectSchema = createInsertSchema(userObjects);
+export type UserObject = typeof userObjects.$inferSelect;
+export type InsertUserObject = z.infer<typeof insertUserObjectSchema>;
 export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
 export const insertStationSchema = createInsertSchema(stations).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });

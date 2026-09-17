@@ -12,7 +12,8 @@
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
     "setup": "bash scripts/dev-setup.sh",
     "tunnel": "bash scripts/db-tunnel.sh",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate:roles": "node --env-file=.env --import tsx scripts/migrate-roles.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
