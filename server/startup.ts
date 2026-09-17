@@ -90,7 +90,26 @@ export async function runStartupMigrations() {
     // Remove SEN-O* pseudo-stations now that data is preserved in sensors table
     await db.execute(`DELETE FROM sensor_installations WHERE station_id LIKE 'SEN-%'`);
     await db.execute(`DELETE FROM stations WHERE station_id LIKE 'SEN-%'`);
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + cleanup).');
+    // Roles (migration 0006): the binding table is safe to create here, but the
+    // user_role enum swap is not — it must go through `npm run migrate:roles`.
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS user_objects (
+        user_id   integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        object_id integer NOT NULL REFERENCES infrastructure_objects(id) ON DELETE CASCADE,
+        PRIMARY KEY (user_id, object_id)
+      )
+    `);
+    const roleLabels = await db.execute(
+      `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
+    );
+    const labels = ((roleLabels as { rows?: Array<{ enumlabel?: string }> }).rows ?? []).map(r => r.enumlabel);
+    if (!labels.includes('superadmin')) {
+      console.error('****************************************************************');
+      console.error('ROLES MIGRATION MISSING: run `npm run migrate:roles` — every user will get 403 until then');
+      console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
+      console.error('****************************************************************');
+    }
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup).');
   } catch (e) {
     console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }
