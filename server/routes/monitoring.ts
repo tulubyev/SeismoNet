@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // Get recent events
-router.get('/api/events/recent', async (req, res) => {
+router.get('/api/events/recent', requirePermission('events', 'read'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 10;
     const events = await storage.getRecentEvents(limit);
@@ -16,7 +17,7 @@ router.get('/api/events/recent', async (req, res) => {
 });
 
 // Get a specific event by ID
-router.get('/api/events/:eventId', async (req, res) => {
+router.get('/api/events/:eventId', requirePermission('events', 'read'), async (req, res) => {
   try {
     const event = await storage.getEventByEventId(req.params.eventId);
     if (!event) {
@@ -29,7 +30,7 @@ router.get('/api/events/:eventId', async (req, res) => {
 });
 
 // Get research networks
-router.get('/api/networks', async (req, res) => {
+router.get('/api/networks', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const networks = await storage.getResearchNetworks();
     res.json(networks);
@@ -39,7 +40,7 @@ router.get('/api/networks', async (req, res) => {
 });
 
 // Get system status
-router.get('/api/system/status', async (req, res) => {
+router.get('/api/system/status', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const status = await storage.getSystemStatus();
     res.json(status);
@@ -49,7 +50,7 @@ router.get('/api/system/status', async (req, res) => {
 });
 
 // Get alerts
-router.get('/api/alerts', async (req, res) => {
+router.get('/api/alerts', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 10;
     const alerts = await storage.getAlerts(limit);
@@ -60,7 +61,7 @@ router.get('/api/alerts', async (req, res) => {
 });
 
 // Mark alert as read
-router.post('/api/alerts/:id/read', async (req, res) => {
+router.post('/api/alerts/:id/read', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const alertId = parseInt(req.params.id);
     const alert = await storage.markAlertAsRead(alertId);
@@ -74,7 +75,7 @@ router.post('/api/alerts/:id/read', async (req, res) => {
 });
 
 // Mark all alerts as read
-router.post('/api/alerts/read-all', async (req, res) => {
+router.post('/api/alerts/read-all', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     await storage.markAllAlertsAsRead();
     res.json({ success: true });
@@ -87,7 +88,7 @@ router.post('/api/alerts/read-all', async (req, res) => {
 // --- Field Operations API Routes ---
 
 // Get all regions
-router.get('/api/regions', async (req, res) => {
+router.get('/api/regions', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const regions = await storage.getRegions();
     res.json(regions);
@@ -97,7 +98,7 @@ router.get('/api/regions', async (req, res) => {
 });
 
 // Get region by ID
-router.get('/api/regions/:id', async (req, res) => {
+router.get('/api/regions/:id', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const regionId = parseInt(req.params.id);
     const region = await storage.getRegion(regionId);
@@ -111,7 +112,7 @@ router.get('/api/regions/:id', async (req, res) => {
 });
 
 // Get stations in a region
-router.get('/api/regions/:id/stations', async (req, res) => {
+router.get('/api/regions/:id/stations', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const regionId = parseInt(req.params.id);
     const stations = await storage.getStationsByRegionId(regionId);

@@ -1,23 +1,23 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Sensor Installations API ──────────────────────────────────────────────────
 
-router.get('/api/sensor-installations', async (req, res) => {
+router.get('/api/sensor-installations', requirePermission('sensors', 'read'), async (req, res) => {
   try {
     const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
-    const installations = await storage.getSensorInstallations(objectId);
+    const installations = await storage.getSensorInstallations(objectId, req.objectScope);
     res.json(installations);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching sensor installations' });
   }
 });
 
-router.post('/api/sensor-installations', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/sensor-installations', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const installation = await storage.createSensorInstallation(req.body);
     res.status(201).json(installation);
@@ -26,7 +26,7 @@ router.post('/api/sensor-installations', requireRole(['administrator', 'user']),
   }
 });
 
-router.patch('/api/sensor-installations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/sensor-installations/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const updated = await storage.updateSensorInstallation(parseInt(req.params.id), req.body);
     if (!updated) return res.status(404).json({ message: 'Installation not found' });
@@ -34,7 +34,7 @@ router.patch('/api/sensor-installations/:id', requireRole(['administrator', 'use
   } catch (error) { res.status(500).json({ message: 'Error updating sensor installation' }); }
 });
 
-router.delete('/api/sensor-installations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/sensor-installations/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const ok = await storage.deleteSensorInstallation(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: 'Installation not found' });
@@ -44,15 +44,15 @@ router.delete('/api/sensor-installations/:id', requireRole(['administrator', 'us
 
 // ─── Sensor Devices API ───────────────────────────────────────────────────────
 
-router.get('/api/sensors', async (req, res) => {
+router.get('/api/sensors', requirePermission('sensors', 'read'), async (req, res) => {
   try {
     const stationId = req.query.stationId as string | undefined;
     const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
-    res.json(await storage.getSensors(stationId, objectId));
+    res.json(await storage.getSensors(stationId, objectId, req.objectScope));
   } catch { res.status(500).json({ message: 'Error fetching sensors' }); }
 });
 
-router.get('/api/sensors/:id', async (req, res) => {
+router.get('/api/sensors/:id', requirePermission('sensors', 'read'), async (req, res) => {
   try {
     const sensor = await storage.getSensor(parseInt(req.params.id));
     if (!sensor) return res.status(404).json({ message: 'Sensor not found' });
@@ -60,13 +60,13 @@ router.get('/api/sensors/:id', async (req, res) => {
   } catch { res.status(500).json({ message: 'Error fetching sensor' }); }
 });
 
-router.post('/api/sensors', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/sensors', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     res.status(201).json(await storage.createSensor(req.body));
   } catch { res.status(500).json({ message: 'Error creating sensor' }); }
 });
 
-router.patch('/api/sensors/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/sensors/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const updated = await storage.updateSensor(parseInt(req.params.id), req.body);
     if (!updated) return res.status(404).json({ message: 'Sensor not found' });
@@ -74,7 +74,7 @@ router.patch('/api/sensors/:id', requireRole(['administrator', 'user']), async (
   } catch { res.status(500).json({ message: 'Error updating sensor' }); }
 });
 
-router.delete('/api/sensors/:id', requireRole(['administrator']), async (req, res) => {
+router.delete('/api/sensors/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const ok = await storage.deleteSensor(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: 'Sensor not found' });

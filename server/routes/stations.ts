@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and } from "drizzle-orm";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
@@ -9,9 +9,9 @@ const router = Router();
 // API routes
 
 // Get all stations
-router.get('/api/stations', async (req, res) => {
+router.get('/api/stations', requirePermission('stations', 'read'), async (req, res) => {
   try {
-    const stations = await storage.getStations();
+    const stations = await storage.getStations(req.objectScope);
     res.json(stations);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching stations' });
@@ -19,7 +19,7 @@ router.get('/api/stations', async (req, res) => {
 });
 
 // Get a specific station by ID
-router.get('/api/stations/:stationId', async (req, res) => {
+router.get('/api/stations/:stationId', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const station = await storage.getStationByStationId(req.params.stationId);
     if (!station) {
@@ -35,7 +35,7 @@ router.get('/api/stations/:stationId', async (req, res) => {
 
 
 // Get all maintenance records for a station
-router.get('/api/stations/:stationId/maintenance', async (req, res) => {
+router.get('/api/stations/:stationId/maintenance', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const records = await storage.getMaintenanceRecords(req.params.stationId);
     res.json(records);
@@ -45,7 +45,7 @@ router.get('/api/stations/:stationId/maintenance', async (req, res) => {
 });
 
 // Get a specific maintenance record
-router.get('/api/maintenance/:id', async (req, res) => {
+router.get('/api/maintenance/:id', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const recordId = parseInt(req.params.id);
     const record = await storage.getMaintenanceRecord(recordId);
@@ -59,7 +59,7 @@ router.get('/api/maintenance/:id', async (req, res) => {
 });
 
 // Create a new maintenance record
-router.post('/api/stations/:stationId/maintenance', async (req, res) => {
+router.post('/api/stations/:stationId/maintenance', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
     const station = await storage.getStationByStationId(stationId);
@@ -81,7 +81,7 @@ router.post('/api/stations/:stationId/maintenance', async (req, res) => {
 });
 
 // Update maintenance record status
-router.patch('/api/maintenance/:id/status', async (req, res) => {
+router.patch('/api/maintenance/:id/status', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const recordId = parseInt(req.params.id);
     const { status } = req.body;
@@ -103,7 +103,7 @@ router.patch('/api/maintenance/:id/status', async (req, res) => {
 });
 
 // Get upcoming maintenance records
-router.get('/api/maintenance/upcoming', async (req, res) => {
+router.get('/api/maintenance/upcoming', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const records = await storage.getUpcomingMaintenanceRecords(days);
@@ -114,7 +114,7 @@ router.get('/api/maintenance/upcoming', async (req, res) => {
 });
 
 // General station update (calibration, communication, location, etc.)
-router.patch('/api/stations/:stationId', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/stations/:stationId', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
     const updates = req.body;
@@ -129,7 +129,7 @@ router.patch('/api/stations/:stationId', requireRole(['administrator', 'user']),
 });
 
 // Update station battery info
-router.patch('/api/stations/:stationId/battery', async (req, res) => {
+router.patch('/api/stations/:stationId/battery', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
     const { batteryLevel, batteryVoltage, powerConsumption } = req.body;
@@ -156,7 +156,7 @@ router.patch('/api/stations/:stationId/battery', async (req, res) => {
 });
 
 // Update station storage info
-router.patch('/api/stations/:stationId/storage', async (req, res) => {
+router.patch('/api/stations/:stationId/storage', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
     const { storageRemaining } = req.body;

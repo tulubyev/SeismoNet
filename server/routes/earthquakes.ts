@@ -3,7 +3,7 @@ import { and } from "drizzle-orm";
 import { storage } from "../storage";
 import { syncEarthquakeData } from "../services/earthquakeApi";
 import { syncJMAEarthquakeData } from "../services/jmaEarthquakeApi";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
 // Endpoints for earthquake data from external sources
 
 // Manually trigger USGS earthquake data sync
-router.post('/api/earthquakes/sync', requireRole("administrator"), async (req, res) => {
+router.post('/api/earthquakes/sync', requirePermission('seismicMap', 'write'), async (req, res) => {
   try {
     const { magnitude, period } = req.body;
     let mag: number | 'significant';
@@ -42,7 +42,7 @@ router.post('/api/earthquakes/sync', requireRole("administrator"), async (req, r
 });
 
 // Manually trigger JMA earthquake data sync
-router.post('/api/earthquakes/sync/jma', requireRole("administrator"), async (req, res) => {
+router.post('/api/earthquakes/sync/jma', requirePermission('seismicMap', 'write'), async (req, res) => {
   try {
     console.log('Manually triggering JMA earthquake data sync');
     
@@ -91,7 +91,7 @@ router.post('/api/earthquakes/sync/jma', requireRole("administrator"), async (re
 const IRK_LAT_MIN = 49.0, IRK_LAT_MAX = 56.5;
 const IRK_LON_MIN = 98.0, IRK_LON_MAX = 114.0;
 
-router.get('/api/earthquakes', async (req, res) => {
+router.get('/api/earthquakes', requirePermission('seismicMap', 'read'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
     const region = req.query.region as string | undefined;

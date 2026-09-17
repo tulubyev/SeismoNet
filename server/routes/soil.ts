@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { and } from "drizzle-orm";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Soil Profiles API ─────────────────────────────────────────────────────────
 
-router.get('/api/soil-profiles', async (req, res) => {
+router.get('/api/soil-profiles', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
     const profiles = await storage.getSoilProfiles(objectId);
@@ -18,7 +18,7 @@ router.get('/api/soil-profiles', async (req, res) => {
   }
 });
 
-router.get('/api/soil-profiles/nearest', async (req, res) => {
+router.get('/api/soil-profiles/nearest', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
@@ -31,7 +31,7 @@ router.get('/api/soil-profiles/nearest', async (req, res) => {
   }
 });
 
-router.get('/api/soil-profiles/:id', async (req, res) => {
+router.get('/api/soil-profiles/:id', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const profile = await storage.getSoilProfile(id);
@@ -42,7 +42,7 @@ router.get('/api/soil-profiles/:id', async (req, res) => {
   }
 });
 
-router.get('/api/soil-profiles/:id/layers', async (req, res) => {
+router.get('/api/soil-profiles/:id/layers', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const profileId = parseInt(req.params.id);
     const layers = await storage.getSoilLayers(profileId);
@@ -52,7 +52,7 @@ router.get('/api/soil-profiles/:id/layers', async (req, res) => {
   }
 });
 
-router.post('/api/soil-profiles', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/soil-profiles', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const profile = await storage.createSoilProfile(req.body);
     res.status(201).json(profile);
@@ -61,7 +61,7 @@ router.post('/api/soil-profiles', requireRole(['administrator', 'user']), async 
   }
 });
 
-router.post('/api/soil-layers', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/soil-layers', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const layer = await storage.createSoilLayer(req.body);
     res.status(201).json(layer);
@@ -70,7 +70,7 @@ router.post('/api/soil-layers', requireRole(['administrator', 'user']), async (r
   }
 });
 
-router.patch('/api/soil-profiles/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/soil-profiles/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const updated = await storage.updateSoilProfile(parseInt(req.params.id), req.body);
     if (!updated) return res.status(404).json({ message: 'Profile not found' });
@@ -78,7 +78,7 @@ router.patch('/api/soil-profiles/:id', requireRole(['administrator', 'user']), a
   } catch (error) { res.status(500).json({ message: 'Error updating soil profile' }); }
 });
 
-router.delete('/api/soil-profiles/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/soil-profiles/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const profile = await storage.getSoilProfile(id);
@@ -91,7 +91,7 @@ router.delete('/api/soil-profiles/:id', requireRole(['administrator', 'user']), 
   } catch (error) { res.status(500).json({ message: 'Error deleting soil profile' }); }
 });
 
-router.patch('/api/soil-layers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/soil-layers/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const updated = await storage.updateSoilLayer(parseInt(req.params.id), req.body);
     if (!updated) return res.status(404).json({ message: 'Layer not found' });
@@ -99,7 +99,7 @@ router.patch('/api/soil-layers/:id', requireRole(['administrator', 'user']), asy
   } catch (error) { res.status(500).json({ message: 'Error updating soil layer' }); }
 });
 
-router.delete('/api/soil-layers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/soil-layers/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const ok = await storage.deleteSoilLayer(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: 'Layer not found' });

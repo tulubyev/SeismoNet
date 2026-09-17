@@ -3,7 +3,7 @@ import { eq, sql, desc, gte, lte, ilike, and, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { pageVisitLogs } from "@shared/schema";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 import geoip from "geoip-lite";
 
 const router = Router();
@@ -45,7 +45,7 @@ router.get('/api/page-views', async (req, res) => {
   }
 });
 
-router.get('/api/page-visits/by-country', requireRole('administrator'), async (req, res) => {
+router.get('/api/page-visits/by-country', requirePermission('analytics', 'read'), async (req, res) => {
   try {
     const rows = await db
       .select({
@@ -62,7 +62,7 @@ router.get('/api/page-visits/by-country', requireRole('administrator'), async (r
   }
 });
 
-router.get('/api/page-visits/by-city', requireRole('administrator'), async (req, res) => {
+router.get('/api/page-visits/by-city', requirePermission('analytics', 'read'), async (req, res) => {
   try {
     const rows = await db
       .select({
@@ -81,7 +81,7 @@ router.get('/api/page-visits/by-city', requireRole('administrator'), async (req,
   }
 });
 
-router.get('/api/page-visits/by-city/trend', requireRole('administrator'), async (req, res) => {
+router.get('/api/page-visits/by-city/trend', requirePermission('analytics', 'read'), async (req, res) => {
   try {
     const cityParam = (req.query.city as string) ?? '';
     const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
@@ -128,7 +128,7 @@ router.get('/api/page-visits/by-city/trend', requireRole('administrator'), async
   }
 });
 
-router.get('/api/page-visits/by-city/trend/multi', requireRole('administrator'), async (req, res) => {
+router.get('/api/page-visits/by-city/trend/multi', requirePermission('analytics', 'read'), async (req, res) => {
   try {
     const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 90);
     const n = Math.min(Math.max(Number(req.query.n) || 5, 1), 10);
@@ -242,7 +242,7 @@ router.get('/api/page-visits/by-city/trend/multi', requireRole('administrator'),
   }
 });
 
-router.get('/api/page-visits', requireRole('administrator'), async (req, res) => {
+router.get('/api/page-visits', requirePermission('analytics', 'read'), async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 500, 2000);
     const { from, to, country, ip } = req.query as Record<string, string | undefined>;

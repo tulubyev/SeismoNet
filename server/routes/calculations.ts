@@ -1,19 +1,20 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { insertSeismicCalculationSchema } from "@shared/schema";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Seismic Calculations API ─────────────────────────────────────────────────
 
-router.get('/api/calculations', async (req, res) => {
+router.get('/api/calculations', requirePermission('mtsm', 'read'), async (req, res) => {
   try {
     const { type, limit } = req.query;
     const rows = await storage.getSeismicCalculations(
       type as string | undefined,
-      limit ? parseInt(limit as string) : 50
+      limit ? parseInt(limit as string) : 50,
+      req.objectScope
     );
     res.json(rows);
   } catch (e) {
@@ -22,7 +23,7 @@ router.get('/api/calculations', async (req, res) => {
   }
 });
 
-router.get('/api/calculations/:id', async (req, res) => {
+router.get('/api/calculations/:id', requirePermission('mtsm', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const row = await storage.getSeismicCalculation(id);
@@ -33,7 +34,7 @@ router.get('/api/calculations/:id', async (req, res) => {
   }
 });
 
-router.post('/api/calculations', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/calculations', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const parsed = insertSeismicCalculationSchema.safeParse({
       ...req.body,
@@ -47,7 +48,7 @@ router.post('/api/calculations', requireRole(['administrator', 'user']), async (
   }
 });
 
-router.patch('/api/calculations/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/calculations/:id', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
@@ -64,7 +65,7 @@ router.patch('/api/calculations/:id', requireRole(['administrator', 'user']), as
   }
 });
 
-router.get('/api/calculations/:id/note-history', requireRole(['administrator', 'user', 'viewer']), async (req, res) => {
+router.get('/api/calculations/:id/note-history', requirePermission('mtsm', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
@@ -76,7 +77,7 @@ router.get('/api/calculations/:id/note-history', requireRole(['administrator', '
   }
 });
 
-router.post('/api/calculations/:id/note-history/revert', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/calculations/:id/note-history/revert', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
@@ -95,7 +96,7 @@ router.post('/api/calculations/:id/note-history/revert', requireRole(['administr
   }
 });
 
-router.delete('/api/calculations/:id', requireRole(['administrator']), async (req, res) => {
+router.delete('/api/calculations/:id', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const ok = await storage.deleteSeismicCalculation(id);
@@ -108,7 +109,7 @@ router.delete('/api/calculations/:id', requireRole(['administrator']), async (re
 
 // ─── Saved comparison sets API ────────────────────────────────────────────────
 
-router.get('/api/comparison-sets', async (_req, res) => {
+router.get('/api/comparison-sets', requirePermission('mtsm', 'read'), async (_req, res) => {
   try {
     const sets = await storage.getComparisonSets();
     res.json(sets);
@@ -118,7 +119,7 @@ router.get('/api/comparison-sets', async (_req, res) => {
   }
 });
 
-router.post('/api/comparison-sets', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/comparison-sets', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const { name, calcType, calcIds } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim()) {
@@ -144,7 +145,7 @@ router.post('/api/comparison-sets', requireRole(['administrator', 'user']), asyn
   }
 });
 
-router.delete('/api/comparison-sets/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/comparison-sets/:id', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const ok = await storage.deleteComparisonSet(id);

@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { insertDeveloperSchema } from "@shared/schema";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Developers API ───────────────────────────────────────────────────────────
 
-router.get('/api/developers', async (_req, res) => {
+router.get('/api/developers', requirePermission('objects', 'read'), async (_req, res) => {
   try {
     const list = await storage.getDevelopers();
     res.json(list);
@@ -18,7 +18,7 @@ router.get('/api/developers', async (_req, res) => {
   }
 });
 
-router.get('/api/developers/:id', async (req, res) => {
+router.get('/api/developers/:id', requirePermission('objects', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const dev = await storage.getDeveloper(id);
@@ -29,7 +29,7 @@ router.get('/api/developers/:id', async (req, res) => {
   }
 });
 
-router.post('/api/developers', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/developers', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const parsed = insertDeveloperSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -43,7 +43,7 @@ router.post('/api/developers', requireRole(['administrator', 'user']), async (re
   }
 });
 
-router.patch('/api/developers/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/developers/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
@@ -60,7 +60,7 @@ router.patch('/api/developers/:id', requireRole(['administrator', 'user']), asyn
   }
 });
 
-router.delete('/api/developers/:id', requireRole(['administrator']), async (req, res) => {
+router.delete('/api/developers/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });

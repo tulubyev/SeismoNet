@@ -1,25 +1,25 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Infrastructure Objects API ────────────────────────────────────────────────
 
-router.get('/api/infrastructure-objects', async (req, res) => {
+router.get('/api/infrastructure-objects', requirePermission('objects', 'read'), async (req, res) => {
   try {
-    const objects = await storage.getInfrastructureObjects();
+    const objects = await storage.getInfrastructureObjects(req.objectScope);
     res.json(objects);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching infrastructure objects' });
   }
 });
 
-router.get('/api/infrastructure-objects/:id', async (req, res) => {
+router.get('/api/infrastructure-objects/:id', requirePermission('objects', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const obj = await storage.getInfrastructureObject(id);
+    const obj = await storage.getInfrastructureObject(id, req.objectScope);
     if (!obj) return res.status(404).json({ message: 'Object not found' });
     res.json(obj);
   } catch (error) {
@@ -27,7 +27,7 @@ router.get('/api/infrastructure-objects/:id', async (req, res) => {
   }
 });
 
-router.post('/api/infrastructure-objects', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/infrastructure-objects', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const newObj = await storage.createInfrastructureObject(req.body);
     res.status(201).json(newObj);
@@ -36,7 +36,7 @@ router.post('/api/infrastructure-objects', requireRole(['administrator', 'user']
   }
 });
 
-router.patch('/api/infrastructure-objects/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const updated = await storage.updateInfrastructureObject(id, req.body);
@@ -47,7 +47,7 @@ router.patch('/api/infrastructure-objects/:id', requireRole(['administrator', 'u
   }
 });
 
-router.delete('/api/infrastructure-objects/:id', requireRole(['administrator']), async (req, res) => {
+router.delete('/api/infrastructure-objects/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const ok = await storage.deleteInfrastructureObject(id);
@@ -64,7 +64,7 @@ router.delete('/api/infrastructure-objects/:id', requireRole(['administrator']),
 
 // ─── Object Categories API ────────────────────────────────────────────────────
 
-router.get('/api/object-categories', async (_req, res) => {
+router.get('/api/object-categories', requirePermission('objects', 'read'), async (_req, res) => {
   try {
     const cats = await storage.getObjectCategories();
     res.json(cats);
@@ -73,7 +73,7 @@ router.get('/api/object-categories', async (_req, res) => {
   }
 });
 
-router.post('/api/object-categories', requireRole(['administrator']), async (req, res) => {
+router.post('/api/object-categories', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const cat = await storage.createObjectCategory(req.body);
     res.status(201).json(cat);
@@ -82,7 +82,7 @@ router.post('/api/object-categories', requireRole(['administrator']), async (req
   }
 });
 
-router.patch('/api/object-categories/:id', requireRole(['administrator']), async (req, res) => {
+router.patch('/api/object-categories/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const updated = await storage.updateObjectCategory(id, req.body);
@@ -93,7 +93,7 @@ router.patch('/api/object-categories/:id', requireRole(['administrator']), async
   }
 });
 
-router.delete('/api/object-categories/:id', requireRole(['administrator']), async (req, res) => {
+router.delete('/api/object-categories/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const ok = await storage.deleteObjectCategory(id);

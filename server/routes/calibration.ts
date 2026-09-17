@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
 
 // ─── Calibration sessions ─────────────────────────────────────────────────
 
-router.get('/api/calibration-sessions', async (req, res) => {
+router.get('/api/calibration-sessions', requirePermission('calibration', 'read'), async (req, res) => {
   try {
     let installationId: number | undefined;
     if (req.query.installationId !== undefined) {
@@ -22,7 +22,7 @@ router.get('/api/calibration-sessions', async (req, res) => {
   }
 });
 
-router.get('/api/calibration-sessions/:id', async (req, res) => {
+router.get('/api/calibration-sessions/:id', requirePermission('calibration', 'read'), async (req, res) => {
   try {
     const session = await storage.getCalibrationSession(parseInt(req.params.id));
     if (!session) return res.status(404).json({ message: 'Session not found' });
@@ -45,7 +45,7 @@ const calibrationSessionSchema = z.object({
   notes:          z.string().max(1000).optional()
 });
 
-router.post('/api/calibration-sessions', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/calibration-sessions', requirePermission('calibration', 'write'), async (req, res) => {
   const parsed = calibrationSessionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
   try {
@@ -56,7 +56,7 @@ router.post('/api/calibration-sessions', requireRole(['administrator', 'user']),
   }
 });
 
-router.patch('/api/calibration-sessions/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/calibration-sessions/:id', requirePermission('calibration', 'write'), async (req, res) => {
   const parsed = calibrationSessionSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
   try {
@@ -68,7 +68,7 @@ router.patch('/api/calibration-sessions/:id', requireRole(['administrator', 'use
   }
 });
 
-router.delete('/api/calibration-sessions/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/calibration-sessions/:id', requirePermission('calibration', 'write'), async (req, res) => {
   try {
     const ok = await storage.deleteCalibrationSession(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: 'Session not found' });
@@ -80,7 +80,7 @@ router.delete('/api/calibration-sessions/:id', requireRole(['administrator', 'us
 
 // ─── AFC data ─────────────────────────────────────────────────────────────
 
-router.get('/api/calibration-afc', async (req, res) => {
+router.get('/api/calibration-afc', requirePermission('calibration', 'read'), async (req, res) => {
   try {
     const sessionId = parseInt(req.query.sessionId as string);
     if (isNaN(sessionId) || sessionId <= 0) return res.status(400).json({ message: 'sessionId must be a positive integer' });
@@ -102,7 +102,7 @@ const afcPayloadSchema = z.object({
   points:    z.array(afcPointSchema).min(1).max(500)
 });
 
-router.put('/api/calibration-afc', requireRole(['administrator', 'user']), async (req, res) => {
+router.put('/api/calibration-afc', requirePermission('calibration', 'write'), async (req, res) => {
   const parsed = afcPayloadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid AFC data', errors: parsed.error.flatten() });
   try {
@@ -116,7 +116,7 @@ router.put('/api/calibration-afc', requireRole(['administrator', 'user']), async
   }
 });
 
-router.delete('/api/calibration-afc/:id', requireRole(['administrator', 'user']), async (req, res) => {
+router.delete('/api/calibration-afc/:id', requirePermission('calibration', 'write'), async (req, res) => {
   try {
     const ok = await storage.deleteCalibrationAfcPoint(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: 'AFC point not found' });

@@ -3,6 +3,7 @@ import { and } from "drizzle-orm";
 import { storage } from "../storage";
 import { sendSeismicEventNotification } from "../services/unisender";
 import { sendSeismicEventAlert } from "../services/telegram";
+import { requirePermission } from "../auth";
 
 const router = Router();
 
@@ -10,7 +11,7 @@ const router = Router();
 // --- Notification API Routes ---
 
 // Send seismic event notification via Unisender
-router.post('/api/notifications/email/event', async (req, res) => {
+router.post('/api/notifications/email/event', requirePermission('settings', 'write'), async (req, res) => {
   try {
     const { eventId, recipients } = req.body;
     
@@ -51,7 +52,7 @@ router.post('/api/notifications/email/event', async (req, res) => {
 });
 
 // Send seismic event notification via Telegram
-router.post('/api/notifications/telegram/event', async (req, res) => {
+router.post('/api/notifications/telegram/event', requirePermission('settings', 'write'), async (req, res) => {
   try {
     const { eventId, chatId } = req.body;
     

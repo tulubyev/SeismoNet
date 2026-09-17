@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, schema as dbSchema } from "../db";
 import { storage } from "../storage";
-import { requireRole } from "../auth";
+import { requirePermission } from "../auth";
 import { encodeMiniSEED, type MseedChannel } from "../lib/miniseed";
 
 const router = Router();
@@ -10,7 +10,7 @@ const router = Router();
 
 // ─── Seismogram Records API ────────────────────────────────────────────────────
 
-router.get('/api/seismograms', async (req, res) => {
+router.get('/api/seismograms', requirePermission('seismograms', 'read'), async (req, res) => {
   try {
     const stationId = req.query.stationId as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -21,7 +21,7 @@ router.get('/api/seismograms', async (req, res) => {
   }
 });
 
-router.get('/api/seismograms/:id', async (req, res) => {
+router.get('/api/seismograms/:id', requirePermission('seismograms', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const record = await storage.getSeismogramRecord(id);
@@ -32,7 +32,7 @@ router.get('/api/seismograms/:id', async (req, res) => {
   }
 });
 
-router.post('/api/seismograms', requireRole(['administrator', 'user']), async (req, res) => {
+router.post('/api/seismograms', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
     const body = { ...req.body };
     if (typeof body.startTime === 'string') body.startTime = new Date(body.startTime);
@@ -47,7 +47,7 @@ router.post('/api/seismograms', requireRole(['administrator', 'user']), async (r
   }
 });
 
-router.patch('/api/seismograms/:id/use-for-modeling', async (req, res) => {
+router.patch('/api/seismograms/:id/use-for-modeling', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const record = await storage.getSeismogramRecord(id);
@@ -63,7 +63,7 @@ router.patch('/api/seismograms/:id/use-for-modeling', async (req, res) => {
   }
 });
 
-router.patch('/api/seismograms/:id/status', requireRole(['administrator', 'user']), async (req, res) => {
+router.patch('/api/seismograms/:id/status', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { status } = req.body;
@@ -77,7 +77,7 @@ router.patch('/api/seismograms/:id/status', requireRole(['administrator', 'user'
 
 // ─── miniSEED export ──────────────────────────────────────────────────────
 
-router.get('/api/seismograms/:id/mseed', async (req, res) => {
+router.get('/api/seismograms/:id/mseed', requirePermission('seismograms', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid id' });
