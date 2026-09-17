@@ -3,17 +3,19 @@ import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { useSeismicData } from '@/hooks/useSeismicData';
 import { useAuth } from '@/hooks/use-auth';
+import { usePermission } from '@/hooks/use-permission';
 import type { Alert, InfrastructureObject, SeismogramRecord } from '@shared/schema';
 import {
   Settings as SettingsIcon, ShieldCheck, ArrowRight,
   HardHat, PlusSquare, Radio, Network, Server, Database, BellRing, Siren,
-  Wrench,
+  Wrench, Users,
 } from 'lucide-react';
 
 const SystemManagement: FC = () => {
   const [, navigate] = useLocation();
   const { stations, events } = useSeismicData();
   const { user } = useAuth();
+  const { can } = usePermission();
   const isAdmin = user?.role === 'administrator';
 
   const { data: objects = [] } = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
@@ -24,6 +26,11 @@ const SystemManagement: FC = () => {
   const unreadAlerts = alerts.filter(a => !a.isRead).length;
 
   const items = [
+    ...(can('users') ? [{
+      href: '/admin/users', icon: Users, title: 'Пользователи',
+      desc: 'Роли, доступ, объекты застройщиков', badge: null,
+      color: 'text-sky-300', bg: 'bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20',
+    }] : []),
     {
       href: '/developers', icon: HardHat, title: 'Застройщики',
       desc: 'Реестр и контакты компаний', badge: developers.length || null,
