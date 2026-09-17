@@ -453,7 +453,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
           <TabsContent value="sensors" className="mt-0 space-y-3">
 
             {/* Add sensor button */}
-            {!showSensorForm && can('objects', 'write') && (
+            {!showSensorForm && can('sensors', 'write') && (
               <Button
                 size="sm"
                 className="w-full h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
@@ -641,14 +641,16 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                         </Badge>
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
-                        <button
-                          className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"
-                          onClick={() => openEditForm(inst)}
-                          title="Редактировать"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        {can('objects', 'write') && (
+                        {can('sensors', 'write') && (
+                          <button
+                            className="p-1 rounded hover:bg-blue-100 text-blue-500 transition-colors"
+                            onClick={() => openEditForm(inst)}
+                            title="Редактировать"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
+                        {can('sensors', 'write') && (
                           <button
                             className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors"
                             onClick={() => { if (confirm(`Удалить датчик ${inst.stationId}?`)) deleteMutation.mutate(inst.id); }}
