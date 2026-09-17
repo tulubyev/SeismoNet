@@ -17,6 +17,7 @@ import {
 import type { SeismogramRecord, Station } from '@shared/schema';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -295,6 +296,7 @@ const DetailPanel: FC<{ rec: SeismogramRecord & any; onSendToAnalysis: () => voi
   const spectrum = useMemo(() => computeResponseSpectrum(pga, freq),  [pga, freq]);
 
   const { toast } = useToast();
+  const { can } = usePermission();
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => apiRequest('PATCH', `/api/seismograms/${rec.id}/use-for-modeling`, {}),
@@ -378,11 +380,13 @@ const DetailPanel: FC<{ rec: SeismogramRecord & any; onSendToAnalysis: () => voi
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button onClick={handleSendToAnalysis} disabled={mutation.isPending}
-          className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm h-9">
-          <Calculator className="h-4 w-4" />
-          Использовать для расчёта
-        </Button>
+        {can('seismograms', 'write') && (
+          <Button onClick={handleSendToAnalysis} disabled={mutation.isPending}
+            className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm h-9">
+            <Calculator className="h-4 w-4" />
+            Использовать для расчёта
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"

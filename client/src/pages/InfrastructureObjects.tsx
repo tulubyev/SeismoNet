@@ -343,17 +343,19 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                 <p className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold">
                   Коэфф. нагрузки (СП14)
                 </p>
-                <button
-                  className="text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5"
-                  onClick={() => {
-                    setEditK1(obj.k1Key ?? 'elastic');
-                    setEditK2(obj.k2Key ?? 'wall_monolithic');
-                    setShowK1K2Edit(v => !v);
-                  }}
-                >
-                  <Pencil className="h-2.5 w-2.5" />
-                  {showK1K2Edit ? 'Отмена' : 'Изменить'}
-                </button>
+                {can('objects', 'write') && (
+                  <button
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5"
+                    onClick={() => {
+                      setEditK1(obj.k1Key ?? 'elastic');
+                      setEditK2(obj.k2Key ?? 'wall_monolithic');
+                      setShowK1K2Edit(v => !v);
+                    }}
+                  >
+                    <Pencil className="h-2.5 w-2.5" />
+                    {showK1K2Edit ? 'Отмена' : 'Изменить'}
+                  </button>
+                )}
               </div>
 
               {!showK1K2Edit ? (

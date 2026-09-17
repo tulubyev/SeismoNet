@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 import { Download, GitCompareArrows, Loader2, Bookmark, Link2, Check, ImageDown } from 'lucide-react';
 import type { SeismicCalculation, SoilProfile, InfrastructureObject } from '@shared/schema';
 import { CalcType, TYPE_META, MtsmResults, RespResults, ResoResults, RISK_BADGE, downloadCsv } from '@/pages/calculations/shared';
@@ -112,6 +113,7 @@ export const CompareDialog: FC<CompareDialogProps> = ({
   const [exportedAt, setExportedAt] = useState('');
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { can } = usePermission();
   // Reset the name input whenever the dialog opens or the selection changes.
   useEffect(() => { if (open) setSetName(''); }, [open, calcs.map(c => c.id).join(',')]);
   const calcType = calcs[0]?.calcType as CalcType | undefined;
@@ -299,21 +301,23 @@ export const CompareDialog: FC<CompareDialogProps> = ({
             Сохранить как именованный набор
           </div>
           <div className="flex items-center gap-2">
-            <Input
-              value={setName}
-              onChange={e => setSetName(e.target.value)}
-              placeholder="Название (напр. «Сравнение оснований ЖК Юбилейный»)"
-              maxLength={120}
-              className="h-8 text-xs flex-1"
-              data-testid="input-save-set-name"
-            />
-            <Button size="sm" variant="default" className="h-8 text-xs gap-1"
-              disabled={!setName.trim() || isSaving}
-              onClick={() => { onSaveSet(setName.trim()); setSetName(''); }}
-              data-testid="btn-save-set">
-              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Сохранить набор
-            </Button>
+            {can('mtsm', 'write') && (<>
+              <Input
+                value={setName}
+                onChange={e => setSetName(e.target.value)}
+                placeholder="Название (напр. «Сравнение оснований ЖК Юбилейный»)"
+                maxLength={120}
+                className="h-8 text-xs flex-1"
+                data-testid="input-save-set-name"
+              />
+              <Button size="sm" variant="default" className="h-8 text-xs gap-1"
+                disabled={!setName.trim() || isSaving}
+                onClick={() => { onSaveSet(setName.trim()); setSetName(''); }}
+                data-testid="btn-save-set">
+                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                Сохранить набор
+              </Button>
+            </>)}
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1"
               onClick={onShareLink}
               data-testid="btn-share-link"

@@ -192,15 +192,17 @@ const Analysis: FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue={can('calibration') ? 'calibration' : 'waveforms'} className="space-y-4">
+      <Tabs defaultValue={can('calibration') ? 'calibration' : can('spectral') ? 'waveforms' : 'amplification'} className="space-y-4">
         <div className="overflow-x-auto">
           <TabsList className="flex w-max min-w-full">
             {can('calibration') && (<>
               <TabsTrigger value="calibration"   className="text-xs gap-1 flex-1 min-w-[7rem]"><FlaskConical className="h-3.5 w-3.5" />Калибровка</TabsTrigger>
               <TabsTrigger value="afc"           className="text-xs gap-1 flex-1 min-w-[5rem]"><Activity className="h-3.5 w-3.5" />АЧХ</TabsTrigger>
             </>)}
-            <TabsTrigger value="waveforms"     className="text-xs gap-1 flex-1 min-w-[8rem]"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
-            <TabsTrigger value="spectrum"      className="text-xs gap-1 flex-1 min-w-[6rem]"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
+            {can('spectral') && (<>
+              <TabsTrigger value="waveforms"     className="text-xs gap-1 flex-1 min-w-[8rem]"><Waves className="h-3.5 w-3.5" />Волновые формы</TabsTrigger>
+              <TabsTrigger value="spectrum"      className="text-xs gap-1 flex-1 min-w-[6rem]"><BarChart3 className="h-3.5 w-3.5" />FFT & H/V</TabsTrigger>
+            </>)}
             {can('mtsm') && (<>
               <TabsTrigger value="amplification" className="text-xs gap-1 flex-1 min-w-[6rem]"><LayersIcon className="h-3.5 w-3.5" />Усиление</TabsTrigger>
               <TabsTrigger value="response"      className="text-xs gap-1 flex-1 min-w-[5rem]"><Building2 className="h-3.5 w-3.5" />Отклик</TabsTrigger>
@@ -433,6 +435,7 @@ const Analysis: FC = () => {
         </TabsContent>
         </>)}
 
+        {can('spectral') && (<>
         <TabsContent value="waveforms" className="space-y-4">
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2 pt-4 px-4 flex-row items-center justify-between flex-wrap gap-2">
@@ -602,6 +605,7 @@ const Analysis: FC = () => {
             </Card>
           )}
         </TabsContent>
+        </>)}
 
         {can('mtsm') && (<>
         <TabsContent value="amplification" className="space-y-4">

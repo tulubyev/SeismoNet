@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 import { Layers as LayersIcon, Building2, TriangleAlert, Trash2, Download, Eye, Search, Database, FileBarChart, History, GitCompareArrows, X, Bookmark, Link2, FolderOpen } from 'lucide-react';
 import type { SeismicCalculation, SoilProfile, InfrastructureObject, ComparisonSet } from '@shared/schema';
 import { CalcType, TYPE_META, summary, paramsToCsv, downloadCsv, listToCsv } from '@/pages/calculations/shared';
@@ -18,6 +19,7 @@ import { CompareDialog } from '@/pages/calculations/CompareDialog';
 
 const Calculations: FC = () => {
   const { toast } = useToast();
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<'all' | CalcType>('all');
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<SeismicCalculation | null>(null);
@@ -251,10 +253,12 @@ const Calculations: FC = () => {
             data-testid={`btn-csv-${c.id}`}>
             <Download className="h-3 w-3" />
           </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50"
-            onClick={() => setConfirmDelete(c)} data-testid={`btn-delete-${c.id}`}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          {can('mtsm', 'write') && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50"
+              onClick={() => setConfirmDelete(c)} data-testid={`btn-delete-${c.id}`}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -392,11 +396,13 @@ const Calculations: FC = () => {
                       title="Скопировать ссылку для общего доступа">
                       <Link2 className="h-3 w-3" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50"
-                      onClick={() => setConfirmDeleteSet(set)}
-                      data-testid={`btn-delete-set-${set.id}`}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    {can('mtsm', 'write') && (
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-red-600 hover:bg-red-50"
+                        onClick={() => setConfirmDeleteSet(set)}
+                        data-testid={`btn-delete-set-${set.id}`}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

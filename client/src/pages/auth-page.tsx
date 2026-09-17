@@ -29,7 +29,9 @@ const AuthPage: FC = () => {
     try {
       const r = await fetch("/api/dev-login", { method: "POST", credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      queryClient.setQueryData(["/api/user"], (await r.json()) as User);
+      const devUser = (await r.json()) as User;
+      queryClient.clear();
+      queryClient.setQueryData(["/api/user"], devUser);
       navigate("/");
     } finally { setDevBusy(false); }
   };

@@ -47,14 +47,17 @@ const PageFallback = () => (
 );
 
 // Layout + permission gate. The gate lives inside the layout so a 403 keeps the nav.
-const page = (Component: FC, module?: Module, level: Level = "read"): FC => {
+// `module` may be a list, meaning "any of these grants access" — a page whose
+// tabs come from several modules (e.g. /analysis) opens for anyone holding one.
+const page = (Component: FC, module?: Module | Module[], level: Level = "read"): FC => {
+  const modules = module === undefined ? [] : Array.isArray(module) ? module : [module];
   const Page: FC = () => {
     const { can } = usePermission();
-    const forbidden = module !== undefined && !can(module, level);
+    const forbidden = modules.length > 0 && !modules.some(m => can(m, level));
     return (
       <AppLayout>
         <Suspense fallback={<PageFallback />}>
-          {forbidden ? <Forbidden module={module} /> : <Component />}
+          {forbidden ? <Forbidden module={modules[0]} /> : <Component />}
         </Suspense>
       </AppLayout>
     );
@@ -75,7 +78,7 @@ const ROUTES: Array<[string, FC]> = [
   ["/developers", page(DevelopersPage, 'objects')],
   ["/seismograms", page(Seismograms, 'seismograms')],
   ["/archive", page(Archive, 'seismograms')],
-  ["/analysis", page(Analysis, 'spectral')],
+  ["/analysis", page(Analysis, ['spectral', 'calibration', 'mtsm'])],
   ["/data-analysis", page(DataAnalysis, 'spectral')],
   ["/calculations", page(Calculations, 'mtsm')],
   ["/soil-database", page(SoilDatabase, 'soil')],

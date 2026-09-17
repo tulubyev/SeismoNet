@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 import { History, StickyNote, Save, Loader2 } from 'lucide-react';
 import type { SeismicCalculation, CalculationNoteHistory } from '@shared/schema';
 
@@ -39,6 +40,7 @@ export const DiffView: FC<{ oldText: string; newText: string }> = ({ oldText, ne
 
 export const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
   const { toast } = useToast();
+  const { can } = usePermission();
   const [savedNotes, setSavedNotes] = useState<string>(calc.notes ?? '');
   const [value, setValue] = useState<string>(calc.notes ?? '');
   const [audit, setAudit] = useState<{ at: string | Date | null; by: string | null }>({
@@ -163,15 +165,17 @@ export const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
                     {entry.editedBy ? <>пользователь <strong>{entry.editedBy}</strong></> : 'неизвестный'}
                     {' · '}{new Date(entry.editedAt).toLocaleString('ru-RU')}
                   </span>
-                  <button
-                    type="button"
-                    className="text-[10px] text-blue-600 hover:underline disabled:opacity-50"
-                    disabled={revertMut.isPending}
-                    onClick={() => revertMut.mutate(entry.id)}
-                    data-testid={`btn-notes-revert-${calc.id}-${entry.id}`}
-                  >
-                    Восстановить
-                  </button>
+                  {can('mtsm', 'write') && (
+                    <button
+                      type="button"
+                      className="text-[10px] text-blue-600 hover:underline disabled:opacity-50"
+                      disabled={revertMut.isPending}
+                      onClick={() => revertMut.mutate(entry.id)}
+                      data-testid={`btn-notes-revert-${calc.id}-${entry.id}`}
+                    >
+                      Восстановить
+                    </button>
+                  )}
                 </div>
                 {showDiff
                   ? <DiffView oldText={beforeText} newText={afterText} />
@@ -196,27 +200,29 @@ export const NotesEditor: FC<{ calc: SeismicCalculation }> = ({ calc }) => {
           {' '}· {new Date(audit.at).toLocaleString('ru-RU')}
         </div>
       )}
-      <div className="flex justify-end gap-2">
-        {dirty && (
+      {can('mtsm', 'write') && (
+        <div className="flex justify-end gap-2">
+          {dirty && (
+            <Button
+              size="sm" variant="ghost" className="h-7 text-xs"
+              disabled={saveMut.isPending}
+              onClick={() => setValue(savedNotes)}
+              data-testid={`btn-notes-cancel-${calc.id}`}>
+              Отмена
+            </Button>
+          )}
           <Button
-            size="sm" variant="ghost" className="h-7 text-xs"
-            disabled={saveMut.isPending}
-            onClick={() => setValue(savedNotes)}
-            data-testid={`btn-notes-cancel-${calc.id}`}>
-            Отмена
+            size="sm" className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700"
+            disabled={!dirty || saveMut.isPending}
+            onClick={() => saveMut.mutate(value)}
+            data-testid={`btn-notes-save-${calc.id}`}>
+            {saveMut.isPending
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : <Save className="h-3 w-3" />}
+            Сохранить
           </Button>
-        )}
-        <Button
-          size="sm" className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700"
-          disabled={!dirty || saveMut.isPending}
-          onClick={() => saveMut.mutate(value)}
-          data-testid={`btn-notes-save-${calc.id}`}>
-          {saveMut.isPending
-            ? <Loader2 className="h-3 w-3 animate-spin" />
-            : <Save className="h-3 w-3" />}
-          Сохранить
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

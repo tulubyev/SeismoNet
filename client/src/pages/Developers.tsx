@@ -466,9 +466,11 @@ const DeveloperDetail: FC<{
             )}
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="h-7" onClick={onEdit}>
-              <Pencil className="h-3 w-3" />
-            </Button>
+            {can('objects', 'write') && (
+              <Button size="sm" variant="outline" className="h-7" onClick={onEdit}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
             {can('objects', 'write') && (
               <Button size="sm" variant="outline" className="h-7 text-red-600 hover:bg-red-50" onClick={onDelete}>
                 <Trash2 className="h-3 w-3" />

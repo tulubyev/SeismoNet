@@ -83,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return userData;
     },
     onSuccess: (loggedInUser: User) => {
+      // Drop everything the previous session cached: a role switch must not
+      // leave another user's rows visible until the next refetch.
+      queryClient.clear();
       queryClient.setQueryData(["/api/user"], loggedInUser);
       
       // Refresh user data to ensure everything is in sync
@@ -124,8 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     onSuccess: () => {
+      queryClient.clear();
       queryClient.setQueryData(["/api/user"], null);
-      
+
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
