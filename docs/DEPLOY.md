@@ -58,6 +58,25 @@ docker compose -f docker-compose.prod.yml up -d --build
 docker image prune -f
 ```
 
+## Обновление с ролями
+
+Миграция 0006 (6 ролей + `user_objects`) применяется **до** выкладки кода, с Mac через туннель —
+на VPS в build-стадии `drizzle-kit` нет.
+
+```bash
+# 1. Mac: туннель поднят, .env указывает на localhost:5433
+npm run migrate:roles          # печатает гистограмму ролей и список перехэшированных логинов
+
+# 2. Mac: отдать код
+git push
+
+# 3. VPS
+cd /var/www/seismonet && git pull && docker compose -f docker-compose.prod.yml up -d --build
+
+# 4. Mac: dev-login должен быть недоступен в production
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://seismonet.ru/api/dev-login   # → 404
+```
+
 ## После первого деплоя
 
 - [ ] `vps-server-infra/docs/Projects.md`: перенести seismonet из «in development» в «Active Web Services»

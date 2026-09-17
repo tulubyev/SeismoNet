@@ -43,18 +43,19 @@ server/index.ts        bootstrap, логгер запросов, Vite middleware
 server/routes.ts       registerRoutes(): auth → монтирование доменных роутеров → WebSocket → sync-джобы
 server/routes/*.ts     express.Router по доменам, полные пути "/api/...": health, stations, monitoring (events/alerts/networks/regions),
                        notifications, earthquakes, infrastructure (+object-categories), developers, calculations (+comparison-sets),
-                       soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views)
+                       soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views), users
 server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage
 server/ws.ts           WebSocketServer('/ws', noServer), broadcastMessage(), симулятор волновых данных
 server/startup.ts      runStartupMigrations() (ad-hoc ALTER TABLE ... IF NOT EXISTS), initializeResearchNetworks()
 server/seed.ts         seedDatabase(): стартовые данные (застройщики, нормы, станции, грунты…), идемпотентно
-server/auth.ts         Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requireRole()
+server/auth.ts         Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requirePermission()
 server/db.ts           pg.Pool + drizzle, объект schema
 server/static.ts       log(), serveStatic() — prod-статика с immutable-кэшем /assets
 server/vite.ts         dev-only, подключается динамическим импортом (в prod-бандл не попадает)
 server/seismicUtils.ts STA/LTA, триангуляция, магнитуда
 server/services/       earthquakeApi (USGS/EMSC), jmaEarthquakeApi, telegram, unisender — sync по setInterval 30 мин
 server/lib/            miniseed.ts (энкодер miniSEED 2.4), errors.ts (describeError — одна строка на ошибку в логах)
+shared/permissions.ts  роли и матрица доступа (6 ролей × модули), can(role, module, level)
 shared/schema.ts       единый источник типов для клиента и сервера
 client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
 client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
@@ -72,12 +73,13 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Zod-схемы для API берутся из `drizzle-zod` (`insertXxxSchema` в `shared/schema.ts`).
 - Новый эндпоинт: метод в `server/storage/types.ts` (IStorage) + реализация в `server/storage/<domain>.ts` + роут в `server/routes/<domain>.ts`.
 - Leaflet бандлится через `client/src/lib/leaflet.ts` (экспортирует `window.L` для старого кода карт).
-- Роли: `administrator | user | viewer` через `requireRole([...])`.
+- Роли: 6 (см. `shared/permissions.ts`) через `requirePermission(module, level)`.
+- Новый маршрут обязан иметь `requirePermission(module, level)`; новая страница — `page(Component, module)` в App.tsx.
 
 ## Локальная среда (Claude Desktop)
 
 - `.claude/launch.json` → конфигурация `seismonet-dev` для браузерной панели (`preview_start`).
-- Вход в dev: страница `/auth`, кнопка dev-login (`POST /api/dev-login`, только `NODE_ENV !== production`).
+- Вход: форма `/auth`; в dev есть кнопка dev-login (логинит `DEV_LOGIN_USERNAME`, по умолчанию `admin`).
 - Без туннеля сервер стартует, но все `/api/*` с БД отдают 500 — сначала `npm run tunnel -- start`.
 - Claude не подключается к VPS по SSH и не запускает `db:push` без явной просьбы.
 
@@ -100,8 +102,9 @@ client/src/lib/numeric/ чистые численные методы с тест
 
 ## Известные проблемы / TODO
 
-- Безопасность: fallback `SESSION_SECRET` в `server/auth.ts`; обход `requireRole` и `/api/dev-login`
-  при `NODE_ENV !== production`; пароль БД засветился в публичном infra-репо — сменить.
+- Безопасность: сброс пароля не завершает старые сессии; нет аудит-лога действий; лимитер попыток
+  входа (`server/auth.ts`) — в памяти процесса, не переживёт несколько инстансов.
+- Роли: 6 по спецификации, enum пересоздан миграцией 0006.
 - Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
 - CI нет; тесты только для `lib/numeric`. `npm run check` — baseline 49 ошибок типов (16.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
