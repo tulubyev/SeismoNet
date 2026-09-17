@@ -37,17 +37,20 @@ const RoleSelect: FC<{ value: Role; onChange: (r: Role) => void }> = ({ value, o
   </Select>
 );
 
+const initialCreateForm = { username: "", fullName: "", email: "", password: "", role: "staff" as Role, organization: "" };
+
 const CreateDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { toast } = useToast();
-  const [f, setF] = useState({ username: "", fullName: "", email: "", password: "", role: "staff" as Role, organization: "" });
+  const [f, setF] = useState(initialCreateForm);
+  const close = () => { setF(initialCreateForm); onClose(); };
   const m = useMutation({
     mutationFn: () => send("POST", "/api/users", f),
-    onSuccess: () => { invalidate(); onClose(); toast({ title: "Пользователь создан" }); },
+    onSuccess: () => { invalidate(); close(); toast({ title: "Пользователь создан" }); },
     onError: (e: Error) => toast({ title: "Ошибка", description: e.message, variant: "destructive" }),
   });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   return (
-    <Dialog open={open} onOpenChange={o => !o && onClose()}>
+    <Dialog open={open} onOpenChange={o => !o && close()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Новый пользователь</DialogTitle></DialogHeader>
         <div className="grid gap-3">
@@ -67,13 +70,14 @@ const CreateDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, onClos
 const PasswordDialog: FC<{ user: SafeUser | null; onClose: () => void }> = ({ user, onClose }) => {
   const { toast } = useToast();
   const [password, setPassword] = useState("");
+  const close = () => { setPassword(""); onClose(); };
   const m = useMutation({
     mutationFn: () => send("POST", `/api/users/${user!.id}/password`, { password }),
-    onSuccess: () => { onClose(); setPassword(""); toast({ title: "Пароль обновлён" }); },
+    onSuccess: () => { invalidate(); close(); toast({ title: "Пароль обновлён" }); },
     onError: (e: Error) => toast({ title: "Ошибка", description: e.message, variant: "destructive" }),
   });
   return (
-    <Dialog open={!!user} onOpenChange={o => !o && onClose()}>
+    <Dialog open={!!user} onOpenChange={o => !o && close()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Новый пароль — {user?.username}</DialogTitle></DialogHeader>
         <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="минимум 8 символов" />
@@ -91,7 +95,7 @@ const ObjectsDialog: FC<{ user: SafeUser | null; onClose: () => void }> = ({ use
   const current = sel ?? new Set(bound);
   const m = useMutation({
     mutationFn: () => send("PUT", `/api/users/${user!.id}/objects`, { objectIds: Array.from(current) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/users/${user!.id}/objects`] }); onClose(); setSel(null); toast({ title: "Объекты сохранены" }); },
+    onSuccess: () => { invalidate(); queryClient.invalidateQueries({ queryKey: [`/api/users/${user!.id}/objects`] }); onClose(); setSel(null); toast({ title: "Объекты сохранены" }); },
     onError: (e: Error) => toast({ title: "Ошибка", description: e.message, variant: "destructive" }),
   });
   const toggle = (id: number) => { const n = new Set(current); n.has(id) ? n.delete(id) : n.add(id); setSel(n); };
