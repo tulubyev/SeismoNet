@@ -14,3 +14,6 @@ cookies.txt
 # local artifacts
 backup/backups/
 *.tsbuildinfo
+
+# superpowers SDD scratch (ledgers, briefs, review packages)
+.superpowers/
