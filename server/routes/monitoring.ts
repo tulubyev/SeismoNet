@@ -112,10 +112,10 @@ router.get('/api/regions/:id', requirePermission('monitoring', 'read'), async (r
 });
 
 // Get stations in a region
-router.get('/api/regions/:id/stations', requirePermission('monitoring', 'read'), async (req, res) => {
+router.get('/api/regions/:id/stations', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const regionId = parseInt(req.params.id);
-    const stations = await storage.getStationsByRegionId(regionId);
+    const stations = await storage.getStationsByRegionId(regionId, req.objectScope);
     res.json(stations);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching stations for region' });

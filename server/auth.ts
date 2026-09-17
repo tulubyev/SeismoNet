@@ -107,11 +107,16 @@ export function setupAuth(app: Express) {
     passport.authenticate("local", (err: unknown, user: SelectUser | false, info: { message?: string }) => {
       if (err) return next(err);
       if (!user) { loginLimiter.fail(key); return res.status(401).json({ error: info?.message || "Ошибка входа" }); }
-      req.login(user, (loginErr) => {
-        if (loginErr) return next(loginErr);
-        loginLimiter.reset(key);
-        const { password: _pw, ...safe } = user;
-        return res.status(200).json(safe);
+      // New session id on every successful login — an attacker-fixated pre-login
+      // session must not survive into the authenticated one.
+      req.session.regenerate((regenErr) => {
+        if (regenErr) return next(regenErr);
+        req.login(user, (loginErr) => {
+          if (loginErr) return next(loginErr);
+          loginLimiter.reset(key);
+          const { password: _pw, ...safe } = user;
+          return res.status(200).json(safe);
+        });
       });
     })(req, res, next);
   });
@@ -129,14 +134,21 @@ export function setupAuth(app: Express) {
   // Development only: one-click login as a real DB user (default `admin`).
   if (isDev) {
     app.post("/api/dev-login", async (req, res, next) => {
-      const username = process.env.DEV_LOGIN_USERNAME ?? "admin";
-      const user = await storage.getUserByUsername(username);
-      if (!user) return res.status(404).json({ error: `dev user '${username}' not found` });
-      req.login(user, (err) => {
-        if (err) return next(err);
-        const { password: _pw, ...safe } = user;
-        res.json(safe);
-      });
+      try {
+        const username = process.env.DEV_LOGIN_USERNAME ?? "admin";
+        const user = await storage.getUserByUsername(username);
+        if (!user) return res.status(404).json({ error: `dev user '${username}' not found` });
+        req.session.regenerate((regenErr) => {
+          if (regenErr) return next(regenErr);
+          req.login(user, (err) => {
+            if (err) return next(err);
+            const { password: _pw, ...safe } = user;
+            res.json(safe);
+          });
+        });
+      } catch (err) {
+        next(err);
+      }
     });
   }
 }

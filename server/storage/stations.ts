@@ -3,6 +3,15 @@ import { eq, inArray } from "drizzle-orm";
 import { InsertRegion, InsertStation, Region, Station, regions, stations } from "@shared/schema";
 import type { ObjectScope } from "./types";
 
+/** staff: station ids that carry a sensor installation on one of the scoped objects. */
+async function scopedStationIds(scope: NonNullable<ObjectScope>): Promise<string[]> {
+  const ids = scope.objectIds.length ? scope.objectIds : [-1];
+  const rows = await db.selectDistinct({ stationId: schema.sensorInstallations.stationId })
+    .from(schema.sensorInstallations)
+    .where(inArray(schema.sensorInstallations.objectId, ids));
+  return rows.map(r => r.stationId);
+}
+
 export const stationsStorage = {
   // Region operations
   async getRegions(): Promise<Region[]> {
@@ -29,19 +38,21 @@ export const stationsStorage = {
   // Station operations
   async getStations(scope?: ObjectScope): Promise<Station[]> {
     if (!scope) return db.query.stations.findMany();
-    // staff: only stations that carry an installation on one of their objects
-    const ids = scope.objectIds.length ? scope.objectIds : [-1];
-    const rows = await db.selectDistinct({ stationId: schema.sensorInstallations.stationId })
-      .from(schema.sensorInstallations)
-      .where(inArray(schema.sensorInstallations.objectId, ids));
-    const stationIds = rows.map(r => r.stationId);
+    const stationIds = await scopedStationIds(scope);
     if (!stationIds.length) return [];
     return db.query.stations.findMany({ where: (t, { inArray }) => inArray(t.stationId, stationIds) });
   },
-  
-  async getStationsByRegionId(regionId: number): Promise<Station[]> {
+
+  async getStationsByRegionId(regionId: number, scope?: ObjectScope): Promise<Station[]> {
+    if (!scope) {
+      return db.query.stations.findMany({
+        where: (stations, { eq }) => eq(stations.regionId, regionId)
+      });
+    }
+    const stationIds = await scopedStationIds(scope);
+    if (!stationIds.length) return [];
     return db.query.stations.findMany({
-      where: (stations, { eq }) => eq(stations.regionId, regionId)
+      where: (t, { and, eq, inArray }) => and(eq(t.regionId, regionId), inArray(t.stationId, stationIds))
     });
   },
   

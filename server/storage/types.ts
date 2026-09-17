@@ -36,7 +36,7 @@ export interface IStorage {
   
   // Station operations
   getStations(scope?: ObjectScope): Promise<Station[]>;
-  getStationsByRegionId(regionId: number): Promise<Station[]>;
+  getStationsByRegionId(regionId: number, scope?: ObjectScope): Promise<Station[]>;
   getStation(id: number): Promise<Station | undefined>;
   getStationByStationId(stationId: string): Promise<Station | undefined>;
   createStation(station: InsertStation): Promise<Station>;

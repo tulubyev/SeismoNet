@@ -12,9 +12,17 @@ const guard = (level: "read" | "write") => requirePermission("users", level);
 const safe = ({ password: _pw, ...u }: User) => u;
 const idOf = (raw: string) => { const n = Number(raw); return Number.isInteger(n) && n > 0 ? n : null; };
 
+const PASSWORD = z.string().min(8).max(128);
+
 const createSchema = insertUserSchema
-  .pick({ username: true, fullName: true, email: true, organization: true, jobTitle: true, contactPhone: true })
-  .extend({ password: z.string().min(8), role: z.enum(ROLES) });
+  .pick({ organization: true, jobTitle: true, contactPhone: true })
+  .extend({
+    username: z.string().min(3).max(64),
+    fullName: z.string().min(1),
+    email: z.string().email(),
+    password: PASSWORD,
+    role: z.enum(ROLES),
+  });
 
 const patchSchema = z.object({
   fullName: z.string().min(1).optional(),
@@ -81,7 +89,7 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
 router.post("/api/users/:id/password", guard("write"), async (req, res) => {
   try {
     const id = idOf(req.params.id);
-    const parsed = z.object({ password: z.string().min(8) }).safeParse(req.body);
+    const parsed = z.object({ password: PASSWORD }).safeParse(req.body);
     if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
     if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
     await storage.updateUser(id, { password: await hashPassword(parsed.data.password) });
@@ -109,7 +117,12 @@ router.put("/api/users/:id/objects", guard("write"), async (req, res) => {
     const parsed = z.object({ objectIds: z.array(z.number().int().positive()) }).safeParse(req.body);
     if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
     if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
-    await storage.setUserObjects(id, parsed.data.objectIds);
+    // De-duplicate and validate up front: an unknown id would otherwise surface
+    // as an FK violation, i.e. a 500 for what is a client mistake.
+    const objectIds = Array.from(new Set(parsed.data.objectIds));
+    const known = new Set((await storage.getInfrastructureObjects()).map(o => o.id));
+    if (objectIds.some(oid => !known.has(oid))) return res.status(400).json({ error: "unknown object id" });
+    await storage.setUserObjects(id, objectIds);
     res.json(await storage.getUserObjectIds(id));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
