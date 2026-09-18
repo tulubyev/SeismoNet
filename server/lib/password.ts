@@ -22,3 +22,6 @@ export async function comparePasswords(supplied: string, stored: string): Promis
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return hashedBuf.length === suppliedBuf.length && timingSafeEqual(hashedBuf, suppliedBuf);
 }
+
+/** Hash of a random secret; compared against on unknown logins so a miss costs the same scrypt as a hit. */
+export const dummyHash: Promise<string> = hashPassword(randomBytes(32).toString("hex"));

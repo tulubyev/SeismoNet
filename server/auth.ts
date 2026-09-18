@@ -1,11 +1,12 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction, RequestHandler } from "express";
+import type { IncomingMessage } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { storage, type ObjectScope } from "./storage";
-import { comparePasswords } from "./lib/password";
+import { comparePasswords, dummyHash } from "./lib/password";
 import { can, type Level, type Module } from "@shared/permissions";
 import { User as SelectUser } from "@shared/schema";
 
@@ -72,6 +73,23 @@ export function sessionUserFrom(payload: unknown, user: SelectUser | undefined):
   return u && u.id === id && u.sessionEpoch === epoch ? u : false;
 }
 
+let sessionMiddleware: RequestHandler | undefined;
+
+/**
+ * Resolve the logged-in user of a raw HTTP request (WebSocket upgrade) through the
+ * same express-session store the API uses. `false` when anonymous, stale, or before
+ * setupAuth ran.
+ */
+export async function resolveSessionUser(req: IncomingMessage): Promise<SelectUser | false> {
+  if (!sessionMiddleware) return false;
+  await new Promise<void>((resolve, reject) =>
+    sessionMiddleware!(req as Request, {} as Response, (err?: unknown) => (err ? reject(err) : resolve())),
+  );
+  const payload = ((req as Request).session as { passport?: { user?: unknown } } | undefined)?.passport?.user;
+  const id = (payload as Partial<SessionPayload> | undefined)?.id;
+  return sessionUserFrom(payload, typeof id === "number" ? await storage.getUser(id) : undefined);
+}
+
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET;
   if (!sessionSecret && isProd) {
@@ -82,13 +100,14 @@ export function setupAuth(app: Express) {
   const store = isProd ? new PgStore({ pool, tableName: "session", createTableIfMissing: true }) : undefined;
 
   app.set("trust proxy", 1);
-  app.use(session({
+  sessionMiddleware = session({
     secret: sessionSecret ?? "seismonet-dev-only-secret",
     store,
     resave: false,
     saveUninitialized: false,
     cookie: { httpOnly: true, sameSite: "lax", secure: isProd, maxAge: 24 * 60 * 60 * 1000 },
-  }));
+  });
+  app.use(sessionMiddleware);
   app.use(passport.initialize());
   app.use(passport.session());
   app.use("/api", attachObjectScope);
@@ -96,10 +115,12 @@ export function setupAuth(app: Express) {
   passport.use(new LocalStrategy(async (username, password, done) => {
     try {
       const user = await storage.getUserByUsername(username);
-      if (!user || !user.active) return done(null, false, { message: "Неверный логин или пароль" });
-      if (!(await comparePasswords(password, user.password))) return done(null, false, { message: "Неверный логин или пароль" });
-      await storage.setLastLogin(user.id);
-      return done(null, user);
+      const ok = user && user.active
+        ? await comparePasswords(password, user.password)
+        : (await comparePasswords(password, await dummyHash), false);
+      if (!ok) return done(null, false, { message: "Неверный логин или пароль" });
+      await storage.setLastLogin(user!.id);
+      return done(null, user!);
     } catch (error) {
       return done(error);
     }

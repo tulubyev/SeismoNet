@@ -16,15 +16,13 @@ export const usersStorage = {
   },
   
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.username, username)
-    });
+    const [u] = await db.select().from(schema.users).where(sql`lower(${schema.users.username}) = lower(${username})`).limit(1);
+    return u;
   },
-  
+
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.email, email)
-    });
+    const [u] = await db.select().from(schema.users).where(sql`lower(${schema.users.email}) = lower(${email})`).limit(1);
+    return u;
   },
   
   async createUser(user: InsertUser): Promise<User> {

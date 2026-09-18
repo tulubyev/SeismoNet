@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom } from './auth';
+import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachObjectScope, resolveSessionUser } from './auth';
+import { storage } from './storage';
+
+vi.mock('./storage', () => ({
+  storage: { getUserObjectIds: vi.fn(), getUser: vi.fn() },
+}));
 
 function mockReq(user: { role: string } | null) {
   return { isAuthenticated: () => user !== null, user } as never;
@@ -87,5 +92,50 @@ describe('sessionUserFrom', () => {
   it('rejects legacy numeric payloads and a missing user', () => {
     expect(sessionUserFrom(7, user)).toBe(false);
     expect(sessionUserFrom({ id: 7, epoch: 2 }, undefined)).toBe(false);
+  });
+});
+
+describe('attachObjectScope', () => {
+  it('sets {objectIds} for staff', async () => {
+    vi.mocked(storage.getUserObjectIds).mockResolvedValueOnce([3, 5]);
+    const req = { user: { id: 1, role: 'staff' } } as never as { objectScope?: unknown };
+    const next = vi.fn();
+    await attachObjectScope(req as never, {} as never, next);
+    expect(req.objectScope).toEqual({ objectIds: [3, 5] });
+    expect(next).toHaveBeenCalledWith();
+  });
+  it('leaves scope undefined for other roles and anonymous', async () => {
+    for (const user of [{ id: 1, role: 'designer' }, undefined]) {
+      const req = { user } as never as { objectScope?: unknown };
+      const next = vi.fn();
+      await attachObjectScope(req as never, {} as never, next);
+      expect(req.objectScope).toBeUndefined();
+      expect(next).toHaveBeenCalledWith();
+    }
+  });
+  it('forwards storage errors to next(err)', async () => {
+    const boom = new Error('db down');
+    vi.mocked(storage.getUserObjectIds).mockRejectedValueOnce(boom);
+    const next = vi.fn();
+    await attachObjectScope({ user: { id: 1, role: 'staff' } } as never, {} as never, next);
+    expect(next).toHaveBeenCalledWith(boom);
+  });
+});
+
+describe('resolveSessionUser', () => {
+  it('returns false before setupAuth installed the session middleware', async () => {
+    expect(await resolveSessionUser({ headers: {} } as never)).toBe(false);
+  });
+});
+
+describe('loginLimiter MAX_ENTRIES backstop', () => {
+  beforeEach(() => loginLimiter._clear());
+  it('evicts the oldest key instead of growing past the cap', () => {
+    for (let i = 0; i < 10_000; i++) loginLimiter.fail(`k${i}`);
+    expect(loginLimiter._size()).toBe(10_000);
+    loginLimiter.fail('overflow');
+    expect(loginLimiter._size()).toBe(10_000);
+    expect(loginLimiter.check('k0')).toBe(true);      // evicted → allowed again
+    expect(loginLimiter.check('overflow')).toBe(true); // 1 failure < LIMIT
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, comparePasswords, isHashed } from './password';
+import { hashPassword, comparePasswords, isHashed, dummyHash } from './password';
 
 describe('password helpers', () => {
   it('round-trips and rejects wrong passwords', async () => {
@@ -12,5 +12,13 @@ describe('password helpers', () => {
     expect(isHashed('plain')).toBe(false);
     expect(await comparePasswords('plain', 'plain')).toBe(false);
     expect(await comparePasswords('x', 'abc.def')).toBe(false);
+  });
+});
+
+describe('dummyHash', () => {
+  it('is a valid hash that never matches', async () => {
+    const h = await dummyHash;
+    expect(h).toMatch(/^[0-9a-f]{128}\.[0-9a-f]{32}$/);
+    expect(await comparePasswords('anything', h)).toBe(false);
   });
 });
