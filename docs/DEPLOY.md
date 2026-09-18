@@ -58,6 +58,13 @@ docker compose -f docker-compose.prod.yml up -d --build
 docker image prune -f
 ```
 
+После выкладки релиза roles-polish все пользователи будут разлогинены: изменился формат сессии
+(`passport.user` теперь `{id, epoch}` вместо просто `id`), старые сессии не проходят десериализацию
+и отклоняются автоматически — `DELETE FROM session` делать не нужно. Отдельная миграция схемы
+тоже не требуется: `session_epoch`, `audit_log` и два уникальных индекса по `lower()` создаются
+`runStartupMigrations()` при старте контейнера — проверить это можно по строке
+`Startup migrations applied` в логе (`docker logs seismonet-app`).
+
 ## Обновление с ролями
 
 Миграция 0006 (6 ролей + `user_objects`) применяется **до** выкладки кода, с Mac через туннель —

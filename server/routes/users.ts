@@ -74,8 +74,10 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
     const me = req.user as User;
     const target = await storage.getUser(id);
     if (!target) return res.status(404).json({ error: "not found" });
+    // Deliberate self-lockout guard: a superadmin may not demote or deactivate themselves,
+    // independent of the last-superadmin invariant enforced in storage.updateUserGuarded.
     const selfLockout = id === me.id && ((parsed.data.role !== undefined && parsed.data.role !== "superadmin") || parsed.data.active === false);
-    if (selfLockout) return res.status(409).json({ error: "Нельзя убрать последнего активного суперадмина" });
+    if (selfLockout) return res.status(409).json({ error: "Свою роль или активность меняет другой суперадминистратор" });
     if (parsed.data.email && parsed.data.email.toLowerCase() !== target.email.toLowerCase()) {
       const clash = await storage.getUserByEmail(parsed.data.email);
       if (clash && clash.id !== id) return res.status(409).json({ error: "Email уже используется" });

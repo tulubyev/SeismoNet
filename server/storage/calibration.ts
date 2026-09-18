@@ -17,6 +17,9 @@ export const calibrationStorage = {
     });
   },
 
+  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
+  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
+  // granting staff any access here.
   async getCalibrationSession(id: number): Promise<CalibrationSession | undefined> {
     return db.query.calibrationSessions.findFirst({
       where: (t, { eq }) => eq(t.id, id)
