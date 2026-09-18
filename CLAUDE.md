@@ -11,7 +11,7 @@ npm run setup            # первый запуск: npm install + .env + SSH-�
 npm run tunnel -- start  # SSH-туннель: localhost:5433 -> VPS PostgreSQL (status|stop)
 npm run dev              # tsx + Vite middleware, http://localhost:5000 (PORT переопределяет)
 npm run check            # tsc --noEmit (baseline ошибок см. ниже)
-npm test                 # vitest: lib/numeric, shared/permissions, server/auth|ws|storage
+npm test                 # vitest: client/src/lib/numeric, shared/permissions, server/{auth,ws,lib/password,storage/*}
 npm run build            # vite build -> dist/public, esbuild server -> dist/index.js
 npm start                # production: node dist/index.js
 npm run db:push          # drizzle-kit push — МЕНЯЕТ СХЕМУ ОБЩЕЙ БД, только осознанно
@@ -60,7 +60,7 @@ shared/schema.ts       единый источник типов для клие�
 client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
 client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
                        Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx;
-                       admin/users/ — Users.tsx + per-dialog файлы (CreateDialog, EditDialog, PasswordDialog, ObjectsDialog, AuditLog)
+                       admin/Users.tsx + pages/admin/users/{shared,CreateDialog,EditDialog,PasswordDialog,ObjectsDialog,AuditLog}.tsx
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
 client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
