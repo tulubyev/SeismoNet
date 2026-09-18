@@ -105,6 +105,20 @@ export async function runStartupMigrations() {
     // drizzle-orm can't express a functional unique index cleanly in shared/schema.ts, so it lives here.
     await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username))`);
     await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email))`);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id serial PRIMARY KEY,
+        at timestamptz NOT NULL DEFAULT now(),
+        actor_id integer,
+        actor_username text NOT NULL,
+        ip text,
+        action text NOT NULL,
+        target_type text,
+        target_id integer,
+        details jsonb
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS audit_log_at_idx ON audit_log (at DESC)`);
     const roleLabels = await db.execute(
       `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
     );
@@ -115,7 +129,7 @@ export async function runStartupMigrations() {
       console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
       console.error('****************************************************************');
     }
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes).');
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes + audit_log).');
   } catch (e) {
     console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }

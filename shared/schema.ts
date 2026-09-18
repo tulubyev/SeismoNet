@@ -38,6 +38,22 @@ export const userObjects = pgTable("user_objects", {
   objectId: integer("object_id").notNull().references(() => infrastructureObjects.id, { onDelete: "cascade" }),
 }, (t) => ({ pk: primaryKey({ columns: [t.userId, t.objectId] }) }));
 
+// Privileged actions (users API, logins). Written by server/storage/audit.ts.
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  actorId: integer("actor_id"),
+  actorUsername: text("actor_username").notNull(),
+  ip: text("ip"),
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: integer("target_id"),
+  details: jsonb("details"),
+});
+export const insertAuditLogSchema = createInsertSchema(auditLog).omit({ id: true, at: true });
+export type AuditLog = typeof auditLog.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
 // Geographic regions for grouping stations
 export const regions = pgTable("regions", {
   id: serial("id").primaryKey(),

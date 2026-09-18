@@ -12,6 +12,7 @@ import { normsStorage } from "./norms";
 import { seismogramsStorage } from "./seismograms";
 import { calibrationStorage } from "./calibration";
 import { userObjectsStorage } from "./userObjects";
+import { auditStorage } from "./audit";
 
 export { NOTE_HISTORY_LIMIT } from "./types";
 export type { IStorage, ObjectScope } from "./types";
@@ -32,4 +33,5 @@ export const storage: IStorage = {
   ...seismogramsStorage,
   ...calibrationStorage,
   ...userObjectsStorage,
+  ...auditStorage,
 };

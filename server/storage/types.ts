@@ -1,4 +1,4 @@
-import type { Alert, BuildingNorm, CalculationNoteHistory, CalibrationAfc, CalibrationSession, ComparisonSet, Developer, Event, InfrastructureObject, InsertAlert, InsertBuildingNorm, InsertCalculationNoteHistory, InsertCalibrationAfc, InsertCalibrationSession, InsertComparisonSet, InsertDeveloper, InsertEvent, InsertInfrastructureObject, InsertMaintenanceRecord, InsertObjectCategory, InsertRegion, InsertResearchNetwork, InsertSeismicCalculation, InsertSeismogramRecord, InsertSensor, InsertSensorInstallation, InsertSoilLayer, InsertSoilProfile, InsertStation, InsertSystemStatus, InsertUser, InsertWaveformData, MaintenanceRecord, ObjectCategory, Region, ResearchNetwork, SeismicCalculation, SeismogramRecord, Sensor, SensorInstallation, SoilLayer, SoilProfile, Station, SystemStatus, User, WaveformData, waveformData } from "@shared/schema";
+import type { Alert, AuditLog, BuildingNorm, CalculationNoteHistory, CalibrationAfc, CalibrationSession, ComparisonSet, Developer, Event, InfrastructureObject, InsertAlert, InsertAuditLog, InsertBuildingNorm, InsertCalculationNoteHistory, InsertCalibrationAfc, InsertCalibrationSession, InsertComparisonSet, InsertDeveloper, InsertEvent, InsertInfrastructureObject, InsertMaintenanceRecord, InsertObjectCategory, InsertRegion, InsertResearchNetwork, InsertSeismicCalculation, InsertSeismogramRecord, InsertSensor, InsertSensorInstallation, InsertSoilLayer, InsertSoilProfile, InsertStation, InsertSystemStatus, InsertUser, InsertWaveformData, MaintenanceRecord, ObjectCategory, Region, ResearchNetwork, SeismicCalculation, SeismogramRecord, Sensor, SensorInstallation, SoilLayer, SoilProfile, Station, SystemStatus, User, WaveformData, waveformData } from "@shared/schema";
 import type { Role } from "@shared/permissions";
 
 const _rawNoteHistoryLimit = Number(process.env.NOTE_HISTORY_LIMIT);
@@ -174,4 +174,8 @@ export interface IStorage {
   getComparisonSet(id: number): Promise<ComparisonSet | undefined>;
   createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet>;
   deleteComparisonSet(id: number): Promise<boolean>;
+
+  // Audit log
+  logAudit(entry: InsertAuditLog): Promise<void>;
+  getAuditLog(limit: number): Promise<AuditLog[]>;
 }
