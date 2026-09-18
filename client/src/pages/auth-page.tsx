@@ -15,11 +15,14 @@ const AuthPage: FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [devBusy, setDevBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => { if (user) navigate("/"); }, [user, navigate]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || !password) { setFormError("Введите логин и пароль"); return; }
+    setFormError(null);
     loginMutation.mutate({ username: username.trim(), password });
   };
 
@@ -50,13 +53,15 @@ const AuthPage: FC = () => {
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="username" className="text-slate-300">Логин</Label>
-              <Input id="username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required autoFocus className="bg-slate-800 border-slate-700 text-white" />
+              <Input id="username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} autoFocus className="bg-slate-800 border-slate-700 text-white" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-slate-300">Пароль</Label>
-              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-slate-800 border-slate-700 text-white" />
+              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
             </div>
-            {loginMutation.isError && <p className="text-sm text-red-400">{loginMutation.error.message}</p>}
+            {(formError || loginMutation.isError) && (
+              <p role="alert" className="text-sm text-red-400">{formError ?? loginMutation.error?.message}</p>
+            )}
             <Button type="submit" className="w-full h-11 text-base bg-blue-600 hover:bg-blue-500" disabled={loginMutation.isPending} data-testid="button-login">
               {loginMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <><LogIn className="h-5 w-5 mr-2" /> Войти</>}
             </Button>
