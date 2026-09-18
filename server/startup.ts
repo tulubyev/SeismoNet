@@ -100,6 +100,11 @@ export async function runStartupMigrations() {
       )
     `);
     await db.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_epoch integer NOT NULL DEFAULT 0`);
+    // Case-insensitive username/email lookups (server/storage/users.ts use lower()) need a matching
+    // uniqueness constraint, or two accounts differing only in case could collide at auth time.
+    // drizzle-orm can't express a functional unique index cleanly in shared/schema.ts, so it lives here.
+    await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username))`);
+    await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email))`);
     const roleLabels = await db.execute(
       `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
     );
@@ -110,7 +115,7 @@ export async function runStartupMigrations() {
       console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
       console.error('****************************************************************');
     }
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch).');
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes).');
   } catch (e) {
     console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }

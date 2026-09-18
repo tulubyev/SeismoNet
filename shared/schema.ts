@@ -8,8 +8,12 @@ export const userRoleEnum = pgEnum('user_role', ['superadmin', 'designer', 'seis
 // User accounts
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  // Case-insensitive uniqueness (lower(username)) is enforced by a functional index
+  // created in server/startup.ts — drizzle-orm can't express that here.
   username: text("username").notNull().unique(),
   fullName: text("full_name").notNull(),
+  // Case-insensitive uniqueness (lower(email)) is enforced by a functional index
+  // created in server/startup.ts — drizzle-orm can't express that here.
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   role: userRoleEnum("role").notNull().default('staff'),

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachObjectScope, resolveSessionUser } from './auth';
+import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachObjectScope, resolveSessionUser, limiterKey } from './auth';
 import { storage } from './storage';
 
 vi.mock('./storage', () => ({
@@ -125,6 +125,18 @@ describe('attachObjectScope', () => {
 describe('resolveSessionUser', () => {
   it('returns false before setupAuth installed the session middleware', async () => {
     expect(await resolveSessionUser({ headers: {} } as never)).toBe(false);
+  });
+});
+
+describe('limiterKey', () => {
+  it('normalizes username case so rotating case cannot dodge the rate limit', () => {
+    expect(limiterKey('1.1.1.1', 'Admin')).toBe(limiterKey('1.1.1.1', 'admin'));
+    expect(limiterKey('1.1.1.1', 'ADMIN')).toBe(limiterKey('1.1.1.1', 'admin'));
+    expect(limiterKey('1.1.1.1', '  admin  ')).toBe(limiterKey('1.1.1.1', 'admin'));
+  });
+  it('keeps ip and missing-username handling stable', () => {
+    expect(limiterKey('1.1.1.1', undefined)).toBe('1.1.1.1|');
+    expect(limiterKey(undefined, 'admin')).toBe('undefined|admin');
   });
 });
 

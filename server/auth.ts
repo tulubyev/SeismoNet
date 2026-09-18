@@ -59,6 +59,16 @@ export const loginLimiter = {
   _size(): number { return attempts.size; },
 };
 
+/**
+ * Rate-limit key for a login attempt. Usernames are looked up case-insensitively
+ * (`storage.getUserByUsername`), so the key must normalize the same way — otherwise
+ * rotating the casing of one username (`admin`/`Admin`/`ADMIN`) mints a fresh bucket
+ * per request and defeats the brute-force guard.
+ */
+export function limiterKey(ip: string | undefined, username: unknown): string {
+  return `${ip}|${String(username ?? "").trim().toLowerCase()}`;
+}
+
 /** A deactivated account must not resurrect a session on the next request. */
 export const activeOrFalse = (u?: SelectUser): SelectUser | false => (u && u.active ? u : false);
 
@@ -135,7 +145,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const key = `${req.ip}|${String(req.body?.username ?? "")}`;
+    const key = limiterKey(req.ip, req.body?.username);
     if (!loginLimiter.check(key)) {
       return res.status(429).json({ error: "Слишком много попыток входа, подождите минуту" });
     }
