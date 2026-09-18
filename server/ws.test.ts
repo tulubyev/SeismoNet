@@ -1,7 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authorizeUpgrade } from './ws';
+import type { WebSocketServer } from 'ws';
+import type { Duplex } from 'stream';
+import { authorizeUpgrade, handleWsUpgrade } from './ws';
 import { resolveSessionUser } from './auth';
 import { storage } from './storage';
+
+/** Flush the microtask queue past `authorizeUpgrade`'s awaits and its `.then()`. */
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+function fakeSocket(destroyed: boolean) {
+  return { destroyed, on: vi.fn(), off: vi.fn(), write: vi.fn(), destroy: vi.fn() } as unknown as Duplex;
+}
+
+function fakeWss() {
+  return { handleUpgrade: vi.fn(), emit: vi.fn() } as unknown as WebSocketServer;
+}
 
 vi.mock('./services/unisender', () => ({ sendLowBatteryAlert: vi.fn() }));
 vi.mock('./services/telegram', () => ({ sendLowBatteryAlert: vi.fn() }));
@@ -25,5 +38,29 @@ describe('authorizeUpgrade', () => {
   it('treats a session-store error as anonymous', async () => {
     vi.mocked(resolveSessionUser).mockRejectedValueOnce(new Error('store down'));
     expect(await authorizeUpgrade({ headers: {} } as never)).toBeNull();
+  });
+});
+
+describe('handleWsUpgrade', () => {
+  it('leaves an already-destroyed socket alone once authorization settles', async () => {
+    vi.mocked(resolveSessionUser).mockResolvedValueOnce(false);
+    const socket = fakeSocket(true);
+    const wss = fakeWss();
+    handleWsUpgrade(wss, { headers: {} } as never, socket, Buffer.alloc(0));
+    await flush();
+    expect(socket.write).not.toHaveBeenCalled();
+    expect(socket.destroy).not.toHaveBeenCalled();
+    expect(wss.handleUpgrade).not.toHaveBeenCalled();
+  });
+
+  it('rejects a still-live anonymous socket with 401 and destroys it', async () => {
+    vi.mocked(resolveSessionUser).mockResolvedValueOnce(false);
+    const socket = fakeSocket(false);
+    const wss = fakeWss();
+    handleWsUpgrade(wss, { headers: {} } as never, socket, Buffer.alloc(0));
+    await flush();
+    expect(socket.write).toHaveBeenCalledWith(expect.stringContaining('401'));
+    expect(socket.destroy).toHaveBeenCalled();
+    expect(wss.handleUpgrade).not.toHaveBeenCalled();
   });
 });

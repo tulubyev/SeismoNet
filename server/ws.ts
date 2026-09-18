@@ -1,4 +1,5 @@
 import type { IncomingMessage, Server } from "http";
+import type { Duplex } from "stream";
 import { WebSocketServer, WebSocket } from "ws";
 import { and } from "drizzle-orm";
 import { storage, type ObjectScope } from "./storage";
@@ -35,6 +36,35 @@ export async function authorizeUpgrade(req: IncomingMessage): Promise<WsContext 
   }
 }
 
+/**
+ * Handle one `/ws` upgrade request: authorize it, then either reject with 401
+ * or hand it to `wss`. `authorizeUpgrade` does a DB round-trip, so there is a
+ * real gap between the `'upgrade'` event and this resolving — the client can
+ * abort mid-wait. A no-op `error` listener keeps a `socket.write`/`destroy`
+ * on an already-dead socket from surfacing as an unhandled `error` event, and
+ * `socket.destroyed` is re-checked once the wait is over so a dead socket is
+ * never written to or handed to `wss.handleUpgrade`.
+ */
+export function handleWsUpgrade(wss: WebSocketServer, req: IncomingMessage, socket: Duplex, head: Buffer) {
+  const swallow = () => {};
+  socket.on('error', swallow);
+  authorizeUpgrade(req)
+    .then((ctx) => {
+      if (socket.destroyed) return;
+      if (!ctx) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      socket.off('error', swallow);
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, ctx));
+    })
+    .catch((err) => {
+      console.error(`WS upgrade failed: ${describeError(err)}`);
+      if (!socket.destroyed) socket.destroy();
+    });
+}
+
 export function attachWebSocket(httpServer: Server) {
   // Set up WebSocket server on /ws only. `noServer` + a manual upgrade handler
   // lets other upgrade requests (Vite HMR in dev) pass through untouched — with
@@ -43,14 +73,7 @@ export function attachWebSocket(httpServer: Server) {
   httpServer.on('upgrade', (req, socket, head) => {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
     if (pathname !== '/ws') return;
-    authorizeUpgrade(req).then((ctx) => {
-      if (!ctx) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, ctx));
-    });
+    handleWsUpgrade(wss, req, socket, head);
   });
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage, ctx: WsContext) => {
