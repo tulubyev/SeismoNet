@@ -47,11 +47,12 @@ customers(
 | `seismic_calculations` | да | из скоупа |
 | `sensors` | да | из скоупа |
 | `calibration_sessions` | да | из скоупа |
+| `comparison_sets` | да | из скоупа (уточнение 19.09: `calc_ids` — массив, join через расчёты непрактичен) |
 
 Производные таблицы **без** `customer_id`, фильтруются join-ом: `sensor_installations`
 (station/object), `seismogram_records` (station), `events`, `alerts`, `maintenance_records`,
 `waveform_data` (station), `soil_layers` (profile), `calibration_afc` (session),
-`calculation_note_history` (calculation), `comparison_sets` (calculations), `user_objects` (user).
+`calculation_note_history` (calculation), `user_objects` (user).
 
 Общие для всех заказчиков (без фильтра): `regions`, `object_categories`, `building_norms`,
 `research_networks`, `system_status`, `page_visit_logs`, `audit_log`, wiki-страницы клиента,
