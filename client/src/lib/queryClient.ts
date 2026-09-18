@@ -68,6 +68,21 @@ export const getQueryFn: <T>(options: {
     }
   };
 
+/** JSON request that surfaces the server's `{ error }` message; 204 → null. */
+export async function apiJson<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    credentials: "include",
+    headers: { Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return res.status === 204 ? (null as T) : ((await res.json()) as T);
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

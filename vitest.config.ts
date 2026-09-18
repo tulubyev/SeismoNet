@@ -10,7 +10,7 @@ export default defineConfig({
   },
   test: {
     root: import.meta.dirname,
-    include: ["client/src/**/*.test.ts", "shared/**/*.test.ts", "server/**/*.test.ts"],
+    include: ["client/src/**/*.test.{ts,tsx}", "shared/**/*.test.{ts,tsx}", "server/**/*.test.ts"],
     environment: "node",
     // server/db.ts throws at import time without a connection string; pg.Pool
     // never connects until the first query, so any syntactically valid URL works.
