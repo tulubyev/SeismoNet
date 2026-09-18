@@ -6,11 +6,17 @@ import { hashPassword } from "../lib/password";
 import { describeError } from "../lib/errors";
 import { insertUserSchema, type User } from "@shared/schema";
 import { ROLES } from "@shared/permissions";
+import { LastSuperadminError } from "../storage/users";
 
 const router = Router();
 const guard = (level: "read" | "write") => requirePermission("users", level);
 const safe = ({ password: _pw, ...u }: User) => u;
 const idOf = (raw: string) => { const n = Number(raw); return Number.isInteger(n) && n > 0 ? n : null; };
+
+const actorOf = (req: { user?: unknown; ip?: string }) => {
+  const me = req.user as User;
+  return { actorId: me.id, actorUsername: me.username, ip: req.ip ?? null };
+};
 
 const PASSWORD = z.string().min(8).max(128);
 
@@ -51,6 +57,7 @@ router.post("/api/users", guard("write"), async (req, res) => {
     if (await storage.getUserByUsername(rest.username)) return res.status(409).json({ error: "Логин уже занят" });
     if (await storage.getUserByEmail(rest.email)) return res.status(409).json({ error: "Email уже используется" });
     const user = await storage.createUser({ ...rest, password: await hashPassword(password), active: true });
+    void storage.logAudit({ ...actorOf(req), action: "user.create", targetType: "user", targetId: user.id, details: { username: user.username, role: user.role } });
     res.status(201).json(safe(user));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
@@ -67,18 +74,22 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
     const me = req.user as User;
     const target = await storage.getUser(id);
     if (!target) return res.status(404).json({ error: "not found" });
-
-    // A superadmin may not lock themselves out, and the last superadmin stays one.
-    const demoting = parsed.data.role !== undefined && parsed.data.role !== "superadmin" && target.role === "superadmin";
-    const deactivating = parsed.data.active === false && target.role === "superadmin";
-    if ((demoting || deactivating) && (id === me.id || (await storage.getUsers()).filter(u => u.role === "superadmin" && u.active).length <= 1)) {
-      return res.status(409).json({ error: "Нельзя убрать последнего активного суперадмина" });
+    const selfLockout = id === me.id && ((parsed.data.role !== undefined && parsed.data.role !== "superadmin") || parsed.data.active === false);
+    if (selfLockout) return res.status(409).json({ error: "Нельзя убрать последнего активного суперадмина" });
+    if (parsed.data.email && parsed.data.email.toLowerCase() !== target.email.toLowerCase()) {
+      const clash = await storage.getUserByEmail(parsed.data.email);
+      if (clash && clash.id !== id) return res.status(409).json({ error: "Email уже используется" });
     }
-    if (parsed.data.email && parsed.data.email !== target.email && (await storage.getUserByEmail(parsed.data.email))) {
-      return res.status(409).json({ error: "Email уже используется" });
+    let updated: User | undefined;
+    try {
+      updated = await storage.updateUserGuarded(id, parsed.data);
+    } catch (e) {
+      if (e instanceof LastSuperadminError) return res.status(409).json({ error: e.message });
+      throw e;
     }
-    const updated = await storage.updateUser(id, parsed.data);
     if (!updated) return res.status(404).json({ error: "not found" });
+    if (parsed.data.active === false && target.active) updated = (await storage.bumpSessionEpoch(id)) ?? updated;
+    void storage.logAudit({ ...actorOf(req), action: "user.update", targetType: "user", targetId: id, details: parsed.data });
     res.json(safe(updated));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
@@ -91,8 +102,16 @@ router.post("/api/users/:id/password", guard("write"), async (req, res) => {
     const id = idOf(req.params.id);
     const parsed = z.object({ password: PASSWORD }).safeParse(req.body);
     if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
-    if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
+    const target = await storage.getUser(id);
+    if (!target) return res.status(404).json({ error: "not found" });
     await storage.updateUser(id, { password: await hashPassword(parsed.data.password) });
+    const fresh = await storage.bumpSessionEpoch(id);
+    void storage.logAudit({ ...actorOf(req), action: "user.password_reset", targetType: "user", targetId: id });
+    const me = req.user as User;
+    if (fresh && me.id === id) {
+      // Own password: keep this session alive under the new epoch.
+      return req.login(fresh, (err) => (err ? res.status(500).json({ error: "internal error" }) : res.sendStatus(204)));
+    }
     res.sendStatus(204);
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
@@ -104,6 +123,7 @@ router.get("/api/users/:id/objects", guard("read"), async (req, res) => {
   try {
     const id = idOf(req.params.id);
     if (!id) return res.status(400).json({ error: "bad id" });
+    if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
     res.json(await storage.getUserObjectIds(id));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
@@ -123,6 +143,7 @@ router.put("/api/users/:id/objects", guard("write"), async (req, res) => {
     const known = new Set((await storage.getInfrastructureObjects()).map(o => o.id));
     if (objectIds.some(oid => !known.has(oid))) return res.status(400).json({ error: "unknown object id" });
     await storage.setUserObjects(id, objectIds);
+    void storage.logAudit({ ...actorOf(req), action: "user.objects_set", targetType: "user", targetId: id, details: { objectIds } });
     res.json(await storage.getUserObjectIds(id));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);

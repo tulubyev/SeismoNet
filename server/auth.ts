@@ -159,6 +159,7 @@ export function setupAuth(app: Express) {
         req.login(user, (loginErr) => {
           if (loginErr) return next(loginErr);
           loginLimiter.reset(key);
+          void storage.logAudit({ actorId: user.id, actorUsername: user.username, ip: req.ip ?? null, action: "auth.login" });
           const { password: _pw, ...safe } = user;
           return res.status(200).json(safe);
         });

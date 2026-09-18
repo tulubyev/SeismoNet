@@ -3,6 +3,23 @@ import { eq, sql } from "drizzle-orm";
 import { InsertUser, User, users } from "@shared/schema";
 import type { Role } from "@shared/permissions";
 
+export class LastSuperadminError extends Error {
+  constructor() { super("Нельзя убрать последнего активного суперадмина"); this.name = "LastSuperadminError"; }
+}
+
+/** Pure decision used inside the guarded update; exported for tests. */
+export function removesLastSuperadmin(
+  target: Pick<User, "id" | "role" | "active">,
+  patch: Partial<Pick<InsertUser, "role" | "active">>,
+  activeSuperadminIds: number[],
+): boolean {
+  if (target.role !== "superadmin" || !target.active) return false;
+  const losesRole = patch.role !== undefined && patch.role !== "superadmin";
+  const losesActive = patch.active === false;
+  if (!losesRole && !losesActive) return false;
+  return activeSuperadminIds.filter(id => id !== target.id).length === 0;
+}
+
 export const usersStorage = {
   // User operations
   async getUsers(): Promise<User[]> {
@@ -83,5 +100,22 @@ export const usersStorage = {
       .set({ sessionEpoch: sql`${schema.users.sessionEpoch} + 1`, updatedAt: new Date() })
       .where(eq(schema.users.id, id)).returning();
     return u;
+  },
+
+  /**
+   * Update with the "last active superadmin" invariant enforced inside one
+   * transaction: the active superadmin rows are locked FOR UPDATE, so two
+   * concurrent demotions cannot both pass the count check.
+   */
+  async updateUserGuarded(id: number, patch: Partial<InsertUser>): Promise<User | undefined> {
+    return db.transaction(async tx => {
+      const locked = await tx.execute(sql`SELECT id FROM users WHERE role = 'superadmin' AND active FOR UPDATE`);
+      const activeIds = ((locked as unknown as { rows?: Array<{ id: number | string }> }).rows ?? []).map(r => Number(r.id));
+      const [target] = await tx.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+      if (!target) return undefined;
+      if (removesLastSuperadmin(target, patch, activeIds)) throw new LastSuperadminError();
+      const [updated] = await tx.update(schema.users).set({ ...patch, updatedAt: new Date() }).where(eq(schema.users.id, id)).returning();
+      return updated;
+    });
   },
 };

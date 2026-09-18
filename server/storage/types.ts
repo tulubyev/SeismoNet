@@ -24,6 +24,7 @@ export interface IStorage {
   updateUserStatus(id: number, active: boolean): Promise<User | undefined>;
   setLastLogin(id: number): Promise<void>;
   bumpSessionEpoch(id: number): Promise<User | undefined>;
+  updateUserGuarded(id: number, patch: Partial<InsertUser>): Promise<User | undefined>;
 
   // User ↔ object binding
   getUserObjectIds(userId: number): Promise<number[]>;
