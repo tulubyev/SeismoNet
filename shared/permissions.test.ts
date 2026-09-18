@@ -53,3 +53,13 @@ describe('PERMISSIONS matrix', () => {
     for (const role of ROLES) expect(ROLE_LABELS[role].length).toBeGreaterThan(2);
   });
 });
+
+describe('unscoped detail getters stay safe', () => {
+  // server/storage getSensor / getSeismicCalculation / getStation take no ObjectScope;
+  // that is only safe while the one scoped role (staff) has no access to these modules.
+  it('staff has none on sensors, stations and calculation modules', () => {
+    for (const m of ['sensors', 'stations', 'spectral', 'mtsm', 'calibration'] as const) {
+      expect(`staff.${m}=${PERMISSIONS.staff[m]}`).toBe(`staff.${m}=none`);
+    }
+  });
+});

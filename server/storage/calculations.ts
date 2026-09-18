@@ -15,6 +15,9 @@ export const calculationsStorage = {
       limit,
     });
   },
+  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
+  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
+  // granting staff any access here.
   async getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined> {
     return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
   },

@@ -11,7 +11,7 @@ npm run setup            # первый запуск: npm install + .env + SSH-�
 npm run tunnel -- start  # SSH-туннель: localhost:5433 -> VPS PostgreSQL (status|stop)
 npm run dev              # tsx + Vite middleware, http://localhost:5000 (PORT переопределяет)
 npm run check            # tsc --noEmit (baseline ошибок см. ниже)
-npm test                 # vitest: client/src/lib/numeric/*.test.ts
+npm test                 # vitest: lib/numeric, shared/permissions, server/auth|ws|storage
 npm run build            # vite build -> dist/public, esbuild server -> dist/index.js
 npm start                # production: node dist/index.js
 npm run db:push          # drizzle-kit push — МЕНЯЕТ СХЕМУ ОБЩЕЙ БД, только осознанно
@@ -43,8 +43,8 @@ server/index.ts        bootstrap, логгер запросов, Vite middleware
 server/routes.ts       registerRoutes(): auth → монтирование доменных роутеров → WebSocket → sync-джобы
 server/routes/*.ts     express.Router по доменам, полные пути "/api/...": health, stations, monitoring (events/alerts/networks/regions),
                        notifications, earthquakes, infrastructure (+object-categories), developers, calculations (+comparison-sets),
-                       soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views), users
-server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage
+                       soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views), users, audit
+server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage; audit.ts — аудит-лог
 server/ws.ts           WebSocketServer('/ws', noServer), broadcastMessage(), симулятор волновых данных
 server/startup.ts      runStartupMigrations() (ad-hoc ALTER TABLE ... IF NOT EXISTS), initializeResearchNetworks()
 server/seed.ts         seedDatabase(): стартовые данные (застройщики, нормы, станции, грунты…), идемпотентно
@@ -59,7 +59,8 @@ shared/permissions.ts  роли и матрица доступа (6 ролей �
 shared/schema.ts       единый источник типов для клиента и сервера
 client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
 client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
-                       Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx
+                       Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx;
+                       admin/users/ — Users.tsx + per-dialog файлы (CreateDialog, EditDialog, PasswordDialog, ObjectsDialog, AuditLog)
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
 client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
@@ -75,6 +76,7 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Leaflet бандлится через `client/src/lib/leaflet.ts` (экспортирует `window.L` для старого кода карт).
 - Роли: 6 (см. `shared/permissions.ts`) через `requirePermission(module, level)`.
 - Новый маршрут обязан иметь `requirePermission(module, level)`; новая страница — `page(Component, module)` в App.tsx.
+- `/ws` принимает только запросы с валидной сессией (`server/ws.ts` `authorizeUpgrade`).
 
 ## Локальная среда (Claude Desktop)
 
@@ -102,8 +104,8 @@ client/src/lib/numeric/ чистые численные методы с тест
 
 ## Известные проблемы / TODO
 
-- Безопасность: сброс пароля не завершает старые сессии; нет аудит-лога действий; лимитер попыток
-  входа (`server/auth.ts`) — в памяти процесса, не переживёт несколько инстансов.
+- Безопасность: лимитер попыток входа (server/auth.ts) — в памяти процесса; осознанно, пока один инстанс.
+  Аудит-лог пишет только users API и успешные логины.
 - Роли: 6 по спецификации, enum пересоздан миграцией 0006.
 - Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.

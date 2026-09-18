@@ -53,6 +53,9 @@ export const sensorsStorage = {
     return db.query.sensors.findMany({ where: conds.length ? and(...conds) : undefined, orderBy });
   },
 
+  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
+  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
+  // granting staff any access here.
   async getSensor(id: number): Promise<Sensor | undefined> {
     return db.query.sensors.findFirst({ where: (t, { eq }) => eq(t.id, id) });
   },

@@ -56,12 +56,18 @@ export const stationsStorage = {
     });
   },
   
+  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
+  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
+  // granting staff any access here.
   async getStation(id: number): Promise<Station | undefined> {
     return db.query.stations.findFirst({
       where: (stations, { eq }) => eq(stations.id, id)
     });
   },
-  
+
+  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
+  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
+  // granting staff any access here.
   async getStationByStationId(stationId: string): Promise<Station | undefined> {
     return db.query.stations.findFirst({
       where: (stations, { eq }) => eq(stations.stationId, stationId)
