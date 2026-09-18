@@ -1,4 +1,4 @@
-# SeismoNet на VPS (62.217.178.173) — Вариант A из vps-server-infra/docs/NEW-PROJECT.md
+# SeismoNet на VPS (90.156.168.149) — Вариант A из vps-server-infra/docs/NEW-PROJECT.md
 # Запуск:  docker compose -f docker-compose.prod.yml up -d --build
 # БД: системный PostgreSQL 16 хоста, из контейнера доступен как 172.28.0.1:5432
 services:

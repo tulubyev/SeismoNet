@@ -22,7 +22,7 @@ npm run db:generate      # drizzle-kit generate -> migrations/
 
 ## База данных
 
-**Единственная БД — `seismonet_db` на VPS 62.217.178.173**, системный PostgreSQL 16, порт 5432,
+**Единственная БД — `seismonet_db` на VPS 90.156.168.149**, системный PostgreSQL 16, порт 5432,
 пользователь `tulubyev`. Локального PostgreSQL нет и не нужно.
 
 - Mac: через `scripts/db-tunnel.sh` → `DATABASE_URL=postgres://tulubyev:***@localhost:5433/seismonet_db`.

@@ -1,6 +1,6 @@
 # Деплой SeismoNet на VPS
 
-Сервер: `62.217.178.173` (Ubuntu, Traefik v2.11, системный PostgreSQL 16). Схема и правила — в репо
+Сервер: `90.156.168.149` (Ubuntu, Traefik v2.11, системный PostgreSQL 16). Схема и правила — в репо
 [`tulubyev/vps-server-infra`](https://github.com/tulubyev/vps-server-infra) (`docs/NEW-PROJECT.md`, Вариант A — полный Docker).
 
 SeismoNet — один процесс (API + статика + WebSocket `/ws` на одном порту 5000), поэтому один контейнер.
@@ -9,13 +9,13 @@ Traefik подхватывает его по labels из `docker-compose.prod.ym
 ## Почему не Replit
 
 Replit Autoscale — внешний хост; порт 5432 на VPS закрыт снаружи (UFW), все проекты ходят в PostgreSQL
-изнутри сервера (`172.28.0.1` из Docker). Отсюда `connect ETIMEDOUT 62.217.178.173:5432` и пустые
+изнутри сервера (`172.28.0.1` из Docker). Отсюда `connect ETIMEDOUT 90.156.168.149:5432` и пустые
 `/api/stations`. Открывать 5432 в интернет не нужно — приложение переезжает на VPS.
 
 ## Первый деплой
 
 ```bash
-# 0. DNS: seismonet.ru и www.seismonet.ru → A 62.217.178.173 (TTL можно снизить заранее)
+# 0. DNS: seismonet.ru и www.seismonet.ru → A 90.156.168.149 (TTL можно снизить заранее)
 
 # 1. Код
 sudo mkdir -p /var/www/seismonet && sudo chown $USER /var/www/seismonet
@@ -69,7 +69,7 @@ docker image prune -f
 npm run migrate:roles          # печатает гистограмму ролей и список перехэшированных логинов
 
 # 2. VPS pre-flight: SESSION_SECRET должен быть задан и не тривиален, иначе сервер не стартует
-ssh tulubyev@62.217.178.173 \
+ssh tulubyev@90.156.168.149 \
   "grep -q '^SESSION_SECRET=.\{16,\}' /var/www/seismonet/.env || echo 'SESSION_SECRET missing — server will not start'"
 
 # 3. Mac: отдать код
@@ -102,7 +102,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://seismonet.ru/api/dev-lo
 ## Локальная разработка (Mac) с той же БД
 
 ```bash
-npm run tunnel -- start      # ssh -L 5433:localhost:5432 tulubyev@62.217.178.173
+npm run tunnel -- start      # ssh -L 5433:localhost:5432 tulubyev@90.156.168.149
 npm run dev                  # DATABASE_URL=postgres://tulubyev:***@localhost:5433/seismonet_db
 ```
 

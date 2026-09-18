@@ -3,7 +3,7 @@
 # Использование: scripts/db-tunnel.sh start|status|stop   (или npm run tunnel -- start)
 set -euo pipefail
 
-VPS_HOST="${VPS_HOST:-62.217.178.173}"
+VPS_HOST="${VPS_HOST:-90.156.168.149}"
 VPS_USER="${VPS_USER:-tulubyev}"
 LOCAL_PORT="${TUNNEL_LOCAL_PORT:-5433}"
 REMOTE_PORT=5432
