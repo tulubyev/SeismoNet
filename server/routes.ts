@@ -44,6 +44,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(calibrationRouter);
   app.use(analyticsRouter);
 
+  // Unknown /api paths must never fall through to the SPA catch-all (which
+  // answers any method with index.html and HTTP 200).
+  app.all("/api/*", (_req, res) => res.status(404).json({ error: "not found" }));
+
   const httpServer = createServer(app);
   attachWebSocket(httpServer);
 
