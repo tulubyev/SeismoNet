@@ -23,6 +23,7 @@ export interface IStorage {
   updateUserRole(id: number, role: Role): Promise<User | undefined>;
   updateUserStatus(id: number, active: boolean): Promise<User | undefined>;
   setLastLogin(id: number): Promise<void>;
+  bumpSessionEpoch(id: number): Promise<User | undefined>;
 
   // User ↔ object binding
   getUserObjectIds(userId: number): Promise<number[]>;

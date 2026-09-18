@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { InsertUser, User, users } from "@shared/schema";
 import type { Role } from "@shared/permissions";
 
@@ -77,5 +77,13 @@ export const usersStorage = {
 
   async setLastLogin(id: number): Promise<void> {
     await db.update(schema.users).set({ lastLogin: new Date(), updatedAt: new Date() }).where(eq(schema.users.id, id));
+  },
+
+  /** Invalidate every session of the user (see sessionUserFrom in server/auth.ts). */
+  async bumpSessionEpoch(id: number): Promise<User | undefined> {
+    const [u] = await db.update(schema.users)
+      .set({ sessionEpoch: sql`${schema.users.sessionEpoch} + 1`, updatedAt: new Date() })
+      .where(eq(schema.users.id, id)).returning();
+    return u;
   },
 };

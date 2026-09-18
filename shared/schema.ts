@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: userRoleEnum("role").notNull().default('staff'),
   active: boolean("active").notNull().default(true),
+  // Bumped on password reset / deactivation; embedded in the session payload so
+  // every existing session of the user stops deserializing (server/auth.ts).
+  sessionEpoch: integer("session_epoch").notNull().default(0),
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

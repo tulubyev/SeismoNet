@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requirePermission, loginLimiter, activeOrFalse } from './auth';
+import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom } from './auth';
 
 function mockReq(user: { role: string } | null) {
   return { isAuthenticated: () => user !== null, user } as never;
@@ -70,5 +70,22 @@ describe('activeOrFalse', () => {
   });
   it('rejects a missing user', () => {
     expect(activeOrFalse(undefined)).toBe(false);
+  });
+});
+
+describe('sessionUserFrom', () => {
+  const user = { id: 7, active: true, sessionEpoch: 2 } as never;
+  it('accepts a matching epoch on an active user', () => {
+    expect(sessionUserFrom({ id: 7, epoch: 2 }, user)).toBe(user);
+  });
+  it('rejects a stale epoch (password reset / deactivation bumped it)', () => {
+    expect(sessionUserFrom({ id: 7, epoch: 1 }, user)).toBe(false);
+  });
+  it('rejects an inactive user even with a matching epoch', () => {
+    expect(sessionUserFrom({ id: 7, epoch: 2 }, { id: 7, active: false, sessionEpoch: 2 } as never)).toBe(false);
+  });
+  it('rejects legacy numeric payloads and a missing user', () => {
+    expect(sessionUserFrom(7, user)).toBe(false);
+    expect(sessionUserFrom({ id: 7, epoch: 2 }, undefined)).toBe(false);
   });
 });

@@ -61,6 +61,17 @@ export const loginLimiter = {
 /** A deactivated account must not resurrect a session on the next request. */
 export const activeOrFalse = (u?: SelectUser): SelectUser | false => (u && u.active ? u : false);
 
+export type SessionPayload = { id: number; epoch: number };
+
+/** Session payload → user, or false when the user is gone, inactive, or the epoch moved on. */
+export function sessionUserFrom(payload: unknown, user: SelectUser | undefined): SelectUser | false {
+  if (!payload || typeof payload !== "object") return false;
+  const { id, epoch } = payload as Partial<SessionPayload>;
+  if (typeof id !== "number" || typeof epoch !== "number") return false;
+  const u = activeOrFalse(user);
+  return u && u.id === id && u.sessionEpoch === epoch ? u : false;
+}
+
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET;
   if (!sessionSecret && isProd) {
@@ -94,9 +105,12 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser(async (id: number, done) => {
-    try { done(null, activeOrFalse(await storage.getUser(id))); } catch (error) { done(error, null); }
+  passport.serializeUser<SessionPayload>((user, done) => done(null, { id: user.id, epoch: user.sessionEpoch }));
+  passport.deserializeUser<SessionPayload>(async (payload: unknown, done) => {
+    try {
+      const id = (payload as Partial<SessionPayload>)?.id;
+      done(null, sessionUserFrom(payload, typeof id === "number" ? await storage.getUser(id) : undefined));
+    } catch (error) { done(error, null); }
   });
 
   app.post("/api/login", (req, res, next) => {

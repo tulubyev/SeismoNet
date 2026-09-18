@@ -99,6 +99,7 @@ export async function runStartupMigrations() {
         PRIMARY KEY (user_id, object_id)
       )
     `);
+    await db.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_epoch integer NOT NULL DEFAULT 0`);
     const roleLabels = await db.execute(
       `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
     );
@@ -109,7 +110,7 @@ export async function runStartupMigrations() {
       console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
       console.error('****************************************************************');
     }
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup).');
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch).');
   } catch (e) {
     console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }
