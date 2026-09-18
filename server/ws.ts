@@ -1,14 +1,18 @@
-import type { Server } from "http";
+import type { IncomingMessage, Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { and } from "drizzle-orm";
-import { storage } from "./storage";
+import { storage, type ObjectScope } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
 import { sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 import { describeError } from "./lib/errors";
+import { resolveSessionUser } from "./auth";
+import type { User as SelectUser } from "@shared/schema";
 
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
+
+type WsContext = { user: SelectUser; scope: ObjectScope };
 
 export function broadcastMessage(message: WebSocketMessage) {
   clients.forEach(client => {
@@ -16,6 +20,19 @@ export function broadcastMessage(message: WebSocketMessage) {
       client.send(JSON.stringify(message));
     }
   });
+}
+
+/** Session cookie → user + object scope, or null (anonymous / stale / store error). */
+export async function authorizeUpgrade(req: IncomingMessage): Promise<WsContext | null> {
+  try {
+    const user = await resolveSessionUser(req);
+    if (!user) return null;
+    const scope: ObjectScope = user.role === "staff" ? { objectIds: await storage.getUserObjectIds(user.id) } : undefined;
+    return { user, scope };
+  } catch (err) {
+    console.error(`WS upgrade auth failed: ${describeError(err)}`);
+    return null;
+  }
 }
 
 export function attachWebSocket(httpServer: Server) {
@@ -26,17 +43,24 @@ export function attachWebSocket(httpServer: Server) {
   httpServer.on('upgrade', (req, socket, head) => {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
     if (pathname !== '/ws') return;
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    authorizeUpgrade(req).then((ctx) => {
+      if (!ctx) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, ctx));
+    });
   });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: WebSocket, _req: IncomingMessage, ctx: WsContext) => {
     // Add the new client to the set of connected clients
     clients.add(ws);
-    
-    console.log('WebSocket client connected');
-    
+
+    console.log(`WebSocket client connected: ${ctx.user.username}`);
+
     // Send initial station data to the client
-    storage.getStations().then(stations => {
+    storage.getStations(ctx.scope).then(stations => {
       ws.send(JSON.stringify({
         type: WebSocketMessageType.STATION_STATUS,
         payload: stations
@@ -44,7 +68,7 @@ export function attachWebSocket(httpServer: Server) {
     }).catch(err => console.error(`WS initial send failed: ${describeError(err)}`));
     
     // Send initial system status
-    Promise.all([storage.getSystemStatus(), storage.getStations()]).then(([statusItems, allStations]) => {
+    Promise.all([storage.getSystemStatus(), storage.getStations(ctx.scope)]).then(([statusItems, allStations]) => {
       const managed = allStations.filter(s => s.isManaged);
       ws.send(JSON.stringify({
         type: WebSocketMessageType.NETWORK_STATUS,
@@ -118,7 +142,7 @@ export function attachWebSocket(httpServer: Server) {
     });
     
     // Simulate real-time seismic data
-    startSimulation(ws);
+    startSimulation(ws, ctx.scope);
   });
 
   // API routes
@@ -127,7 +151,7 @@ export function attachWebSocket(httpServer: Server) {
 }
 
 // Simulate real-time data for the frontend
-function startSimulation(ws: WebSocket) {
+function startSimulation(ws: WebSocket, scope: ObjectScope) {
   // Variables to track simulation state
   let simulationIntervalId: NodeJS.Timeout;
   
@@ -187,7 +211,7 @@ function startSimulation(ws: WebSocket) {
     
     // Update network status occasionally
     if (Math.random() < 0.1) { // 10% chance each interval
-      Promise.all([storage.getSystemStatus(), storage.getStations()]).then(([statusItems, allStations]) => {
+      Promise.all([storage.getSystemStatus(), storage.getStations(scope)]).then(([statusItems, allStations]) => {
         const managed = allStations.filter(s => s.isManaged);
         ws.send(JSON.stringify({
           type: WebSocketMessageType.NETWORK_STATUS,
