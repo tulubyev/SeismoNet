@@ -16,8 +16,9 @@
 - `Scope = { customerId: number | null; objectIds?: number[] }` (in `server/storage/types.ts`). `customerId === null` means "all customers" and is only ever produced for `superadmin`.
 - Every list/detail getter of a tenant table takes `scope: Scope` as a **required** parameter; create methods of tenant tables take `customerId: number` explicitly; clients never send `customerId` for tenant rows (insert zod schemas omit it).
 - Tenant tables with `customer_id NOT NULL`: `infrastructure_objects`, `stations`, `developers`, `soil_profiles`, `seismic_calculations`, `sensors`, `calibration_sessions`, `comparison_sets` (spec amendment: comparison sets carry their own `customer_id`; `calc_ids` is an integer array, joining through calculations is not practical). `users.customer_id` nullable (NULL only for `superadmin`).
-- Derived tables scoped through station (`station_id` → `stations.customer_id`): `sensor_installations`, `seismogram_records`, `events`, `alerts`, `maintenance_records`, `waveform_data`; through parent row: `soil_layers`, `calibration_afc`, `calculation_note_history`.
-- Shared (never filtered): `regions`, `object_categories`, `building_norms`, `research_networks`, `system_status`, `page_visit_logs`, `audit_log`, external earthquake catalogs.
+- Derived tables scoped through station (`station_id` → `stations.customer_id`): `sensor_installations`, `seismogram_records`, `maintenance_records`, `waveform_data`; `alerts` through `related_entity_id` when `related_entity_type = 'station'` (other alerts are visible to every customer); through parent row: `soil_layers`, `calibration_afc`, `calculation_note_history`.
+- **`events` is the global earthquake catalog** (USGS/EMSC/JMA rows, no station link — ruled 19.09 after Task 2): `getEvents`, `getRecentEvents`, `getEvent`, `getEventByEventId` stay unscoped and are NOT in the guard lists.
+- Shared (never filtered): `regions`, `object_categories`, `building_norms`, `research_networks`, `system_status`, `page_visit_logs`, `audit_log`, `events` (earthquake catalog).
 - Error contract: superadmin in "all" mode creating a tenant row → `400 {"error":"select_customer"}`; a non-superadmin user without a customer → `403 {"error":"no_customer"}` on every `/api/*` route except `/api/user`, `/api/logout`, `/api/health`; a row of another customer → plain 404.
 - New permission module `customers` (16th): superadmin `write`, every other role `none`.
 - UI strings Russian. `npm run check` must stay ≤ 49 errors (`npm run check 2>&1 | grep -c 'error TS'`); `npx vitest run` green after every task. Commit messages: conventional prefix, trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
@@ -662,11 +663,11 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - calculations: `getSeismicCalculations(calcType: string | undefined, limit: number, scope)`, `getSeismicCalculation(id, scope)`, `createSeismicCalculation(calc, customerId)`, `getComparisonSets(scope)`, `getComparisonSet(id, scope)`, `createComparisonSet(set, customerId)`.
   - seismograms: `getSeismogramRecords(stationId: string | undefined, limit: number, scope)`, `getSeismogramRecord(id, scope)`.
   - calibration: `getCalibrationSessions(installationId: number | undefined, scope)`, `getCalibrationSession(id, scope)`, `createCalibrationSession(session, customerId)`.
-  - events: `getEvents(scope)`, `getRecentEvents(limit, scope)`, `getEvent(id, scope)`, `getEventByEventId(eventId, scope)`; `createEvent` unchanged (sync jobs create events for known stations).
-  - monitoring: `getAlerts(limit, scope)`.
+  - events: **unchanged** (global catalog, see Global Constraints) — do not touch `server/storage/events.ts`.
+  - monitoring: `getAlerts(limit, scope)` — `where: scope.customerId === null ? undefined : or(ne(alerts.relatedEntityType, 'station'), isNull(alerts.relatedEntityType), stationInCustomer(scope, alerts.relatedEntityId))` (import `or`, `ne`, `isNull` from drizzle-orm).
   - maintenance: `getMaintenanceRecords(stationId, scope)`, `getMaintenanceRecord(id, scope)`, `getUpcomingMaintenanceRecords(days, scope)`.
 
-Scoping rule per table: own column → `customerWhere(scope, t.customerId)` (+ `objectIdsWhere(scope, t.objectId)` where the table has `object_id`: soil_profiles, sensors, seismic_calculations); `station_id` tables → `stationInCustomer(scope, t.stationId)` (+ for staff: `inArray(t.stationId, await scopedStationIds(scope))` — import from `./stations`); `sensor_installations` → `stationInCustomer` + `objectIdsWhere(scope, t.objectId)`; `comparison_sets` → own column.
+Scoping rule per table: own column → `customerWhere(scope, t.customerId)` (+ `objectIdsWhere(scope, t.objectId)` where the table has `object_id`: soil_profiles, sensors, seismic_calculations); `station_id` tables (`seismogram_records`, `maintenance_records`) → `stationInCustomer(scope, t.stationId)` (+ for staff: `inArray(t.stationId, await scopedStationIds(scope))` — import from `./stations`); `sensor_installations` → `stationInCustomer` + `objectIdsWhere(scope, t.objectId)`; `comparison_sets` → own column; `alerts` → the `or(...)` above.
 
 - [ ] **Step 1: Failing guard test** — `server/storage/scope-guard.test.ts`:
 
@@ -685,8 +686,7 @@ const SCOPED = [
   'getSensorInstallations', 'getSensorInstallation', 'getSensors', 'getSensor', 'getSensorBySensorCode',
   'getSeismicCalculations', 'getSeismicCalculation', 'getComparisonSets', 'getComparisonSet',
   'getSeismogramRecords', 'getSeismogramRecord', 'getCalibrationSessions', 'getCalibrationSession',
-  'getEvents', 'getRecentEvents', 'getEvent', 'getEventByEventId', 'getAlerts',
-  'getMaintenanceRecords', 'getMaintenanceRecord', 'getUpcomingMaintenanceRecords', 'getUsers',
+  'getAlerts', 'getMaintenanceRecords', 'getMaintenanceRecord', 'getUpcomingMaintenanceRecords', 'getUsers',
 ];
 
 describe('IStorage tenant getters take a Scope', () => {
@@ -705,19 +705,21 @@ describe('IStorage tenant getters take a Scope', () => {
 
 - [ ] **Step 3: Implement** each file following the rule above. Representative code:
 
-`events.ts`:
+`seismograms.ts` (same shape for `maintenance.ts`):
 ```ts
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { stationInCustomer, andAll } from "./scope";
 import { scopedStationIds } from "./stations";
-async function eventWhere(scope: Scope) {
+async function stationScope(scope: Scope) {
   const ids = await scopedStationIds(scope);
-  return andAll(stationInCustomer(scope, schema.events.stationId), ids ? inArray(schema.events.stationId, ids.length ? ids : ["__none__"]) : undefined);
+  return andAll(stationInCustomer(scope, schema.seismogramRecords.stationId), ids ? inArray(schema.seismogramRecords.stationId, ids.length ? ids : ["__none__"]) : undefined);
 }
-  async getEvents(scope: Scope) { return db.query.events.findMany({ where: await eventWhere(scope), orderBy: (t, { desc }) => [desc(t.timestamp)] }); }
-  async getRecentEvents(limit: number, scope: Scope) { return db.query.events.findMany({ where: await eventWhere(scope), orderBy: (t, { desc }) => [desc(t.timestamp)], limit }); }
-  async getEvent(id: number, scope: Scope) { return db.query.events.findFirst({ where: andAll(eq(schema.events.id, id), await eventWhere(scope)) }); }
-  async getEventByEventId(eventId: string, scope: Scope) { return db.query.events.findFirst({ where: andAll(eq(schema.events.eventId, eventId), await eventWhere(scope)) }); }
+  async getSeismogramRecords(stationId: string | undefined, limit: number, scope: Scope) {
+    return db.query.seismogramRecords.findMany({ where: andAll(stationId ? eq(schema.seismogramRecords.stationId, stationId) : undefined, await stationScope(scope)), orderBy: (t, { desc }) => [desc(t.recordedAt)], limit });
+  }
+  async getSeismogramRecord(id: number, scope: Scope) {
+    return db.query.seismogramRecords.findFirst({ where: andAll(eq(schema.seismogramRecords.id, id), await stationScope(scope)) });
+  }
 ```
 (keep the existing orderBy of each getter; only add the `where`.)
 
@@ -737,7 +739,7 @@ async function eventWhere(scope: Scope) {
 
 `calculations.ts` `createComparisonSet(set, customerId)` and `getComparisonSets(scope)` use `customerWhere(scope, schema.comparisonSets.customerId)`.
 
-Services (`server/services/earthquakeApi.ts:177`, `jmaEarthquakeApi.ts:265`) call `getEventByEventId(eventId)` for de-duplication of the global catalog — pass `{ customerId: null }` there with a comment `// catalog sync runs outside any customer`.
+Services (`server/services/earthquakeApi.ts`, `jmaEarthquakeApi.ts`) and the events getters are untouched (global catalog).
 
 `types.ts`: update every signature listed under Interfaces.
 
@@ -773,8 +775,8 @@ import path from 'path';
 
 // No route may call a scoped getter without passing the request scope, and no
 // route may create a tenant row without requireCustomer().
-const SCOPED_GETTERS = /storage\.(getStations|getStationsByRegionId|getStation|getStationByStationId|getInfrastructureObjects|getInfrastructureObject|getInfrastructureObjectByObjectId|getDevelopers|getDeveloper|getDeveloperByName|getSoilProfiles|getSoilProfile|getSoilProfileNearCoords|getSensorInstallations|getSensorInstallation|getSensors|getSensor|getSensorBySensorCode|getSeismicCalculations|getSeismicCalculation|getComparisonSets|getComparisonSet|getSeismogramRecords|getSeismogramRecord|getCalibrationSessions|getCalibrationSession|getEvents|getRecentEvents|getEvent|getEventByEventId|getAlerts|getMaintenanceRecords|getMaintenanceRecord|getUpcomingMaintenanceRecords|getUsers)\(([^;]*)\)/g;
-const CREATES = /storage\.(createStation|createInfrastructureObject|createDeveloper|createSoilProfile|createSensor|createSeismicCalculation|createComparisonSet|createCalibrationSession)\(/g;
+const SCOPED_GETTERS = /storage\.(getStations|getStationsByRegionId|getStation|getStationByStationId|getInfrastructureObjects|getInfrastructureObject|getInfrastructureObjectByObjectId|getDevelopers|getDeveloper|getDeveloperByName|getSoilProfiles|getSoilProfile|getSoilProfileNearCoords|getSensorInstallations|getSensorInstallation|getSensors|getSensor|getSensorBySensorCode|getSeismicCalculations|getSeismicCalculation|getComparisonSets|getComparisonSet|getSeismogramRecords|getSeismogramRecord|getCalibrationSessions|getCalibrationSession|getAlerts|getMaintenanceRecords|getMaintenanceRecord|getUpcomingMaintenanceRecords|getUsers)\(([^;]*)\)/g;
+const CREATES = /storage\.(createStation|createInfrastructureObject|createDeveloper|createSoilProfile|createSensor|createSeismicCalculation|createComparisonSet|createCalibrationSession)\(/; // no /g: RegExp.test with a global flag is stateful
 
 describe('routes pass the request scope', () => {
   const dir = path.resolve(__dirname);
@@ -820,9 +822,8 @@ const created = await storage.createInfrastructureObject(body, customerId);
 ```
 Specific points:
 - `stations.ts`: maintenance POST/PATCH — verify the station via `getStationByStationId(stationId, scopeOf(req))` before creating/updating; `getMaintenanceRecord(id, scopeOf(req))`.
-- `monitoring.ts`: `/api/regions*` stay unscoped (shared); `/api/regions/:id/stations` → `getStationsByRegionId(regionId, scopeOf(req))`; `getRecentEvents(limit, scopeOf(req))`, `getAlerts(limit, scopeOf(req))`, `getEventByEventId(id, scopeOf(req))`.
-- `earthquakes.ts:98`: `getRecentEvents(limit, scopeOf(req))`.
-- `notifications.ts`: `getEventByEventId(eventId, scopeOf(req))`.
+- `monitoring.ts`: `/api/regions*` stay unscoped (shared); `/api/regions/:id/stations` → `getStationsByRegionId(regionId, scopeOf(req))`; `getAlerts(limit, scopeOf(req))`; events routes unchanged (global catalog).
+- `earthquakes.ts`, `notifications.ts`: unchanged (events are global).
 - `sensors.ts`: installation POST — the station (`getStationByStationId(body.stationId, scope)`) and, when given, the object (`getInfrastructureObject(body.objectId, scope)`) must resolve, else 400 `{error:"unknown station/object"}`; sensor POST → `createSensor(body, customerId)` with the same station/object check.
 - `soil.ts`: `getSoilProfiles(objectId, scopeOf(req))`, layers routes: load the profile with scope first (404), then layer ops.
 - `calculations.ts`: `getSeismicCalculations(calcType, limit, scopeOf(req))`, `createSeismicCalculation(parsed.data, customerId)`, comparison sets likewise; note-history routes load the calculation with scope first.
@@ -839,7 +840,7 @@ Specific points:
     if (scope === "no_customer") return null;
     return { user, scope };
 ```
-(`resolveSessionUser` already ran the session middleware, so `req.session` is populated — read it from the same request object.) `WsContext.scope: Scope`; `getRecentEvents(5, ctx.scope)` / `(1, scope)`; `getStationByStationId(randomStationId, scope)`; `startSimulation(ws, scope: Scope)`; remove the `ObjectScope` import.
+(`resolveSessionUser` already ran the session middleware, so `req.session` is populated — read it from the same request object.) `WsContext.scope: Scope`; events sends stay as they are (global catalog); `getStationByStationId(randomStationId, scope)`; `startSimulation(ws, scope: Scope)`; remove the `ObjectScope` import.
 
 - [ ] **Step 6: seed.ts** — at the top of `seedDatabase()`: `const ecsem = await storage.getCustomerByCode("ecsem"); if (!ecsem) { console.error("seed: customer ecsem missing"); return; } const cid = ecsem.id;` and pass `cid` as the second argument to every `createStation`, `createInfrastructureObject`, `createDeveloper`, `createSoilProfile`, `createSensor` call; the existence checks in seed that used `getStationByStationId`/`getInfrastructureObjectByObjectId`/`getDeveloperByName` get `{ customerId: cid }`.
 

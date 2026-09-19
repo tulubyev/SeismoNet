@@ -50,13 +50,14 @@ customers(
 | `comparison_sets` | да | из скоупа (уточнение 19.09: `calc_ids` — массив, join через расчёты непрактичен) |
 
 Производные таблицы **без** `customer_id`, фильтруются join-ом: `sensor_installations`
-(station/object), `seismogram_records` (station), `events`, `alerts`, `maintenance_records`,
-`waveform_data` (station), `soil_layers` (profile), `calibration_afc` (session),
+(station/object), `seismogram_records` (station), `maintenance_records`, `waveform_data` (station),
+`alerts` (через `related_entity_id`, когда `related_entity_type = 'station'`; прочие алерты видны всем), `soil_layers` (profile), `calibration_afc` (session),
 `calculation_note_history` (calculation), `user_objects` (user).
 
 Общие для всех заказчиков (без фильтра): `regions`, `object_categories`, `building_norms`,
 `research_networks`, `system_status`, `page_visit_logs`, `audit_log`, wiki-страницы клиента,
-внешние каталоги землетрясений (USGS/EMSC/JMA).
+`events` — это и есть каталог землетрясений USGS/EMSC/JMA (у строк нет привязки к станции;
+уточнение 19.09 после задачи 2), он общий.
 
 `infrastructure_objects.region_id integer NULL REFERENCES regions(id)` — регион объекта; при
 создании по умолчанию `customers.region_id`. У `stations.region_id` то же правило.
@@ -101,13 +102,12 @@ export type Scope = {
   `getStations`, `getStationsByRegionId`, `getInfrastructureObjects`, `getDevelopers`,
   `getSoilProfiles`, `getSoilProfileNearCoords`, `getSensorInstallations`, `getSensors`,
   `getSeismogramRecords`, `getCalibrationSessions`, `getSeismicCalculations`,
-  `getComparisonSets`, `getEvents`, `getRecentEvents`, `getAlerts`,
+  `getComparisonSets`, `getAlerts`,
   `getUpcomingMaintenanceRecords`, `getMaintenanceRecords`.
 - Detail-геттеры (`getStation`, `getStationByStationId`, `getInfrastructureObject`,
   `getInfrastructureObjectByObjectId`, `getDeveloper`, `getSoilProfile`, `getSensor`,
   `getSensorBySensorCode`, `getSensorInstallation`, `getSeismogramRecord`,
-  `getCalibrationSession`, `getSeismicCalculation`, `getComparisonSet`, `getEvent`,
-  `getEventByEventId`, `getMaintenanceRecord`) принимают `scope` и возвращают `undefined`,
+  `getCalibrationSession`, `getSeismicCalculation`, `getComparisonSet`, `getMaintenanceRecord`) принимают `scope` и возвращают `undefined`,
   если запись принадлежит другому заказчику — маршрут отдаёт обычный 404. Update/delete-методы
   в роутах вызываются только после успешного detail-геттера (ownership-check), сами методы
   storage не меняют сигнатуру.
