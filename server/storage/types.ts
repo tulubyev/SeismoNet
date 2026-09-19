@@ -7,8 +7,13 @@ export const NOTE_HISTORY_LIMIT =
     ? _rawNoteHistoryLimit
     : 50;
 
-/** Row filter for the `staff` role: only these infrastructure objects (and things attached to them). undefined = no filter. */
-export type ObjectScope = { objectIds: number[] } | undefined;
+/**
+ * Per-request row filter. `customerId === null` = all customers (superadmin only).
+ * `objectIds` narrows further for `staff` (only bound infrastructure objects).
+ */
+export type Scope = { customerId: number | null; objectIds?: number[] };
+/** @deprecated transitional alias, removed once every storage file takes `Scope`. */
+export type ObjectScope = Scope;
 
 // Interface for storage operations
 
