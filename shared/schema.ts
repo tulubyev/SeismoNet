@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   // Bumped on password reset / deactivation; embedded in the session payload so
   // every existing session of the user stops deserializing (server/auth.ts).
   sessionEpoch: integer("session_epoch").notNull().default(0),
+  customerId: integer("customer_id").references(() => customers.id),
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -65,6 +66,17 @@ export const regions = pgTable("regions", {
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 
+// Tenant = customer organization (ЕЦСЭМ, ГАУ РД «Сейсмобезопасность», …). Every tenant
+// row carries customer_id; users belong to exactly one customer (NULL = superadmin).
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  regionId: integer("region_id").references(() => regions.id),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Seismic stations with extended field operations capabilities
 export const stations = pgTable("stations", {
   id: serial("id").primaryKey(),
@@ -77,6 +89,7 @@ export const stations = pgTable("stations", {
   lastUpdate: timestamp("last_update").notNull().defaultNow(),
   dataRate: real("data_rate"),
   regionId: integer("region_id").references(() => regions.id),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 
   batteryLevel: integer("battery_level"),
   batteryVoltage: real("battery_voltage"),
@@ -244,7 +257,9 @@ export const infrastructureObjects = pgTable("infrastructure_objects", {
   k2Key: text("k2_key").default('wall_monolithic'),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  metadata: jsonb("metadata")
+  metadata: jsonb("metadata"),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
+  regionId: integer("region_id").references(() => regions.id),
 });
 
 // ─── Developers (застройщики) ────────────────────────────────────────────────
@@ -278,6 +293,7 @@ export const developers = pgTable("developers", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // Object categories — used for grouping monitoring objects on map layers
@@ -314,7 +330,8 @@ export const soilProfiles = pgTable("soil_profiles", {
   surveyDate: timestamp("survey_date"),
   surveyOrganization: text("survey_organization"),
   description: text("description"),
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // Individual soil layers within a profile
@@ -370,7 +387,8 @@ export const sensors = pgTable("sensors", {
   calibrationDate: timestamp("calibration_date"),
   isActive: boolean("is_active").notNull().default(true),
   location: text("location"),                         // free_field | foundation | ground_floor | roof
-  notes: text("notes")
+  notes: text("notes"),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // Calibration sessions for sensor installations
@@ -386,7 +404,8 @@ export const calibrationSessions = pgTable("calibration_sessions", {
   naturalFrequency: real("natural_frequency"), // Hz (собственная частота датчика)
   status: text("status").notNull().default("complete"), // pending, complete, expired
   notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // AFC (amplitude-frequency response) data points for a calibration session
@@ -468,7 +487,8 @@ export const seismicCalculations = pgTable("seismic_calculations", {
   createdBy: text("created_by"),
   notes: text("notes"),
   notesUpdatedAt: timestamp("notes_updated_at"),
-  notesUpdatedBy: text("notes_updated_by")
+  notesUpdatedBy: text("notes_updated_by"),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // ─── Edit history for calculation notes ──────────────────────────────────────
@@ -492,6 +512,7 @@ export const comparisonSets = pgTable("comparison_sets", {
   calcIds: integer("calc_ids").array().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   createdBy: text("created_by"),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
 });
 
 // ─── Insert schemas ────────────────────────────────────────────────────────────
@@ -501,7 +522,7 @@ export const insertUserObjectSchema = createInsertSchema(userObjects);
 export type UserObject = typeof userObjects.$inferSelect;
 export type InsertUserObject = z.infer<typeof insertUserObjectSchema>;
 export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
-export const insertStationSchema = createInsertSchema(stations).omit({ id: true });
+export const insertStationSchema = createInsertSchema(stations).omit({ id: true, customerId: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertWaveformDataSchema = createInsertSchema(waveformData).omit({ id: true });
 export const insertResearchNetworkSchema = createInsertSchema(researchNetworks).omit({ id: true });
@@ -512,19 +533,29 @@ export const insertHistoricalAnalysisSchema = createInsertSchema(historicalAnaly
 export const insertComparisonStudySchema = createInsertSchema(comparisonStudies).omit({ id: true, createdAt: true, updatedAt: true });
 
 // New Irkutsk-specific schemas
-export const insertInfrastructureObjectSchema = createInsertSchema(infrastructureObjects).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertSoilProfileSchema = createInsertSchema(soilProfiles).omit({ id: true, createdAt: true });
+export const insertInfrastructureObjectSchema = createInsertSchema(infrastructureObjects).omit({ id: true, createdAt: true, updatedAt: true, customerId: true });
+export const insertSoilProfileSchema = createInsertSchema(soilProfiles).omit({ id: true, createdAt: true, customerId: true });
 export const insertSoilLayerSchema = createInsertSchema(soilLayers).omit({ id: true });
 export const insertSensorInstallationSchema = createInsertSchema(sensorInstallations).omit({ id: true });
-export const insertSensorSchema = createInsertSchema(sensors).omit({ id: true });
+export const insertSensorSchema = createInsertSchema(sensors).omit({ id: true, customerId: true });
 export const insertBuildingNormSchema = createInsertSchema(buildingNorms).omit({ id: true, createdAt: true });
 export const insertSeismogramRecordSchema = createInsertSchema(seismogramRecords).omit({ id: true, createdAt: true });
-export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true });
+export const insertCalibrationSessionSchema = createInsertSchema(calibrationSessions).omit({ id: true, createdAt: true, customerId: true });
 export const insertCalibrationAfcSchema = createInsertSchema(calibrationAfc).omit({ id: true });
 export const insertObjectCategorySchema = createInsertSchema(objectCategories).omit({ id: true });
-export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true, notesUpdatedAt: true, notesUpdatedBy: true });
-export const insertComparisonSetSchema = createInsertSchema(comparisonSets).omit({ id: true, createdAt: true });
+export const insertDeveloperSchema = createInsertSchema(developers).omit({ id: true, createdAt: true, updatedAt: true, customerId: true });
+export const insertSeismicCalculationSchema = createInsertSchema(seismicCalculations).omit({ id: true, createdAt: true, notesUpdatedAt: true, notesUpdatedBy: true, customerId: true });
+export const insertComparisonSetSchema = createInsertSchema(comparisonSets).omit({ id: true, createdAt: true, customerId: true });
+
+export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+
+/** What GET /api/user, /api/login and PUT /api/session/customer return. */
+export type SessionUser = Omit<User, "password"> & {
+  customer: Pick<Customer, "id" | "code" | "name" | "regionId"> | null;
+  customerScope: "all" | "one";
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

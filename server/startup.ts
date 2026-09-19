@@ -119,6 +119,41 @@ export async function runStartupMigrations() {
       )
     `);
     await db.execute(`CREATE INDEX IF NOT EXISTS audit_log_at_idx ON audit_log (at DESC)`);
+    // Customers (multi-tenant isolation, spec 2026-09-19). Forward-only.
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id serial PRIMARY KEY,
+        code text NOT NULL UNIQUE,
+        name text NOT NULL,
+        region_id integer REFERENCES regions(id),
+        active boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(`
+      INSERT INTO regions (name, description, center_latitude, center_longitude, radius_km)
+      VALUES ('Махачкала', 'Республика Дагестан', 42.9849, 47.5047, 50),
+             ('Алматы', 'Казахстан', 43.2389, 76.8897, 50),
+             ('Улан-Батор', 'Монголия', 47.9184, 106.9177, 50)
+      ON CONFLICT (name) DO NOTHING
+    `);
+    await db.execute(`
+      INSERT INTO customers (code, name, region_id)
+      SELECT 'ecsem', 'ЕЦСЭМ', (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    for (const table of ['infrastructure_objects', 'stations', 'developers', 'soil_profiles',
+                         'seismic_calculations', 'sensors', 'calibration_sessions', 'comparison_sets']) {
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS customer_id integer REFERENCES customers(id)`);
+      await db.execute(`UPDATE ${table} SET customer_id = (SELECT id FROM customers WHERE code = 'ecsem') WHERE customer_id IS NULL`);
+      await db.execute(`ALTER TABLE ${table} ALTER COLUMN customer_id SET NOT NULL`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS ${table}_customer_id_idx ON ${table} (customer_id)`);
+    }
+    await db.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_id integer REFERENCES customers(id)`);
+    await db.execute(`UPDATE users SET customer_id = (SELECT id FROM customers WHERE code = 'ecsem') WHERE customer_id IS NULL AND role <> 'superadmin'`);
+    await db.execute(`ALTER TABLE infrastructure_objects ADD COLUMN IF NOT EXISTS region_id integer REFERENCES regions(id)`);
+    await db.execute(`UPDATE infrastructure_objects SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
+    await db.execute(`UPDATE stations SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
     const roleLabels = await db.execute(
       `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
     );
@@ -129,7 +164,7 @@ export async function runStartupMigrations() {
       console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
       console.error('****************************************************************');
     }
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes + audit_log).');
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes + audit_log + customers).');
   } catch (e) {
     console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
   }

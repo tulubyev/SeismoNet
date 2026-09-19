@@ -55,6 +55,7 @@ export const schema = {
   pageVisitLogs: schemaImport.pageVisitLogs,
   userObjects: schemaImport.userObjects,
   auditLog: schemaImport.auditLog,
+  customers: schemaImport.customers,
 };
 
 const connectionString = process.env.VPS_DATABASE_URL || process.env.DATABASE_URL;
