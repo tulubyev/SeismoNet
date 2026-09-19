@@ -119,6 +119,12 @@ export async function runStartupMigrations() {
       )
     `);
     await db.execute(`CREATE INDEX IF NOT EXISTS audit_log_at_idx ON audit_log (at DESC)`);
+    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes + audit_log).');
+  } catch (e) {
+    console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
+  }
+
+  try {
     // Customers (multi-tenant isolation, spec 2026-09-19). Forward-only.
     await db.execute(`
       CREATE TABLE IF NOT EXISTS customers (
@@ -154,19 +160,20 @@ export async function runStartupMigrations() {
     await db.execute(`ALTER TABLE infrastructure_objects ADD COLUMN IF NOT EXISTS region_id integer REFERENCES regions(id)`);
     await db.execute(`UPDATE infrastructure_objects SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
     await db.execute(`UPDATE stations SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
-    const roleLabels = await db.execute(
-      `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
-    );
-    const labels = ((roleLabels as { rows?: Array<{ enumlabel?: string }> }).rows ?? []).map(r => r.enumlabel);
-    if (!labels.includes('superadmin')) {
-      console.error('****************************************************************');
-      console.error('ROLES MIGRATION MISSING: run `npm run migrate:roles` — every user will get 403 until then');
-      console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
-      console.error('****************************************************************');
-    }
-    console.log('Startup migrations applied (seismic_calculations + page_visit_logs + is_managed + sensors table + SEN-O* migration + user_objects + cleanup + session_epoch + users lower() unique indexes + audit_log + customers).');
+    console.log('Customers migration applied.');
   } catch (e) {
-    console.error(`Startup migration error (seismic_calculations columns):: ${describeError(e)}`);
+    console.error(`Customers migration error: ${describeError(e)}`);
+  }
+
+  const roleLabels = await db.execute(
+    `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'user_role'`
+  );
+  const labels = ((roleLabels as { rows?: Array<{ enumlabel?: string }> }).rows ?? []).map(r => r.enumlabel);
+  if (!labels.includes('superadmin')) {
+    console.error('****************************************************************');
+    console.error('ROLES MIGRATION MISSING: run `npm run migrate:roles` — every user will get 403 until then');
+    console.error(`  current user_role labels: ${labels.length ? labels.join(', ') : '(enum not found)'}`);
+    console.error('****************************************************************');
   }
 }
 
