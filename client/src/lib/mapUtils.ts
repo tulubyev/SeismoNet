@@ -52,7 +52,7 @@ export function plotStations(stationData: Station[]) {
     
     marker.bindTooltip(`
       <div class="text-sm">
-        <div class="font-bold">${station.stationCode}</div>
+        <div class="font-bold">${station.stationId}</div>
         <div>${station.name}</div>
         <div class="text-xs text-gray-600">${station.status}</div>
       </div>

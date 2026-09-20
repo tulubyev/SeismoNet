@@ -95,7 +95,7 @@ export const AmplificationTab: FC<AmpTabProps> = ({
       headerDiv.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:550px;padding:14px 18px;font-family:Arial,sans-serif;background:white;color:#1e293b;line-height:1.5;';
       const exportDate = new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' });
       const profileName = profile?.profileName ?? '—';
-      const objName = profile?.infrastructureObjectId != null ? (objects.find(o => o.id === profile.infrastructureObjectId)?.name ?? `#${profile.infrastructureObjectId}`) : '—';
+      const objName = profile?.objectId != null ? (objects.find(o => o.id === profile.objectId)?.name ?? `#${profile.objectId}`) : '—';
       const soilCat = profile?.soilCategory ?? '—';
       const peakFreqStr = peakAmp && peakAmp.freq > 0 ? peakAmp.freq.toFixed(2) : '—';
       const peakAmpStr = peakAmp && peakAmp.freq > 0 ? peakAmp.amp.toFixed(2) : '—';

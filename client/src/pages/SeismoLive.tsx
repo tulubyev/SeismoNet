@@ -415,7 +415,7 @@ const SeismoLive: FC = () => {
                   ) : stations.map(st => {
                     const w = waveformData[st.stationId];
                     const bat = st.batteryLevel ?? null;
-                    const sig = st.signalQuality ?? null;
+                    const sig = st.connectionStrength ?? null;
                     const BatIcon = bat == null ? BatteryMedium : bat >= 60 ? BatteryFull : bat >= 30 ? BatteryMedium : BatteryLow;
                     const batColor = bat == null ? 'text-slate-400' : bat >= 60 ? 'text-emerald-600' : bat >= 30 ? 'text-amber-600' : 'text-red-600';
                     const isOff = st.status === 'offline';

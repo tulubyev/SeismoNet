@@ -41,6 +41,7 @@ const STATUS_INFO: Record<MonitoringStatus, { label: string; cls: string; icon: 
 const LEGAL_FORMS = ['ООО', 'ООО СЗ', 'АО', 'ПАО', 'ОАО', 'ГК', 'СЗ', 'ИП', 'ЗАО'];
 
 const BLANK: Omit<Developer, 'id' | 'createdAt' | 'updatedAt'> = {
+  customerId: 0, // server assigns the real customer on create; ignored on submit
   name: '',
   legalForm: null,
   inn: null,
@@ -614,6 +615,7 @@ const DeveloperDetail: FC<{
 
 function mapDevToForm(d: Developer): typeof BLANK {
   return {
+    customerId: d.customerId,
     name: d.name,
     legalForm: d.legalForm,
     inn: d.inn,
