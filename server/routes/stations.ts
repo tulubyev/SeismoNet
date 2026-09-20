@@ -126,7 +126,7 @@ router.patch('/api/stations/:stationId', requirePermission('stations', 'write'),
     if (!existing) {
       return res.status(404).json({ message: 'Station not found' });
     }
-    const updates = req.body;
+    const { customerId: _c, id: _i, stationId: _s, ...updates } = req.body ?? {};
     const updatedStation = await storage.updateStation(stationId, updates);
     if (!updatedStation) {
       return res.status(404).json({ message: 'Station not found' });

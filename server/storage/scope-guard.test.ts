@@ -13,6 +13,7 @@ const SCOPED = [
   'getSeismicCalculations', 'getSeismicCalculation', 'getComparisonSets', 'getComparisonSet',
   'getSeismogramRecords', 'getSeismogramRecord', 'getCalibrationSessions', 'getCalibrationSession',
   'getAlerts', 'getMaintenanceRecords', 'getMaintenanceRecord', 'getUpcomingMaintenanceRecords', 'getUsers',
+  'getSoilLayer', 'getCalibrationAfcPoint',
 ];
 
 describe('IStorage tenant getters take a Scope', () => {

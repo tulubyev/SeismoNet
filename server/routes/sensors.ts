@@ -36,9 +36,19 @@ router.post('/api/sensor-installations', requirePermission('sensors', 'write'), 
 router.patch('/api/sensor-installations/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existing = await storage.getSensorInstallation(id, scopeOf(req));
+    const scope = scopeOf(req);
+    const existing = await storage.getSensorInstallation(id, scope);
     if (!existing) return res.status(404).json({ message: 'Installation not found' });
-    const updated = await storage.updateSensorInstallation(id, req.body);
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    if (data.stationId != null) {
+      const station = await storage.getStationByStationId(data.stationId, scope);
+      if (!station) return res.status(400).json({ error: 'unknown station/object' });
+    }
+    if (data.objectId != null) {
+      const obj = await storage.getInfrastructureObject(data.objectId, scope);
+      if (!obj) return res.status(400).json({ error: 'unknown station/object' });
+    }
+    const updated = await storage.updateSensorInstallation(id, data);
     if (!updated) return res.status(404).json({ message: 'Installation not found' });
     res.json(updated);
   } catch (error) { res.status(500).json({ message: 'Error updating sensor installation' }); }
@@ -95,7 +105,8 @@ router.patch('/api/sensors/:id', requirePermission('sensors', 'write'), async (r
     const id = parseInt(req.params.id);
     const existing = await storage.getSensor(id, scopeOf(req));
     if (!existing) return res.status(404).json({ message: 'Sensor not found' });
-    const updated = await storage.updateSensor(id, req.body);
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    const updated = await storage.updateSensor(id, data);
     if (!updated) return res.status(404).json({ message: 'Sensor not found' });
     res.json(updated);
   } catch { res.status(500).json({ message: 'Error updating sensor' }); }

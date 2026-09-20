@@ -1,10 +1,19 @@
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { and, eq, exists } from "drizzle-orm";
 import { CalibrationAfc, CalibrationSession, InsertCalibrationAfc, InsertCalibrationSession } from "@shared/schema";
 import { customerWhere, andAll } from "./scope";
 import type { Scope } from "./types";
 
 const calibrationScope = (scope: Scope) => customerWhere(scope, schema.calibrationSessions.customerId);
+
+/** An AFC point belongs to the customer through its parent session's customer_id. */
+const afcPointScope = (scope: Scope) =>
+  scope.customerId === null
+    ? undefined
+    : exists(
+        db.select({ one: schema.calibrationSessions.id }).from(schema.calibrationSessions)
+          .where(and(eq(schema.calibrationSessions.id, schema.calibrationAfc.sessionId), customerWhere(scope, schema.calibrationSessions.customerId))),
+      );
 
 export const calibrationStorage = {
   // ─── Calibration session operations ────────────────────────────────────────
@@ -52,6 +61,16 @@ export const calibrationStorage = {
       where: (t, { eq }) => eq(t.sessionId, sessionId),
       orderBy: (t, { asc }) => [asc(t.frequency)]
     });
+  },
+
+  // Plain select builder, not db.query.*: the relational query API wraps the
+  // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+  // inside afcPointScope ("invalid reference to FROM-clause entry").
+  async getCalibrationAfcPoint(id: number, scope: Scope): Promise<CalibrationAfc | undefined> {
+    const [row] = await db.select().from(schema.calibrationAfc)
+      .where(andAll(eq(schema.calibrationAfc.id, id), afcPointScope(scope)))
+      .limit(1);
+    return row;
   },
 
   async createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc> {

@@ -6,6 +6,9 @@ import path from 'path';
 // route may create a tenant row without requireCustomer().
 const SCOPED_GETTERS = /storage\.(getStations|getStationsByRegionId|getStation|getStationByStationId|getInfrastructureObjects|getInfrastructureObject|getInfrastructureObjectByObjectId|getDevelopers|getDeveloper|getDeveloperByName|getSoilProfiles|getSoilProfile|getSoilProfileNearCoords|getSensorInstallations|getSensorInstallation|getSensors|getSensor|getSensorBySensorCode|getSeismicCalculations|getSeismicCalculation|getComparisonSets|getComparisonSet|getSeismogramRecords|getSeismogramRecord|getCalibrationSessions|getCalibrationSession|getAlerts|getMaintenanceRecords|getMaintenanceRecord|getUpcomingMaintenanceRecords|getUsers)\(([^;]*)\)/g;
 const CREATES = /storage\.(createStation|createInfrastructureObject|createDeveloper|createSoilProfile|createSensor|createSeismicCalculation|createComparisonSet|createCalibrationSession)\(/; // no /g: RegExp.test with a global flag is stateful
+// A bare req.body forwarded straight into an update call lets a client re-tenant
+// the row via a spoofed customerId (or reassign its id). No /g: same reason as CREATES.
+const UPDATE_WITH_BARE_BODY = /update[A-Z]\w*\([^)]*\breq\.body\b/;
 
 describe('routes pass the request scope', () => {
   const dir = path.resolve(__dirname);
@@ -16,6 +19,9 @@ describe('routes pass the request scope', () => {
     });
     it(`${f}: every tenant create is preceded by requireCustomer`, () => {
       if (CREATES.test(src)) expect(src).toMatch(/requireCustomer\(req, res\)/);
+    });
+    it(`${f}: no update call forwards a bare req.body`, () => {
+      expect(UPDATE_WITH_BARE_BODY.test(src), `${f}: an updateXxx(...) call passes req.body directly`).toBe(false);
     });
   }
 });

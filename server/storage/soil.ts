@@ -1,8 +1,17 @@
 import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { and, eq, exists } from "drizzle-orm";
 import { InsertSoilLayer, InsertSoilProfile, SoilLayer, SoilProfile, soilLayers, soilProfiles } from "@shared/schema";
 import { customerWhere, objectIdsWhere, andAll } from "./scope";
 import type { Scope } from "./types";
+
+/** A soil layer belongs to the customer through its parent profile's customer_id. */
+const layerScope = (scope: Scope) =>
+  scope.customerId === null
+    ? undefined
+    : exists(
+        db.select({ one: schema.soilProfiles.id }).from(schema.soilProfiles)
+          .where(and(eq(schema.soilProfiles.id, schema.soilLayers.profileId), customerWhere(scope, schema.soilProfiles.customerId))),
+      );
 
 const soilScope = (scope: Scope) =>
   andAll(customerWhere(scope, schema.soilProfiles.customerId), objectIdsWhere(scope, schema.soilProfiles.objectId));
@@ -59,6 +68,16 @@ export const soilStorage = {
       where: (t, { eq }) => eq(t.profileId, profileId),
       orderBy: (t, { asc }) => [asc(t.layerNumber)]
     });
+  },
+
+  // Plain select builder, not db.query.*: the relational query API wraps the
+  // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+  // inside layerScope ("invalid reference to FROM-clause entry").
+  async getSoilLayer(id: number, scope: Scope): Promise<SoilLayer | undefined> {
+    const [row] = await db.select().from(schema.soilLayers)
+      .where(andAll(eq(schema.soilLayers.id, id), layerScope(scope)))
+      .limit(1);
+    return row;
   },
 
   async createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer> {

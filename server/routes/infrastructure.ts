@@ -43,7 +43,8 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
     const id = parseInt(req.params.id);
     const existing = await storage.getInfrastructureObject(id, scopeOf(req));
     if (!existing) return res.status(404).json({ message: 'Object not found' });
-    const updated = await storage.updateInfrastructureObject(id, req.body);
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    const updated = await storage.updateInfrastructureObject(id, data);
     if (!updated) return res.status(404).json({ message: 'Object not found' });
     res.json(updated);
   } catch (error) {
@@ -91,7 +92,8 @@ router.post('/api/object-categories', requirePermission('objects', 'write'), asy
 router.patch('/api/object-categories/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const updated = await storage.updateObjectCategory(id, req.body);
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    const updated = await storage.updateObjectCategory(id, data);
     if (!updated) return res.status(404).json({ message: 'Category not found' });
     res.json(updated);
   } catch (error) {

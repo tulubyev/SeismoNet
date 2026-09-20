@@ -127,7 +127,10 @@ router.put('/api/calibration-afc', requirePermission('calibration', 'write'), as
 
 router.delete('/api/calibration-afc/:id', requirePermission('calibration', 'write'), async (req, res) => {
   try {
-    const ok = await storage.deleteCalibrationAfcPoint(parseInt(req.params.id));
+    const id = parseInt(req.params.id);
+    const existing = await storage.getCalibrationAfcPoint(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'AFC point not found' });
+    const ok = await storage.deleteCalibrationAfcPoint(id);
     if (!ok) return res.status(404).json({ message: 'AFC point not found' });
     res.json({ success: true });
   } catch (error) {

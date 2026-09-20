@@ -112,6 +112,7 @@ export interface IStorage {
   updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined>;
   deleteSoilProfile(id: number): Promise<boolean>;
   getSoilLayers(profileId: number): Promise<SoilLayer[]>;
+  getSoilLayer(id: number, scope: Scope): Promise<SoilLayer | undefined>;
   createSoilLayer(layer: InsertSoilLayer): Promise<SoilLayer>;
   updateSoilLayer(id: number, data: Partial<InsertSoilLayer>): Promise<SoilLayer | undefined>;
   deleteSoilLayer(id: number): Promise<boolean>;
@@ -152,6 +153,7 @@ export interface IStorage {
 
   // AFC data operations
   getCalibrationAfc(sessionId: number): Promise<CalibrationAfc[]>;
+  getCalibrationAfcPoint(id: number, scope: Scope): Promise<CalibrationAfc | undefined>;
   createCalibrationAfcPoint(point: InsertCalibrationAfc): Promise<CalibrationAfc>;
   deleteCalibrationAfcPoint(id: number): Promise<boolean>;
   replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]>;

@@ -82,7 +82,8 @@ router.patch('/api/soil-profiles/:id', requirePermission('soil', 'write'), async
     const id = parseInt(req.params.id);
     const existing = await storage.getSoilProfile(id, scopeOf(req));
     if (!existing) return res.status(404).json({ message: 'Profile not found' });
-    const updated = await storage.updateSoilProfile(id, req.body);
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    const updated = await storage.updateSoilProfile(id, data);
     if (!updated) return res.status(404).json({ message: 'Profile not found' });
     res.json(updated);
   } catch (error) { res.status(500).json({ message: 'Error updating soil profile' }); }
@@ -103,7 +104,11 @@ router.delete('/api/soil-profiles/:id', requirePermission('soil', 'write'), asyn
 
 router.patch('/api/soil-layers/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
-    const updated = await storage.updateSoilLayer(parseInt(req.params.id), req.body);
+    const id = parseInt(req.params.id);
+    const existing = await storage.getSoilLayer(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Layer not found' });
+    const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    const updated = await storage.updateSoilLayer(id, data);
     if (!updated) return res.status(404).json({ message: 'Layer not found' });
     res.json(updated);
   } catch (error) { res.status(500).json({ message: 'Error updating soil layer' }); }
@@ -111,7 +116,10 @@ router.patch('/api/soil-layers/:id', requirePermission('soil', 'write'), async (
 
 router.delete('/api/soil-layers/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
-    const ok = await storage.deleteSoilLayer(parseInt(req.params.id));
+    const id = parseInt(req.params.id);
+    const existing = await storage.getSoilLayer(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Layer not found' });
+    const ok = await storage.deleteSoilLayer(id);
     if (!ok) return res.status(404).json({ message: 'Layer not found' });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ message: 'Error deleting soil layer' }); }
