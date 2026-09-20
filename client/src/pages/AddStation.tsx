@@ -3,10 +3,12 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useLocation } from 'wouter';
-import { insertStationSchema } from '@shared/schema';
-import { useQueryClient } from '@tanstack/react-query';
+import { insertStationSchema, type Region } from '@shared/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { usePermission } from '@/hooks/use-permission';
 
 import { 
   Form, 
@@ -28,6 +30,7 @@ const addStationSchema = insertStationSchema.extend({
   stationId: z.string().min(3, 'Station ID must be at least 3 characters').regex(/^[A-Z]+-\d+$/, 'Station ID must be in format REGION-XX (e.g., SOCAL-12)'),
   latitude: z.string().regex(/^-?\d+(\.\d+)?$/, 'Must be a valid latitude value'),
   longitude: z.string().regex(/^-?\d+(\.\d+)?$/, 'Must be a valid longitude value'),
+  regionId: z.number().int().positive().nullable().optional(),
 });
 
 type AddStationFormValues = z.infer<typeof addStationSchema>;
@@ -36,7 +39,11 @@ const AddStation: FC = () => {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+  const { customer } = useAuth();
+  const { canCreate } = usePermission();
+
+  const { data: regions = [] } = useQuery<Region[]>({ queryKey: ['/api/regions'] });
+
   const form = useForm<AddStationFormValues>({
     resolver: zodResolver(addStationSchema),
     defaultValues: {
@@ -54,7 +61,8 @@ const AddStation: FC = () => {
       storageRemaining: 1000,
       sensorType: 'broadband',
       firmwareVersion: '1.0.0',
-      depth: 0
+      depth: 0,
+      regionId: customer?.regionId ?? null,
     }
   });
   
@@ -152,9 +160,9 @@ const AddStation: FC = () => {
                         <FormItem>
                           <FormLabel>Installation Depth (m)</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g., 0" 
+                            <Input
+                              type="number"
+                              placeholder="e.g., 0"
                               onChange={e => field.onChange(parseFloat(e.target.value))}
                               value={field.value}
                             />
@@ -164,7 +172,34 @@ const AddStation: FC = () => {
                       )}
                     />
                   </div>
-                  
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Region */}
+                    <FormField
+                      control={form.control}
+                      name="regionId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Регион</FormLabel>
+                          <Select
+                            onValueChange={v => field.onChange(v ? parseInt(v, 10) : null)}
+                            value={field.value != null ? String(field.value) : undefined}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Выберите регион" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {regions.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Coordinates */}
                     <FormField
@@ -370,7 +405,7 @@ const AddStation: FC = () => {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit">Add Station</Button>
+                    <Button type="submit" disabled={!canCreate} title={!canCreate ? 'Выберите заказчика' : undefined}>Add Station</Button>
                   </div>
                 </form>
               </Form>

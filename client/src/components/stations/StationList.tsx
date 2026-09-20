@@ -1,6 +1,8 @@
 import { FC, useState, useEffect } from 'react';
-import { Station, InfrastructureObject, SensorInstallation, Developer } from '@shared/schema';
+import { Station, InfrastructureObject, SensorInstallation, Developer, Region, Customer } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
+import { usePermission } from '@/hooks/use-permission';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -49,9 +51,11 @@ const LEVEL_OPTIONS = [
 const PAGE_SIZE = 50;
 
 const StationList: FC = () => {
+  const { customer } = useAuth();
+  const { customerScope } = usePermission();
   const [searchTerm,         setSearchTerm]         = useState('');
   const [statusFilter,       setStatusFilter]       = useState('all');
-  const [districtFilter,     setDistrictFilter]     = useState('all');
+  const [districtFilter,     setDistrictFilter]     = useState('');
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [levelFilter,        setLevelFilter]        = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
@@ -62,6 +66,20 @@ const StationList: FC = () => {
   const { data: objects = [] }       = useQuery<InfrastructureObject[]>({ queryKey: ['/api/infrastructure-objects'] });
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: developers = [] }    = useQuery<Developer[]>({ queryKey: ['/api/developers'] });
+  const { data: regions = [] }       = useQuery<Region[]>({ queryKey: ['/api/regions'] });
+  const { data: customers = [] }     = useQuery<Customer[]>({ queryKey: ['/api/customers'], enabled: customerScope === 'all' });
+
+  // The Irkutsk district dropdown only makes sense while the active customer is
+  // actually bound to the Иркутск region — otherwise it hides every other
+  // customer's stations behind a fixed, Irkutsk-only district list.
+  const isIrkutskRegion = customer?.regionId != null &&
+    regions.find(r => r.id === customer.regionId)?.name === 'Иркутск';
+
+  // Switch the district filter's sentinel value when the mode changes so a
+  // leftover 'all'/'' value from the other mode doesn't silently over-filter.
+  useEffect(() => { setDistrictFilter(isIrkutskRegion ? 'all' : ''); }, [isIrkutskRegion]);
+
+  const customerName = new Map(customers.map(c => [c.id, c.name]));
 
   // Reset to page 1 when any filter changes
   useEffect(() => { setPage(1); }, [searchTerm, statusFilter, districtFilter, constructionFilter, levelFilter, devFilter]);
@@ -74,7 +92,9 @@ const StationList: FC = () => {
       obj.name.toLowerCase().includes(q) ||
       (obj.address ?? '').toLowerCase().includes(q) ||
       (obj.objectId ?? '').toLowerCase().includes(q);
-    const matchDistrict     = districtFilter === 'all'     || (obj.district ?? '')        === districtFilter;
+    const matchDistrict     = isIrkutskRegion
+      ? (districtFilter === 'all' || (obj.district ?? '') === districtFilter)
+      : (districtFilter.trim() === '' || (obj.district ?? '').toLowerCase().includes(districtFilter.trim().toLowerCase()));
     const matchConstruction = constructionFilter === 'all' || (obj.structuralSystem ?? '') === constructionFilter;
     const matchDeveloper    = devFilter.developerName === 'all' || (obj.developer ?? '') === devFilter.developerName;
     const matchObject       = devFilter.objectId === 'all'     || String(obj.id) === devFilter.objectId;
@@ -85,8 +105,10 @@ const StationList: FC = () => {
     return matchSearch && matchDistrict && matchConstruction && matchDeveloper && matchComplex && matchObject;
   });
 
+  const districtFilterActive = isIrkutskRegion ? districtFilter !== 'all' : districtFilter.trim() !== '';
+
   const allowedObjectIds = new Set(filteredObjects.map(o => o.id));
-  const anyObjectFilter  = districtFilter !== 'all' || constructionFilter !== 'all' ||
+  const anyObjectFilter  = districtFilterActive || constructionFilter !== 'all' ||
     devFilter.developerName !== 'all' || devFilter.complexName !== 'all' || devFilter.objectId !== 'all' || searchTerm !== '';
 
   const filteredStations = stations.filter(s => {
@@ -104,7 +126,7 @@ const StationList: FC = () => {
   const pagedStations = filteredStations.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
-    districtFilter !== 'all',
+    districtFilterActive,
     devFilter.developerName !== 'all',
     devFilter.complexName !== 'all',
     devFilter.objectId !== 'all',
@@ -115,7 +137,7 @@ const StationList: FC = () => {
 
   const resetFilters = () => {
     setSearchTerm('');
-    setDistrictFilter('all');
+    setDistrictFilter(isIrkutskRegion ? 'all' : '');
     setConstructionFilter('all');
     setLevelFilter('all');
     setDevFilter(DEVELOPER_FILTER_DEFAULT);
@@ -243,16 +265,28 @@ const StationList: FC = () => {
 
             {/* Row 2: district + construction type + level */}
             <div className="grid grid-cols-3 gap-3">
-              <Select value={districtFilter} onValueChange={setDistrictFilter}>
-                <SelectTrigger className="h-9 text-sm">
-                  <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                  <SelectValue placeholder="Район города" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все районы</SelectItem>
-                  {IRKUTSK_DISTRICTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {isIrkutskRegion ? (
+                <Select value={districtFilter} onValueChange={setDistrictFilter}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                    <SelectValue placeholder="Район города" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все районы</SelectItem>
+                    {IRKUTSK_DISTRICTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="relative">
+                  <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                  <Input
+                    placeholder="Район / территория"
+                    value={districtFilter}
+                    onChange={e => setDistrictFilter(e.target.value)}
+                    className="pl-8 h-9 text-sm"
+                  />
+                </div>
+              )}
               <Select value={constructionFilter} onValueChange={setConstructionFilter}>
                 <SelectTrigger className="h-9 text-sm">
                   <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
@@ -298,6 +332,7 @@ const StationList: FC = () => {
                     <TableHead className="text-xs">Статус</TableHead>
                     <TableHead className="text-xs">Поток</TableHead>
                     <TableHead className="text-xs">Обновление</TableHead>
+                    {customerScope === 'all' && <TableHead className="text-xs">Заказчик</TableHead>}
                     <TableHead className="text-xs w-8" />
                   </TableRow>
                 </TableHeader>
@@ -348,6 +383,11 @@ const StationList: FC = () => {
                             {format(new Date(station.lastUpdate), 'dd.MM HH:mm')}
                           </div>
                         </TableCell>
+                        {customerScope === 'all' && (
+                          <TableCell className="text-xs text-slate-500">
+                            {customerName.get(station.customerId) ?? '—'}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <ChevronRight className="h-4 w-4 text-slate-400" />
                         </TableCell>
@@ -357,7 +397,7 @@ const StationList: FC = () => {
 
                   {pagedStations.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10">
+                      <TableCell colSpan={customerScope === 'all' ? 8 : 7} className="text-center py-10">
                         <Radio className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                         <p className="text-slate-400 text-sm">Датчики не найдены</p>
                         {activeFilterCount > 0 && (

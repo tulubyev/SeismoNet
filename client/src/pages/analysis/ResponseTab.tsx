@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SP14_ACCELEROGRAMS, SP14_BY_INTENSITY, SP14_SOIL_K_TABLE4, SP14_PGA_TABLE3, SP14_K1_TABLE5, SP14_K2_TABLE6, sp14DesignSpectrum, synthesizeSP14Accelerogram, synthesizeSP14HorizontalPair, type NormativeAccelerogram, type SeismicIntensity } from '@/data/sp14-accelerograms';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/use-permission';
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Plus, Save, Zap, Building2, Download, Copy } from 'lucide-react';
 import type { SeismogramRecord, InfrastructureObject } from '@shared/schema';
@@ -32,6 +33,7 @@ export const ResponseTab: FC<RespTabProps> = ({
   respDamping, setRespDamping, respComponent, setRespComponent,
   respResult, setRespResult, toast,
 }) => {
+  const { canCreate } = usePermission();
   const [inputMode, setInputMode] = useState<'catalog' | 'sp14' | 'seismogram'>('sp14');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>(BAIKAL_CATALOG[0].id);
   const [sp14Intensity, setSp14Intensity] = useState<SeismicIntensity>('VIII');
@@ -985,6 +987,8 @@ export const ResponseTab: FC<RespTabProps> = ({
                 <Download className="h-3 w-3" /> CSV
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                disabled={!canCreate}
+                title={!canCreate ? 'Выберите заказчика' : undefined}
                 onClick={async () => {
                   try {
                     const selectedObj = selectedObjectId !== null ? objects.find(o => o.id === selectedObjectId) ?? null : null;

@@ -19,7 +19,7 @@ import { CompareDialog } from '@/pages/calculations/CompareDialog';
 
 const Calculations: FC = () => {
   const { toast } = useToast();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
   const [activeTab, setActiveTab] = useState<'all' | CalcType>('all');
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<SeismicCalculation | null>(null);
@@ -470,6 +470,10 @@ const Calculations: FC = () => {
         objMap={objMap}
         onSaveSet={(name) => {
           if (!selectionType) return;
+          if (!canCreate) {
+            toast({ title: 'Выберите заказчика', description: 'Сохранение набора недоступно в режиме «все заказчики».', variant: 'destructive' });
+            return;
+          }
           saveSetMut.mutate({ name, calcType: selectionType, calcIds: selectedCalcs.map(c => c.id) });
         }}
         onShareLink={() => copyShareLink(selectedCalcs.map(c => c.id))}

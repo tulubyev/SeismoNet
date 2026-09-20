@@ -28,6 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { usePermission } from '@/hooks/use-permission';
+import { useAuth } from '@/hooks/use-auth';
 import type { SoilProfile, SoilLayer, InfrastructureObject } from '@shared/schema';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -603,7 +604,8 @@ const AddProfileDialog: FC<{ open: boolean; onClose: () => void }> = ({ open, on
 
 const SoilDatabase: FC = () => {
   const { toast } = useToast();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
+  const { customer } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch]         = useState('');
   const [catFilter, setCatFilter]   = useState('all');
@@ -717,7 +719,13 @@ const SoilDatabase: FC = () => {
                     />
                   </div>
                   {can('soil', 'write') && (
-                    <Button size="sm" className="h-9" onClick={() => setAddOpen(true)}>
+                    <Button
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setAddOpen(true)}
+                      disabled={!canCreate}
+                      title={!canCreate ? 'Выберите заказчика' : undefined}
+                    >
                       <Plus className="h-4 w-4 mr-1" /> Добавить
                     </Button>
                   )}
@@ -905,7 +913,7 @@ const SoilDatabase: FC = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-emerald-600" />
-                  Карта грунтовых условий — г. Иркутск
+                  Карта грунтовых условий — {customer?.name ?? 'все заказчики'}
                   <span className="ml-auto text-[11px] text-slate-400 font-normal">
                     {profiles.filter(p => p.latitude && p.longitude).length} точек на карте
                   </span>

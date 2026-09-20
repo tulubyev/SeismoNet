@@ -23,6 +23,7 @@ import type { Developer, DeveloperLicense, DeveloperObject } from '@shared/schem
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { usePermission } from '@/hooks/use-permission';
+import { useAuth } from '@/hooks/use-auth';
 
 // ─── Lookups ──────────────────────────────────────────────────────────────────
 
@@ -643,7 +644,8 @@ function mapDevToForm(d: Developer): typeof BLANK {
 const DevelopersPage: FC = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
+  const { customer } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -696,14 +698,19 @@ const DevelopersPage: FC = () => {
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <HardHat className="h-6 w-6 text-blue-600" />Застройщики Иркутска
+            <HardHat className="h-6 w-6 text-blue-600" />Застройщики — {customer?.name ?? 'все заказчики'}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Реестр застройщиков · юридические данные · лицензии · объекты · программа мониторинга
           </p>
         </div>
         {can('objects', 'write') && (
-          <Button onClick={openCreate} data-testid="button-add-developer">
+          <Button
+            onClick={openCreate}
+            disabled={!canCreate}
+            title={!canCreate ? 'Выберите заказчика' : undefined}
+            data-testid="button-add-developer"
+          >
             <Plus className="h-4 w-4 mr-1" />Добавить застройщика
           </Button>
         )}

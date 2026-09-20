@@ -14,7 +14,7 @@ import {
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
   Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor, Customer } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import DeveloperObjectFilter, {
@@ -155,7 +155,7 @@ const SENSOR_TYPE_OPTS = [
 const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[] }> = ({ obj, sensors, categories }) => {
   const cond    = conditionInfo(obj.technicalCondition);
   const queryClient = useQueryClient();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
 
   // K₁/K₂ edit state
   const [showK1K2Edit, setShowK1K2Edit] = useState(false);
@@ -460,6 +460,8 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
                 size="sm"
                 className="w-full h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
                 onClick={openAddForm}
+                disabled={!canCreate}
+                title={!canCreate ? 'Выберите заказчика' : undefined}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Добавить датчик
@@ -722,6 +724,7 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const InfrastructureObjects: FC = () => {
+  const { customerScope } = usePermission();
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('all');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
@@ -739,6 +742,12 @@ const InfrastructureObjects: FC = () => {
   const { data: developers = [] } = useQuery<Developer[]>({
     queryKey: ['/api/developers'],
   });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ['/api/customers'],
+    enabled: customerScope === 'all',
+  });
+  const customerName = new Map(customers.map(c => [c.id, c.name]));
 
   const { data: sensorInstallations = [] } = useQuery<SensorInstallation[]>({
     queryKey: ['/api/sensor-installations', selectedObj?.id],
@@ -952,6 +961,11 @@ const InfrastructureObjects: FC = () => {
                                   {obj.district && (
                                     <p className="text-xs text-blue-600 font-medium">
                                       {obj.district} р-н
+                                    </p>
+                                  )}
+                                  {customerScope === 'all' && (
+                                    <p className="text-xs text-slate-500">
+                                      {customerName.get(obj.customerId) ?? '—'}
                                     </p>
                                   )}
                                 </div>

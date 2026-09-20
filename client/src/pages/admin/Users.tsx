@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { Customer } from "@shared/schema";
 import type { Role } from "@shared/permissions";
 import { RoleSelect, invalidateUsers, useErrorToast, type SafeUser } from "./users/shared";
 import { CreateDialog } from "./users/CreateDialog";
@@ -17,6 +18,8 @@ import { AuditLog } from "./users/AuditLog";
 const AdminUsers: FC = () => {
   const onError = useErrorToast();
   const { data: users = [], isLoading } = useQuery<SafeUser[]>({ queryKey: ["/api/users"] });
+  const { data: customers = [] } = useQuery<Customer[]>({ queryKey: ["/api/customers"] });
+  const customerName = new Map(customers.map(c => [c.id, c.name]));
   const [creating, setCreating] = useState(false);
   const [editUser, setEditUser] = useState<SafeUser | null>(null);
   const [pwUser, setPwUser] = useState<SafeUser | null>(null);
@@ -39,7 +42,7 @@ const AdminUsers: FC = () => {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Логин</TableHead><TableHead>ФИО</TableHead><TableHead>Email</TableHead>
-                <TableHead>Роль</TableHead><TableHead>Активен</TableHead><TableHead />
+                <TableHead>Роль</TableHead><TableHead>Заказчик</TableHead><TableHead>Активен</TableHead><TableHead />
               </TableRow></TableHeader>
               <TableBody>
                 {users.map(u => (
@@ -48,6 +51,7 @@ const AdminUsers: FC = () => {
                     <TableCell>{u.fullName}<div className="text-xs text-muted-foreground">{u.organization}</div></TableCell>
                     <TableCell>{u.email}</TableCell>
                     <TableCell className="min-w-[200px]"><RoleSelect value={u.role as Role} onChange={role => patch.mutate({ id: u.id, body: { role } })} /></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{u.customerId != null ? customerName.get(u.customerId) ?? "—" : "—"}</TableCell>
                     <TableCell><Switch checked={u.active} onCheckedChange={active => patch.mutate({ id: u.id, body: { active } })} /></TableCell>
                     <TableCell className="space-x-1 whitespace-nowrap">
                       <Button size="sm" variant="outline" onClick={() => setEditUser(u)}>Изменить</Button>

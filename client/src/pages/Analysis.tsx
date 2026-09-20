@@ -54,7 +54,7 @@ function isExpired(d: string | Date): boolean {
 
 const Analysis: FC = () => {
   const { toast } = useToast();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
 
   const { data: installations = [] } = useQuery<SensorInstallation[]>({ queryKey: ['/api/sensor-installations'] });
   const { data: seismograms = [] }   = useQuery<SeismogramRecord[]>({ queryKey: ['/api/seismograms'] });
@@ -259,7 +259,14 @@ const Analysis: FC = () => {
               <CardHeader className="pb-2 pt-4 px-4 flex-row items-center justify-between">
                 <CardTitle className="text-sm text-slate-600">История калибровок</CardTitle>
                 {selectedInstId && (
-                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setShowNewSessionForm(v => !v)}>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => setShowNewSessionForm(v => !v)}
+                    disabled={!showNewSessionForm && !canCreate}
+                    title={!showNewSessionForm && !canCreate ? 'Выберите заказчика' : undefined}
+                  >
                     <Plus className="h-3 w-3" />{showNewSessionForm ? 'Отмена' : 'Новая сессия'}
                   </Button>
                 )}
@@ -301,7 +308,13 @@ const Analysis: FC = () => {
                           <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Доп. информация" className="h-7 text-xs" />
                         </div>
                       </div>
-                      <Button size="sm" className="h-7 text-xs gap-1" onClick={handleNewSession} disabled={createSession.isPending}>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={handleNewSession}
+                        disabled={createSession.isPending || !canCreate}
+                        title={!canCreate ? 'Выберите заказчика' : undefined}
+                      >
                         <Save className="h-3 w-3" /> Сохранить сессию
                       </Button>
                     </CardContent>

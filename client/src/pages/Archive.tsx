@@ -1,5 +1,6 @@
 import { FC, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -381,6 +382,7 @@ const EventsArchive: FC = () => {
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
 const Archive: FC = () => {
+  const { customer } = useAuth();
   const { data: objects = [] } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects'],
   });
@@ -401,7 +403,7 @@ const Archive: FC = () => {
             Архив данных сейсмической сети
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            База данных грунтов и объектов г. Иркутска · реестр зданий, инженерно-геологических
+            База данных грунтов и объектов — {customer?.name ?? 'все заказчики'} · реестр зданий, инженерно-геологических
             профилей и сейсмических событий
           </p>
         </div>
