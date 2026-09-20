@@ -4,14 +4,14 @@ import { PERMISSIONS, ROLES, MODULES, can, ROLE_LABELS, type Access, type Role }
 // docs/roles-specification.md — «Матрица доступа», transcribed cell by cell in
 // MODULES order. `analytics` (superadmin-only) is not in the doc's table; the
 // spec states settings/users/analytics are superadmin-exclusive.
-//        monitoring objects sensors stations seismicMap events seismograms spectral soil  mtsm   norms  calibration settings users  analytics
+//        monitoring objects sensors stations seismicMap events seismograms spectral soil  mtsm   norms  calibration settings users  analytics customers
 const EXPECTED: Record<Role, Access[]> = {
-  superadmin:     ['write','write','write','write','write','write','write','write','write','write','write','write','write','write','write'],
-  designer:       ['read', 'write','write','read', 'read', 'none', 'none', 'none', 'read', 'read', 'write','none', 'none','none','none'],
-  seismologist:   ['read', 'read', 'read', 'read', 'write','write','write','write','write','write','read', 'read', 'none','none','none'],
-  data_analyst:   ['read', 'read', 'none', 'none', 'read', 'write','write','write','read', 'write','read', 'none', 'none','none','none'],
-  device_manager: ['write','read', 'write','write','none', 'none', 'read', 'none', 'none', 'none', 'none', 'write','none','none','none'],
-  staff:          ['read', 'read', 'none', 'none', 'read', 'read', 'none', 'none', 'none', 'none', 'none', 'none', 'none','none','none'],
+  superadmin:     ['write','write','write','write','write','write','write','write','write','write','write','write','write','write','write','write'],
+  designer:       ['read', 'write','write','read', 'read', 'none', 'none', 'none', 'read', 'read', 'write','none', 'none','none','none','none'],
+  seismologist:   ['read', 'read', 'read', 'read', 'write','write','write','write','write','write','read', 'read', 'none','none','none','none'],
+  data_analyst:   ['read', 'read', 'none', 'none', 'read', 'write','write','write','read', 'write','read', 'none', 'none','none','none','none'],
+  device_manager: ['write','read', 'write','write','none', 'none', 'read', 'none', 'none', 'none', 'none', 'write','none','none','none','none'],
+  staff:          ['read', 'read', 'none', 'none', 'read', 'read', 'none', 'none', 'none', 'none', 'none', 'none', 'none','none','none','none'],
 };
 
 describe('PERMISSIONS matrix', () => {
@@ -39,6 +39,10 @@ describe('PERMISSIONS matrix', () => {
       expect(PERMISSIONS[role].users).toBe('none');
       expect(PERMISSIONS[role].analytics).toBe('none');
     }
+  });
+
+  it('customers module is superadmin-only', () => {
+    for (const role of ROLES) expect(can(role, 'customers', 'read')).toBe(role === 'superadmin');
   });
 
   it('can(): read is implied by write, none blocks both, unknown role blocks', () => {

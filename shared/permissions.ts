@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number];
 
 export const MODULES = [
   'monitoring', 'objects', 'sensors', 'stations', 'seismicMap', 'events', 'seismograms',
-  'spectral', 'soil', 'mtsm', 'norms', 'calibration', 'settings', 'users', 'analytics',
+  'spectral', 'soil', 'mtsm', 'norms', 'calibration', 'settings', 'users', 'analytics', 'customers',
 ] as const;
 export type Module = (typeof MODULES)[number];
 
@@ -15,17 +15,17 @@ export type Level = 'read' | 'write';
 
 const W: Access = 'write', R: Access = 'read', N: Access = 'none';
 
-//                  monitoring objects sensors stations seismicMap events seismograms spectral soil mtsm norms calibration settings users analytics
+//                  monitoring objects sensors stations seismicMap events seismograms spectral soil mtsm norms calibration settings users analytics customers
 const ROW = (a: Access[]): Record<Module, Access> =>
   Object.fromEntries(MODULES.map((m, i) => [m, a[i]])) as Record<Module, Access>;
 
 export const PERMISSIONS: Record<Role, Record<Module, Access>> = {
-  superadmin:     ROW([W, W, W, W, W, W, W, W, W, W, W, W, W, W, W]),
-  designer:       ROW([R, W, W, R, R, N, N, N, R, R, W, N, N, N, N]),
-  seismologist:   ROW([R, R, R, R, W, W, W, W, W, W, R, R, N, N, N]),
-  data_analyst:   ROW([R, R, N, N, R, W, W, W, R, W, R, N, N, N, N]),
-  device_manager: ROW([W, R, W, W, N, N, R, N, N, N, N, W, N, N, N]),
-  staff:          ROW([R, R, N, N, R, R, N, N, N, N, N, N, N, N, N]),
+  superadmin:     ROW([W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W]),
+  designer:       ROW([R, W, W, R, R, N, N, N, R, R, W, N, N, N, N, N]),
+  seismologist:   ROW([R, R, R, R, W, W, W, W, W, W, R, R, N, N, N, N]),
+  data_analyst:   ROW([R, R, N, N, R, W, W, W, R, W, R, N, N, N, N, N]),
+  device_manager: ROW([W, R, W, W, N, N, R, N, N, N, N, W, N, N, N, N]),
+  staff:          ROW([R, R, N, N, R, R, N, N, N, N, N, N, N, N, N, N]),
 };
 
 export function can(role: Role | null | undefined, module: Module, level: Level): boolean {
@@ -59,4 +59,5 @@ export const MODULE_LABELS: Record<Module, string> = {
   settings: 'Настройки системы',
   users: 'Управление пользователями',
   analytics: 'Статистика посещений',
+  customers: 'Заказчики',
 };
