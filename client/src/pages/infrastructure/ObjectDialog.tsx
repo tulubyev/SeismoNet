@@ -11,8 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { InfrastructureObject, ObjectCategory, Region } from "@shared/schema";
-import { useErrorToast } from "@/pages/admin/users/shared";
-import { STRUCTURAL_SYSTEM_OPTIONS, conditionInfo } from "@/pages/InfrastructureObjects";
+import { useErrorToast, STRUCTURAL_SYSTEM_OPTIONS, conditionInfo } from "./shared";
 
 const NO_REGION = "none";
 const NONE = "none";
@@ -74,6 +73,11 @@ const blankForm = (defaultRegionId: number | null | undefined): Form => ({
   description: "",
 });
 
+/**
+ * Loads an existing row's technicalCondition as-is: it can legitimately be
+ * `null` in the DB, and defaulting it to "satisfactory" here would silently
+ * write that value back on the next save even if the user changed nothing.
+ */
 const fromObject = (o: InfrastructureObject): Form => ({
   objectId: o.objectId,
   name: o.name,
@@ -90,7 +94,7 @@ const fromObject = (o: InfrastructureObject): Form => ({
   developer: o.developer ?? "",
   seismicCategory: o.seismicCategory ?? NONE,
   designIntensity: o.designIntensity != null ? String(o.designIntensity) : NONE,
-  technicalCondition: o.technicalCondition ?? "satisfactory",
+  technicalCondition: o.technicalCondition ?? NONE,
   responsibleOrganization: o.responsibleOrganization ?? "",
   contactPerson: o.contactPerson ?? "",
   contactPhone: o.contactPhone ?? "",
@@ -151,7 +155,7 @@ const toPayload = (f: Form) => ({
   developer: f.developer.trim() || null,
   seismicCategory: f.seismicCategory === NONE ? null : f.seismicCategory,
   designIntensity: f.designIntensity === NONE ? null : Number(f.designIntensity),
-  technicalCondition: f.technicalCondition,
+  technicalCondition: f.technicalCondition === NONE ? null : f.technicalCondition,
   responsibleOrganization: f.responsibleOrganization.trim() || null,
   contactPerson: f.contactPerson.trim() || null,
   contactPhone: f.contactPhone.trim() || null,
@@ -346,6 +350,7 @@ export const ObjectDialog: FC<{ open: boolean; object: InfrastructureObject | nu
                 <Select value={f.technicalCondition} onValueChange={technicalCondition => setF({ ...f, technicalCondition })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NONE}>Не указано</SelectItem>
                     {TECHNICAL_CONDITION_OPTIONS.map(c => (
                       <SelectItem key={c} value={c}>{conditionInfo(c).label}</SelectItem>
                     ))}

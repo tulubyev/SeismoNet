@@ -1,10 +1,14 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { storage, type Scope } from "../storage";
 import { requirePermission, requireCustomer, scopeOf } from "../auth";
 import { insertInfrastructureObjectSchema } from "@shared/schema";
 
 const router = Router();
 const patchInfrastructureObjectSchema = insertInfrastructureObjectSchema.partial();
+// objectId is globally unique, so a duplicate-code lookup must search across every
+// customer, not just the caller's own — this scope removes the customer filter
+// entirely rather than narrowing it, which already covers the caller's own rows too.
+const scope: Scope = { customerId: null };
 
 
 // ─── Infrastructure Objects API ────────────────────────────────────────────────
@@ -38,9 +42,9 @@ router.post('/api/infrastructure-objects', requirePermission('objects', 'write')
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
       return res.status(400).json({ error: "unknown region" });
     }
-    const dup = (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scopeOf(req)))
-      ?? (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, { customerId: null }));
-    if (dup) return res.status(409).json({ error: "Код объекта уже занят" });
+    if (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scope)) {
+      return res.status(409).json({ error: "Код объекта уже занят" });
+    }
     const newObj = await storage.createInfrastructureObject(parsed.data, customerId);
     res.status(201).json(newObj);
   } catch (error) {
@@ -58,6 +62,10 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
     if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
       return res.status(400).json({ error: "unknown region" });
+    }
+    if (parsed.data.objectId !== undefined && parsed.data.objectId !== existing.objectId
+        && (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scope))) {
+      return res.status(409).json({ error: "Код объекта уже занят" });
     }
     const updated = await storage.updateInfrastructureObject(id, parsed.data);
     if (!updated) return res.status(404).json({ message: 'Object not found' });
