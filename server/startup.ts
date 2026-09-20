@@ -158,8 +158,17 @@ export async function runStartupMigrations() {
     await db.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_id integer REFERENCES customers(id)`);
     await db.execute(`UPDATE users SET customer_id = (SELECT id FROM customers WHERE code = 'ecsem') WHERE customer_id IS NULL AND role <> 'superadmin'`);
     await db.execute(`ALTER TABLE infrastructure_objects ADD COLUMN IF NOT EXISTS region_id integer REFERENCES regions(id)`);
-    await db.execute(`UPDATE infrastructure_objects SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
-    await db.execute(`UPDATE stations SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1) WHERE region_id IS NULL`);
+    // One-time backfill for the original customer's (ecsem/Иркутск) pre-migration rows only —
+    // must NOT re-stamp objects/stations created for other customers (Махачкала, Алматы, Улан-Батор)
+    // without an explicit regionId, or every restart would silently relabel them Irkutsk.
+    await db.execute(`
+      UPDATE infrastructure_objects SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1)
+      WHERE region_id IS NULL AND customer_id = (SELECT id FROM customers WHERE code = 'ecsem')
+    `);
+    await db.execute(`
+      UPDATE stations SET region_id = (SELECT id FROM regions WHERE name = 'Иркутск' LIMIT 1)
+      WHERE region_id IS NULL AND customer_id = (SELECT id FROM customers WHERE code = 'ecsem')
+    `);
     console.log('Customers migration applied.');
   } catch (e) {
     console.error(`Customers migration error: ${describeError(e)}`);

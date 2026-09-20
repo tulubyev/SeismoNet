@@ -85,8 +85,8 @@ export interface IStorage {
   // Alert operations
   getAlerts(limit: number, scope: Scope): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
-  markAlertAsRead(id: number): Promise<Alert | undefined>;
-  markAllAlertsAsRead(): Promise<void>;
+  markAlertAsRead(id: number, scope: Scope): Promise<Alert | undefined>;
+  markAllAlertsAsRead(scope: Scope): Promise<void>;
 
   // Infrastructure object operations
   getInfrastructureObjects(scope: Scope): Promise<InfrastructureObject[]>;

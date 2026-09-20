@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachScope, resolveScope, resolveSessionUser, limiterKey } from './auth';
+import { requirePermission, loginLimiter, activeOrFalse, customerActiveOrFalse, sessionUserFrom, attachScope, resolveScope, resolveSessionUser, limiterKey } from './auth';
 import { storage } from './storage';
 
 vi.mock('./storage', () => ({
@@ -75,6 +75,41 @@ describe('activeOrFalse', () => {
   });
   it('rejects a missing user', () => {
     expect(activeOrFalse(undefined)).toBe(false);
+  });
+});
+
+describe('customerActiveOrFalse', () => {
+  beforeEach(() => vi.mocked(storage.getCustomer).mockReset());
+
+  it('bypasses the customer check for superadmin', async () => {
+    const user = { id: 1, role: 'superadmin', customerId: null } as never;
+    expect(await customerActiveOrFalse(user)).toBe(user);
+    expect(storage.getCustomer).not.toHaveBeenCalled();
+  });
+
+  it('bypasses the customer check for a user with no customer', async () => {
+    const user = { id: 2, role: 'designer', customerId: null } as never;
+    expect(await customerActiveOrFalse(user)).toBe(user);
+    expect(storage.getCustomer).not.toHaveBeenCalled();
+  });
+
+  it('passes a user whose customer is active', async () => {
+    const user = { id: 3, role: 'designer', customerId: 5 } as never;
+    vi.mocked(storage.getCustomer).mockResolvedValueOnce({ id: 5, active: true } as never);
+    expect(await customerActiveOrFalse(user)).toBe(user);
+    expect(storage.getCustomer).toHaveBeenCalledWith(5);
+  });
+
+  it('locks out a user whose customer is inactive', async () => {
+    const user = { id: 4, role: 'designer', customerId: 5 } as never;
+    vi.mocked(storage.getCustomer).mockResolvedValueOnce({ id: 5, active: false } as never);
+    expect(await customerActiveOrFalse(user)).toBe(false);
+  });
+
+  it('locks out a user whose customer no longer exists', async () => {
+    const user = { id: 5, role: 'designer', customerId: 5 } as never;
+    vi.mocked(storage.getCustomer).mockResolvedValueOnce(undefined);
+    expect(await customerActiveOrFalse(user)).toBe(false);
   });
 });
 

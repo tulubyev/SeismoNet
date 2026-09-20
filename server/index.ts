@@ -135,8 +135,16 @@ process.on("unhandledRejection", (reason) => {
 
     // Run DB startup tasks in the background after the port is open so health
     // checks never block on network timeouts (e.g. when VPS DB is slow to connect).
-    runStartupMigrations().catch(e => log(`startup migrations error: ${describeError(e)}`));
-    seedDatabase().catch(e => log(`seed error: ${describeError(e)}`));
+    // seedDatabase() reads/writes customer_id columns that runStartupMigrations() adds
+    // (getCustomerByCode("ecsem") + every seed getter selects customer_id), so it must
+    // not start until the migrations have resolved — otherwise the first boot on a
+    // fresh branch checkout races the ALTER TABLE and seeding silently fails.
+    // initializeResearchNetworks() and trimNoteHistoryOnStartup() touch tables untouched
+    // by this migration (research_networks, calculation_note_history), so they stay
+    // independent and keep firing immediately, same as before.
+    runStartupMigrations()
+      .then(() => seedDatabase().catch(e => log(`seed error: ${describeError(e)}`)))
+      .catch(e => log(`startup migrations error: ${describeError(e)}`));
     initializeResearchNetworks().catch(e => log(`initializeResearchNetworks error: ${describeError(e)}`));
     trimNoteHistoryOnStartup().catch(e => log(`trimNoteHistoryOnStartup error: ${describeError(e)}`));
   });

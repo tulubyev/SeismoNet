@@ -64,7 +64,7 @@ router.get('/api/alerts', requirePermission('monitoring', 'read'), async (req, r
 router.post('/api/alerts/:id/read', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const alertId = parseInt(req.params.id);
-    const alert = await storage.markAlertAsRead(alertId);
+    const alert = await storage.markAlertAsRead(alertId, scopeOf(req));
     if (!alert) {
       return res.status(404).json({ message: 'Alert not found' });
     }
@@ -77,7 +77,7 @@ router.post('/api/alerts/:id/read', requirePermission('monitoring', 'read'), asy
 // Mark all alerts as read
 router.post('/api/alerts/read-all', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
-    await storage.markAllAlertsAsRead();
+    await storage.markAllAlertsAsRead(scopeOf(req));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Error updating alerts' });

@@ -11,7 +11,7 @@ npm run setup            # первый запуск: npm install + .env + SSH-�
 npm run tunnel -- start  # SSH-туннель: localhost:5433 -> VPS PostgreSQL (status|stop)
 npm run dev              # tsx + Vite middleware, http://localhost:5000 (PORT переопределяет)
 npm run check            # tsc --noEmit (baseline ошибок см. ниже)
-npm test                 # vitest: client/src/lib/numeric, shared/permissions, server/{auth,ws,lib/password,storage/*}
+npm test                 # vitest: client/src/lib/numeric, shared/permissions, server/{auth,ws,lib/password,storage/*,routes/*}
 npm run build            # vite build -> dist/public, esbuild server -> dist/index.js
 npm start                # production: node dist/index.js
 npm run db:push          # drizzle-kit push — МЕНЯЕТ СХЕМУ ОБЩЕЙ БД, только осознанно

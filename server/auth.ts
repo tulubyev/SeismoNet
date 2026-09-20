@@ -78,6 +78,18 @@ export function limiterKey(ip: string | undefined, username: unknown): string {
 /** A deactivated account must not resurrect a session on the next request. */
 export const activeOrFalse = (u?: SelectUser): SelectUser | false => (u && u.active ? u : false);
 
+/**
+ * A non-superadmin user's customer must exist and be active, or they are treated as
+ * inactive: superadmin (global by design) and a user with no customer bypass the
+ * check; anyone else is locked out the moment their customer is deactivated or
+ * deleted, even mid-session (deserializeUser calls this on every request).
+ */
+export async function customerActiveOrFalse(user: SelectUser): Promise<SelectUser | false> {
+  if (user.role === "superadmin" || user.customerId == null) return user;
+  const c = await storage.getCustomer(user.customerId);
+  return c && c.active ? user : false;
+}
+
 export type SessionPayload = { id: number; epoch: number };
 
 /** Session payload → user, or false when the user is gone, inactive, or the epoch moved on. */
@@ -127,13 +139,6 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
   app.use("/api", attachScope);
-
-  /** A non-superadmin user's customer must exist and be active, or they are treated as inactive. */
-  async function customerActiveOrFalse(user: SelectUser): Promise<SelectUser | false> {
-    if (user.role === "superadmin" || user.customerId == null) return user;
-    const c = await storage.getCustomer(user.customerId);
-    return c && c.active ? user : false;
-  }
 
   passport.use(new LocalStrategy(async (username, password, done) => {
     try {

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { and } from "drizzle-orm";
 import { storage } from "../storage";
 import { requirePermission, requireCustomer, scopeOf } from "../auth";
 

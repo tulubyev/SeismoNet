@@ -103,9 +103,18 @@ router.post('/api/sensors', requirePermission('sensors', 'write'), async (req, r
 router.patch('/api/sensors/:id', requirePermission('sensors', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existing = await storage.getSensor(id, scopeOf(req));
+    const scope = scopeOf(req);
+    const existing = await storage.getSensor(id, scope);
     if (!existing) return res.status(404).json({ message: 'Sensor not found' });
     const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    if (data.stationId != null) {
+      const station = await storage.getStationByStationId(data.stationId, scope);
+      if (!station) return res.status(400).json({ error: 'unknown station/object' });
+    }
+    if (data.objectId != null) {
+      const obj = await storage.getInfrastructureObject(data.objectId, scope);
+      if (!obj) return res.status(400).json({ error: 'unknown station/object' });
+    }
     const updated = await storage.updateSensor(id, data);
     if (!updated) return res.status(404).json({ message: 'Sensor not found' });
     res.json(updated);

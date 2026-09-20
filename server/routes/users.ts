@@ -97,6 +97,10 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
     } else if (!(await storage.getCustomer(nextCustomer))) {
       return res.status(400).json({ error: "unknown customer" });
     }
+    // Moving a user to a different customer (or clearing it on promotion to superadmin)
+    // invalidates any infrastructure-object bindings from the old customer — otherwise
+    // `user_objects` keeps pointing at objects the user's new customer doesn't own.
+    const customerChanged = patch.customerId !== undefined && patch.customerId !== target.customerId;
     let updated: User | undefined;
     try {
       updated = await storage.updateUserGuarded(id, patch);
@@ -106,7 +110,11 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
     }
     if (!updated) return res.status(404).json({ error: "not found" });
     if (parsed.data.active === false && target.active) updated = (await storage.bumpSessionEpoch(id)) ?? updated;
-    void storage.logAudit({ ...actorOf(req), action: "user.update", targetType: "user", targetId: id, details: patch });
+    if (customerChanged) await storage.setUserObjects(id, []);
+    void storage.logAudit({
+      ...actorOf(req), action: "user.update", targetType: "user", targetId: id,
+      details: customerChanged ? { ...patch, objectsCleared: true } : patch,
+    });
     res.json(safe(updated));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);

@@ -143,6 +143,12 @@ router.post('/api/comparison-sets', requirePermission('mtsm', 'write'), async (r
         !calcIds.every((n: unknown) => Number.isInteger(n))) {
       return res.status(400).json({ message: 'calcIds must be an integer array of length >= 2' });
     }
+    const scope = scopeOf(req);
+    for (const calcId of calcIds as number[]) {
+      if (!(await storage.getSeismicCalculation(calcId, scope))) {
+        return res.status(400).json({ error: 'unknown calculation' });
+      }
+    }
     const set = await storage.createComparisonSet({
       name: name.trim().slice(0, 120),
       calcType,
