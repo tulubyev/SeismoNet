@@ -44,9 +44,14 @@ server/routes.ts       registerRoutes(): auth → монтирование до�
 server/routes/*.ts     express.Router по доменам, полные пути "/api/...": health, stations, monitoring (events/alerts/networks/regions),
                        notifications, earthquakes, infrastructure (+object-categories), developers, calculations (+comparison-sets),
                        soil, sensors, norms, seismograms (+miniSEED), calibration, analytics (page-views), users, audit
-server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage; audit.ts — аудит-лог
+server/storage/*.ts    доступ к БД по доменам; index.ts собирает объект `storage: IStorage`; types.ts — интерфейс IStorage; audit.ts — аудит-лог;
+                       scope.ts — SQL скоупа (customerWhere/stationInCustomer/objectInCustomer/objectIdsWhere/andAll, только через
+                       db.select().from(...), НЕ db.query.*.findMany — relational API алиасит таблицу и ломает EXISTS-подзапрос, 42P01);
+                       customers.ts — CRUD заказчиков
+server/routes/customers.ts  /api/customers CRUD (модуль customers, только superadmin)
 server/ws.ts           WebSocketServer('/ws', noServer), broadcastMessage(), симулятор волновых данных
-server/startup.ts      runStartupMigrations() (ad-hoc ALTER TABLE ... IF NOT EXISTS), initializeResearchNetworks()
+server/startup.ts      runStartupMigrations() (ad-hoc ALTER TABLE ... IF NOT EXISTS, включая таблицу customers и customer_id/region_id),
+                       initializeResearchNetworks()
 server/seed.ts         seedDatabase(): стартовые данные (застройщики, нормы, станции, грунты…), идемпотентно
 server/auth.ts         Passport-local, scrypt, express-session (MemoryStore dev / connect-pg-simple prod), requirePermission()
 server/db.ts           pg.Pool + drizzle, объект schema
@@ -60,7 +65,8 @@ shared/schema.ts       единый источник типов для клие�
 client/src/App.tsx     роутер wouter; тяжёлые страницы через React.lazy; все страницы кроме /auth — в ProtectedRoute + AppLayout
 client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
                        Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx;
-                       admin/Users.tsx + pages/admin/users/{shared,CreateDialog,EditDialog,PasswordDialog,ObjectsDialog,AuditLog}.tsx
+                       admin/Users.tsx + pages/admin/users/{shared,CreateDialog,EditDialog,PasswordDialog,ObjectsDialog,AuditLog}.tsx;
+                       admin/Customers.tsx + pages/admin/customers/{CreateDialog,EditDialog}.tsx
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
 client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
@@ -77,6 +83,15 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Роли: 6 (см. `shared/permissions.ts`) через `requirePermission(module, level)`.
 - Новый маршрут обязан иметь `requirePermission(module, level)`; новая страница — `page(Component, module)` в App.tsx.
 - `/ws` принимает только запросы с валидной сессией (`server/ws.ts` `authorizeUpgrade`).
+- Мультитенантность: каждая tenant-таблица (`infrastructure_objects`, `stations`, `developers`, `soil_profiles`,
+  `seismic_calculations`, `sensors`, `calibration_sessions`, `comparison_sets`) имеет `customer_id`; `users.customer_id`
+  nullable (NULL — только у superadmin). List/detail-геттеры `IStorage` принимают `scope: Scope`
+  (`{ customerId: number | null; objectIds?: number[] }`, `customerId === null` — режим «все заказчики», только для
+  superadmin) — страховка `server/storage/scope-guard.test.ts`. Роуты передают `scopeOf(req)`; создание tenant-строк —
+  только через `requireCustomer(req, res)` (400 `select_customer`, если заказчик не выбран) — страховка
+  `server/routes/scope-guard.test.ts`. Общие (нескоуплены) таблицы: `regions`, `object_categories`, `building_norms`,
+  `research_networks`, `system_status`, `page_visit_logs`, `audit_log`, а также `events` (глобальный каталог
+  землетрясений — сознательно без скоупа).
 
 ## Локальная среда (Claude Desktop)
 
@@ -109,6 +124,13 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Роли: 6 по спецификации, enum пересоздан миграцией 0006.
 - Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
-- CI нет; тесты только для `lib/numeric`. `npm run check` — baseline 49 ошибок типов (16.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
+- CI нет; тесты только для `lib/numeric` и части server/shared (см. `npm test` выше). `npm run check` — baseline
+  45 ошибок типов (20.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig
+  (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
 - Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
   (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).
+- Мультитенантность (2026-09-19): RLS не включена — изоляция только на уровне SQL-скоупа в `server/storage`,
+  «второе кольцо» RLS — сознательно отложено. В клиенте нет формы создания/редактирования инфраструктурных
+  объектов (соответственно нет и выбора региона в форме объекта — регион проставляется бэкендом). Роута
+  `POST /api/stations` не существует. Линейные объекты (трубопроводы) заводятся как точки с типом `pipeline`;
+  геометрия линий — будущая доработка.

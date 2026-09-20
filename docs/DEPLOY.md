@@ -65,6 +65,15 @@ docker image prune -f
 `runStartupMigrations()` при старте контейнера — проверить это можно по строке
 `Startup migrations applied` в логе (`docker logs seismonet-app`).
 
+После выкладки релиза customers (мультитенантность, 2026-09-19) вручную запускать тоже ничего не нужно:
+контейнер при старте сам создаёт таблицу `customers`, добавляет `customer_id` в tenant-таблицы
+(`infrastructure_objects`, `stations`, `developers`, `soil_profiles`, `seismic_calculations`, `sensors`,
+`calibration_sessions`, `comparison_sets`) и в `users`, добавляет `infrastructure_objects.region_id`, сеет
+регионы Махачкала/Алматы/Улан-Батор и бэкаполнит все существующие строки заказчиком «ЕЦСЭМ» — строка в логе
+`Customers migration applied.`. Суперадминистраторы после апгрейда стартуют в режиме «Все заказчики»
+(`customerId: null`); у остальных пользователей уже проставлен ЕЦСЭМ, но новый пользователь без заказчика
+получит 403 `no_customer` на всех `/api/*`, кроме `/user`, `/logout` и `/health`.
+
 ## Обновление с ролями
 
 Миграция 0006 (6 ролей + `user_objects`) применяется **до** выкладки кода, с Mac через туннель —
