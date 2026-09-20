@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requirePermission, requireCustomer, scopeOf } from "../auth";
+import { insertInfrastructureObjectSchema } from "@shared/schema";
 
 const router = Router();
+const patchInfrastructureObjectSchema = insertInfrastructureObjectSchema.partial();
 
 
 // ─── Infrastructure Objects API ────────────────────────────────────────────────
@@ -31,7 +33,15 @@ router.post('/api/infrastructure-objects', requirePermission('objects', 'write')
   try {
     const customerId = requireCustomer(req, res); if (customerId === undefined) return;
     const { customerId: _ignored, ...body } = req.body ?? {};
-    const newObj = await storage.createInfrastructureObject(body, customerId);
+    const parsed = insertInfrastructureObjectSchema.safeParse(body);
+    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
+      return res.status(400).json({ error: "unknown region" });
+    }
+    const dup = (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scopeOf(req)))
+      ?? (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, { customerId: null }));
+    if (dup) return res.status(409).json({ error: "Код объекта уже занят" });
+    const newObj = await storage.createInfrastructureObject(parsed.data, customerId);
     res.status(201).json(newObj);
   } catch (error) {
     res.status(500).json({ message: 'Error creating infrastructure object' });
@@ -43,8 +53,13 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
     const id = parseInt(req.params.id);
     const existing = await storage.getInfrastructureObject(id, scopeOf(req));
     if (!existing) return res.status(404).json({ message: 'Object not found' });
-    const { customerId: _c, id: _i, ...data } = req.body ?? {};
-    const updated = await storage.updateInfrastructureObject(id, data);
+    const { customerId: _c, id: _i, ...body } = req.body ?? {};
+    const parsed = patchInfrastructureObjectSchema.safeParse(body);
+    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
+      return res.status(400).json({ error: "unknown region" });
+    }
+    const updated = await storage.updateInfrastructureObject(id, parsed.data);
     if (!updated) return res.status(404).json({ message: 'Object not found' });
     res.json(updated);
   } catch (error) {

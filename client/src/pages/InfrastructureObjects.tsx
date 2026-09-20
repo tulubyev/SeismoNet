@@ -25,6 +25,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { usePermission } from '@/hooks/use-permission';
 import { useAuth } from '@/hooks/use-auth';
 import { SP14_K1_OPTIONS, SP14_K2_OPTIONS, sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
+import { ObjectDialog } from '@/pages/infrastructure/ObjectDialog';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
 
@@ -70,7 +71,11 @@ const constructionTypeOptions = [
   { value: 'mixed',   label: 'Смешанная система' },
 ];
 
-const conditionInfo = (condition: string | null) => {
+// Same list minus the "all objects" filter sentinel — used by ObjectDialog's
+// "Конструктив" select so the option set isn't duplicated in two places.
+export const STRUCTURAL_SYSTEM_OPTIONS = constructionTypeOptions.filter(o => o.value !== 'all');
+
+export const conditionInfo = (condition: string | null) => {
   switch (condition) {
     case 'good':         return { label: 'Хорошее',     cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-3 w-3" /> };
     case 'satisfactory': return { label: 'Удовл.',       cls: 'bg-blue-100    text-blue-700    border-blue-200',    icon: null };
@@ -153,7 +158,7 @@ const SENSOR_TYPE_OPTS = [
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[] }> = ({ obj, sensors, categories }) => {
+const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]; categories: ObjectCategory[]; onEdit: () => void }> = ({ obj, sensors, categories, onEdit }) => {
   const cond    = conditionInfo(obj.technicalCondition);
   const queryClient = useQueryClient();
   const { can, canCreate } = usePermission();
@@ -261,10 +266,18 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-purple-600" />
-          {obj.name}
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2 min-w-0">
+            <Building2 className="h-4 w-4 text-purple-600 flex-shrink-0" />
+            <span className="truncate">{obj.name}</span>
+          </CardTitle>
+          {can('objects', 'write') && (
+            <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0 gap-1" onClick={onEdit}>
+              <Pencil className="h-3 w-3" />
+              Изменить
+            </Button>
+          )}
+        </div>
         {obj.address && (
           <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
             <MapPin className="h-3 w-3 flex-shrink-0" />{obj.address}
@@ -725,13 +738,18 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const InfrastructureObjects: FC = () => {
-  const { customerScope } = usePermission();
+  const { customerScope, can, canCreate } = usePermission();
   const { customer } = useAuth();
   const [search,             setSearch]             = useState('');
   const [districtFilter,     setDistrictFilter]     = useState('');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
+  const [dialogOpen,         setDialogOpen]         = useState(false);
+  const [dialogTarget,       setDialogTarget]       = useState<InfrastructureObject | null>(null);
+
+  const openCreateDialog = () => { setDialogTarget(null); setDialogOpen(true); };
+  const openEditDialog = (obj: InfrastructureObject) => { setDialogTarget(obj); setDialogOpen(true); };
 
   const { data: regions = [] } = useQuery<Region[]>({ queryKey: ['/api/regions'] });
 
@@ -836,6 +854,22 @@ const InfrastructureObjects: FC = () => {
   return (  <>
 
         <div className="p-6 space-y-5">
+
+          {/* Page header */}
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold text-slate-800">Объекты инфраструктуры</h1>
+            {can('objects', 'write') && (
+              <Button
+                className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={openCreateDialog}
+                disabled={!canCreate}
+                title={!canCreate ? 'Выберите заказчика' : undefined}
+              >
+                <Plus className="h-4 w-4" />
+                Создать объект
+              </Button>
+            )}
+          </div>
 
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1045,9 +1079,16 @@ const InfrastructureObjects: FC = () => {
 
           {/* Detail panel — full width below filters/list */}
           {currentSelectedObj && (
-            <DetailPanel obj={currentSelectedObj} sensors={sensorInstallations} categories={categories} />
+            <DetailPanel
+              obj={currentSelectedObj}
+              sensors={sensorInstallations}
+              categories={categories}
+              onEdit={() => openEditDialog(currentSelectedObj)}
+            />
           )}
         </div>
+
+        <ObjectDialog open={dialogOpen} object={dialogTarget} onClose={() => setDialogOpen(false)} />
   </>
   );
 };
