@@ -1,20 +1,22 @@
 import { db, schema } from "../db";
-import { and, eq, exists } from "drizzle-orm";
+import { eq, exists } from "drizzle-orm";
 import { InsertSoilLayer, InsertSoilProfile, SoilLayer, SoilProfile, soilLayers, soilProfiles } from "@shared/schema";
 import { customerWhere, objectIdsWhere, andAll } from "./scope";
 import type { Scope } from "./types";
 
-/** A soil layer belongs to the customer through its parent profile's customer_id. */
-const layerScope = (scope: Scope) =>
-  scope.customerId === null
-    ? undefined
-    : exists(
-        db.select({ one: schema.soilProfiles.id }).from(schema.soilProfiles)
-          .where(and(eq(schema.soilProfiles.id, schema.soilLayers.profileId), customerWhere(scope, schema.soilProfiles.customerId))),
-      );
-
 const soilScope = (scope: Scope) =>
   andAll(customerWhere(scope, schema.soilProfiles.customerId), objectIdsWhere(scope, schema.soilProfiles.objectId));
+
+/**
+ * A soil layer belongs to the customer (and, for staff, to a bound object)
+ * through its parent profile — reuses soilScope so both conditions (customer
+ * AND staff object narrowing) apply, not just the customer one.
+ */
+const layerScope = (scope: Scope) =>
+  exists(
+    db.select({ one: schema.soilProfiles.id }).from(schema.soilProfiles)
+      .where(andAll(eq(schema.soilProfiles.id, schema.soilLayers.profileId), soilScope(scope))),
+  );
 
 export const soilStorage = {
   // ─── Soil profile operations ──────────────────────────────────────────────────

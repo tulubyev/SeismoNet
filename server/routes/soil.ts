@@ -105,9 +105,14 @@ router.delete('/api/soil-profiles/:id', requirePermission('soil', 'write'), asyn
 router.patch('/api/soil-layers/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existing = await storage.getSoilLayer(id, scopeOf(req));
+    const scope = scopeOf(req);
+    const existing = await storage.getSoilLayer(id, scope);
     if (!existing) return res.status(404).json({ message: 'Layer not found' });
     const { customerId: _c, id: _i, ...data } = req.body ?? {};
+    if (data.profileId != null) {
+      const profile = await storage.getSoilProfile(data.profileId, scope);
+      if (!profile) return res.status(400).json({ error: 'unknown profile' });
+    }
     const updated = await storage.updateSoilLayer(id, data);
     if (!updated) return res.status(404).json({ message: 'Layer not found' });
     res.json(updated);
