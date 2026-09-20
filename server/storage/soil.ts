@@ -1,8 +1,11 @@
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 import { InsertSoilLayer, InsertSoilProfile, SoilLayer, SoilProfile, soilLayers, soilProfiles } from "@shared/schema";
-import { customerWhere, andAll } from "./scope";
+import { customerWhere, objectIdsWhere, andAll } from "./scope";
 import type { Scope } from "./types";
+
+const soilScope = (scope: Scope) =>
+  andAll(customerWhere(scope, schema.soilProfiles.customerId), objectIdsWhere(scope, schema.soilProfiles.objectId));
 
 export const soilStorage = {
   // ─── Soil profile operations ──────────────────────────────────────────────────
@@ -11,19 +14,19 @@ export const soilStorage = {
     return db.query.soilProfiles.findMany({
       where: andAll(
         objectId !== undefined ? eq(schema.soilProfiles.objectId, objectId) : undefined,
-        customerWhere(scope, schema.soilProfiles.customerId),
+        soilScope(scope),
       ),
     });
   },
 
   async getSoilProfile(id: number, scope: Scope): Promise<SoilProfile | undefined> {
     return db.query.soilProfiles.findFirst({
-      where: andAll(eq(schema.soilProfiles.id, id), customerWhere(scope, schema.soilProfiles.customerId)),
+      where: andAll(eq(schema.soilProfiles.id, id), soilScope(scope)),
     });
   },
 
   async getSoilProfileNearCoords(lat: number, lng: number, scope: Scope): Promise<SoilProfile | undefined> {
-    const all = await db.query.soilProfiles.findMany({ where: customerWhere(scope, schema.soilProfiles.customerId) });
+    const all = await db.query.soilProfiles.findMany({ where: soilScope(scope) });
     let nearest: SoilProfile | undefined;
     let minDist = Infinity;
     for (const p of all) {
