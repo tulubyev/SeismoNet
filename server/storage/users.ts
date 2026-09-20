@@ -2,6 +2,7 @@ import { db, schema } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { InsertUser, User, users } from "@shared/schema";
 import type { Role } from "@shared/permissions";
+import type { Scope } from "./types";
 
 export class LastSuperadminError extends Error {
   constructor() { super("Нельзя убрать последнего активного суперадмина"); this.name = "LastSuperadminError"; }
@@ -22,8 +23,10 @@ export function removesLastSuperadmin(
 
 export const usersStorage = {
   // User operations
-  async getUsers(): Promise<User[]> {
-    return db.query.users.findMany();
+  async getUsers(scope: Scope): Promise<User[]> {
+    return db.query.users.findMany({
+      where: scope.customerId === null ? undefined : (t, { eq }) => eq(t.customerId, scope.customerId!),
+    });
   },
   
   async getUser(id: number): Promise<User | undefined> {

@@ -19,7 +19,7 @@ export type ObjectScope = Scope;
 
 export interface IStorage {
   // User operations
-  getUsers(): Promise<User[]>;
+  getUsers(scope: Scope): Promise<User[]>;
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachObjectScope, resolveSessionUser, limiterKey } from './auth';
+import { requirePermission, loginLimiter, activeOrFalse, sessionUserFrom, attachScope, resolveScope, resolveSessionUser, limiterKey } from './auth';
 import { storage } from './storage';
 
 vi.mock('./storage', () => ({
-  storage: { getUserObjectIds: vi.fn(), getUser: vi.fn() },
+  storage: { getUserObjectIds: vi.fn(), getUser: vi.fn(), getCustomer: vi.fn(), getUsers: vi.fn() },
 }));
 
 function mockReq(user: { role: string } | null) {
@@ -95,30 +95,64 @@ describe('sessionUserFrom', () => {
   });
 });
 
-describe('attachObjectScope', () => {
-  it('sets {objectIds} for staff', async () => {
+describe('attachScope', () => {
+  it('sets {customerId, objectIds} for staff', async () => {
     vi.mocked(storage.getUserObjectIds).mockResolvedValueOnce([3, 5]);
-    const req = { user: { id: 1, role: 'staff' } } as never as { objectScope?: unknown };
+    const req = { user: { id: 1, role: 'staff', customerId: 2 }, path: '/stations', session: {} } as never as { scope?: unknown };
     const next = vi.fn();
-    await attachObjectScope(req as never, {} as never, next);
-    expect(req.objectScope).toEqual({ objectIds: [3, 5] });
+    await attachScope(req as never, {} as never, next);
+    expect(req.scope).toEqual({ customerId: 2, objectIds: [3, 5] });
     expect(next).toHaveBeenCalledWith();
   });
-  it('leaves scope undefined for other roles and anonymous', async () => {
-    for (const user of [{ id: 1, role: 'designer' }, undefined]) {
-      const req = { user } as never as { objectScope?: unknown };
-      const next = vi.fn();
-      await attachObjectScope(req as never, {} as never, next);
-      expect(req.objectScope).toBeUndefined();
-      expect(next).toHaveBeenCalledWith();
-    }
+  it('sets {customerId} for a designer with a customer', async () => {
+    const req = { user: { id: 1, role: 'designer', customerId: 2 }, path: '/stations', session: {} } as never as { scope?: unknown };
+    const next = vi.fn();
+    await attachScope(req as never, {} as never, next);
+    expect(req.scope).toEqual({ customerId: 2 });
+    expect(next).toHaveBeenCalledWith();
+  });
+  it('leaves scope undefined for anonymous', async () => {
+    const req = { user: undefined, path: '/stations', session: {} } as never as { scope?: unknown };
+    const next = vi.fn();
+    await attachScope(req as never, {} as never, next);
+    expect(req.scope).toBeUndefined();
+    expect(next).toHaveBeenCalledWith();
   });
   it('forwards storage errors to next(err)', async () => {
     const boom = new Error('db down');
     vi.mocked(storage.getUserObjectIds).mockRejectedValueOnce(boom);
     const next = vi.fn();
-    await attachObjectScope({ user: { id: 1, role: 'staff' } } as never, {} as never, next);
+    await attachScope({ user: { id: 1, role: 'staff', customerId: 2 }, path: '/stations', session: {} } as never, {} as never, next);
     expect(next).toHaveBeenCalledWith(boom);
+  });
+  it('403 no_customer for a customer-less designer on a data route', async () => {
+    const res = mockRes(); const next = vi.fn();
+    await attachScope({ user: { id: 2, role: 'designer', customerId: null }, path: '/stations', session: {} } as never, res as never, next);
+    expect(res.statusCode).toBe(403); expect(res.body).toEqual({ error: 'no_customer' }); expect(next).not.toHaveBeenCalled();
+  });
+  it('lets /user through for a customer-less designer', async () => {
+    const res = mockRes(); const next = vi.fn();
+    await attachScope({ user: { id: 2, role: 'designer', customerId: null }, path: '/user', session: {} } as never, res as never, next);
+    expect(next).toHaveBeenCalledWith();
+  });
+});
+
+describe('resolveScope', () => {
+  const objs = async () => [4, 5];
+  it('superadmin without a session choice → all customers', async () => {
+    expect(await resolveScope({ id: 1, role: 'superadmin', customerId: null }, undefined, objs)).toEqual({ customerId: null });
+  });
+  it('superadmin with a session choice → that customer', async () => {
+    expect(await resolveScope({ id: 1, role: 'superadmin', customerId: null }, 3, objs)).toEqual({ customerId: 3 });
+  });
+  it('other roles → their own customer, ignoring the session', async () => {
+    expect(await resolveScope({ id: 2, role: 'designer', customerId: 2 }, 3, objs)).toEqual({ customerId: 2 });
+  });
+  it('staff → own customer + bound objects', async () => {
+    expect(await resolveScope({ id: 9, role: 'staff', customerId: 2 }, undefined, objs)).toEqual({ customerId: 2, objectIds: [4, 5] });
+  });
+  it('non-superadmin without a customer → no_customer', async () => {
+    expect(await resolveScope({ id: 2, role: 'designer', customerId: null }, undefined, objs)).toBe('no_customer');
   });
 });
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, scopeOf } from "../auth";
 import { hashPassword } from "../lib/password";
 import { describeError } from "../lib/errors";
 import { insertUserSchema, type User } from "@shared/schema";
@@ -40,9 +40,9 @@ const patchSchema = z.object({
   contactPhone: z.string().nullable().optional(),
 });
 
-router.get("/api/users", guard("read"), async (_req, res) => {
+router.get("/api/users", guard("read"), async (req, res) => {
   try {
-    res.json((await storage.getUsers()).map(safe));
+    res.json((await storage.getUsers(scopeOf(req))).map(safe));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);
     res.status(500).json({ error: "internal error" });

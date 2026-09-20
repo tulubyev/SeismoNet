@@ -16,7 +16,7 @@ import { auditStorage } from "./audit";
 import { customersStorage } from "./customers";
 
 export { NOTE_HISTORY_LIMIT } from "./types";
-export type { IStorage, ObjectScope } from "./types";
+export type { IStorage, ObjectScope, Scope } from "./types";
 
 // One object per domain, merged into the single `storage` the rest of the
 // server imports. The IStorage annotation keeps the surface identical.

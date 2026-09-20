@@ -4,18 +4,24 @@ import { Express, Request, Response, NextFunction, RequestHandler } from "expres
 import type { IncomingMessage } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { z } from "zod";
 import { pool } from "./db";
-import { storage, type ObjectScope } from "./storage";
+import { storage, type Scope } from "./storage";
 import { comparePasswords, dummyHash } from "./lib/password";
 import { can, type Level, type Module } from "@shared/permissions";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser, SessionUser } from "@shared/schema";
 
 declare global {
   namespace Express {
     interface User extends SelectUser {}
-    interface Request { objectScope?: ObjectScope }
+    interface Request { scope?: Scope }
   }
 }
+declare module "express-session" {
+  interface SessionData { customerId?: number | null }
+}
+
+const OPEN_PATHS = new Set(["/user", "/logout", "/health"]); // relative to the /api mount
 
 const isProd = process.env.NODE_ENV === "production";
 const isDev = process.env.NODE_ENV === "development";
@@ -120,17 +126,25 @@ export function setupAuth(app: Express) {
   app.use(sessionMiddleware);
   app.use(passport.initialize());
   app.use(passport.session());
-  app.use("/api", attachObjectScope);
+  app.use("/api", attachScope);
+
+  /** A non-superadmin user's customer must exist and be active, or they are treated as inactive. */
+  async function customerActiveOrFalse(user: SelectUser): Promise<SelectUser | false> {
+    if (user.role === "superadmin" || user.customerId == null) return user;
+    const c = await storage.getCustomer(user.customerId);
+    return c && c.active ? user : false;
+  }
 
   passport.use(new LocalStrategy(async (username, password, done) => {
     try {
       const user = await storage.getUserByUsername(username);
-      const ok = user && user.active
-        ? await comparePasswords(password, user.password)
+      const candidate = user && user.active ? await customerActiveOrFalse(user) : false;
+      const ok = candidate
+        ? await comparePasswords(password, candidate.password)
         : (await comparePasswords(password, await dummyHash), false);
-      if (!ok) return done(null, false, { message: "Неверный логин или пароль" });
-      await storage.setLastLogin(user!.id);
-      return done(null, user!);
+      if (!ok || !candidate) return done(null, false, { message: "Неверный логин или пароль" });
+      await storage.setLastLogin(candidate.id);
+      return done(null, candidate);
     } catch (error) {
       return done(error);
     }
@@ -140,7 +154,8 @@ export function setupAuth(app: Express) {
   passport.deserializeUser<SessionPayload>(async (payload: unknown, done) => {
     try {
       const id = (payload as Partial<SessionPayload>)?.id;
-      done(null, sessionUserFrom(payload, typeof id === "number" ? await storage.getUser(id) : undefined));
+      const u = sessionUserFrom(payload, typeof id === "number" ? await storage.getUser(id) : undefined);
+      done(null, u ? await customerActiveOrFalse(u) : false);
     } catch (error) { done(error, null); }
   });
 
@@ -156,12 +171,14 @@ export function setupAuth(app: Express) {
       // session must not survive into the authenticated one.
       req.session.regenerate((regenErr) => {
         if (regenErr) return next(regenErr);
-        req.login(user, (loginErr) => {
+        req.login(user, async (loginErr) => {
           if (loginErr) return next(loginErr);
           loginLimiter.reset(key);
+          req.session.customerId = undefined; // fresh choice per login
           void storage.logAudit({ actorId: user.id, actorUsername: user.username, ip: req.ip ?? null, action: "auth.login" });
-          const { password: _pw, ...safe } = user;
-          return res.status(200).json(safe);
+          try {
+            res.status(200).json(await sessionUserPayload(user, req.session));
+          } catch (e) { next(e); }
         });
       });
     })(req, res, next);
@@ -171,10 +188,26 @@ export function setupAuth(app: Express) {
     req.logout((err) => { if (err) return next(err); res.sendStatus(200); });
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", async (req, res, next) => {
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
-    const { password: _pw, ...safe } = req.user as SelectUser;
-    res.json(safe);
+    try {
+      res.json(await sessionUserPayload(req.user as SelectUser, req.session));
+    } catch (e) { next(e); }
+  });
+
+  app.put("/api/session/customer", requirePermission("customers", "read"), async (req, res, next) => {
+    try {
+      const parsed = z.object({ customerId: z.number().int().positive().nullable() }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "validation" });
+      if (parsed.data.customerId !== null) {
+        const c = await storage.getCustomer(parsed.data.customerId);
+        if (!c || !c.active) return res.status(404).json({ error: "not found" });
+      }
+      req.session.customerId = parsed.data.customerId;
+      const user = req.user as SelectUser;
+      void storage.logAudit({ actorId: user.id, actorUsername: user.username, ip: req.ip ?? null, action: "session.customer", targetType: "customer", targetId: parsed.data.customerId });
+      res.json(await sessionUserPayload(user, req.session));
+    } catch (e) { next(e); }
   });
 
   // Development only: one-click login as a real DB user (default `admin`).
@@ -188,8 +221,8 @@ export function setupAuth(app: Express) {
           if (regenErr) return next(regenErr);
           req.login(user, (err) => {
             if (err) return next(err);
-            const { password: _pw, ...safe } = user;
-            res.json(safe);
+            req.session.customerId = undefined; // fresh choice per login
+            sessionUserPayload(user, req.session).then(payload => res.json(payload), next);
           });
         });
       } catch (err) {
@@ -199,13 +232,45 @@ export function setupAuth(app: Express) {
   }
 }
 
-/** For `staff`, restrict object-related queries to the user's bound objects. */
-export async function attachObjectScope(req: Request, _res: Response, next: NextFunction) {
+/** Which rows this user may see. 'no_customer' = a non-superadmin without a customer. */
+export async function resolveScope(
+  user: Pick<SelectUser, "id" | "role" | "customerId">,
+  sessionCustomerId: number | null | undefined,
+  objectIds: () => Promise<number[]>,
+): Promise<Scope | "no_customer"> {
+  if (user.role === "superadmin") return { customerId: sessionCustomerId ?? null };
+  if (user.customerId == null) return "no_customer";
+  if (user.role === "staff") return { customerId: user.customerId, objectIds: await objectIds() };
+  return { customerId: user.customerId };
+}
+
+export async function attachScope(req: Request, res: Response, next: NextFunction) {
   try {
     const user = req.user as SelectUser | undefined;
-    req.objectScope = user?.role === "staff" ? { objectIds: await storage.getUserObjectIds(user.id) } : undefined;
+    if (!user) return next();
+    const scope = await resolveScope(user, req.session?.customerId, () => storage.getUserObjectIds(user.id));
+    if (scope === "no_customer") {
+      if (OPEN_PATHS.has(req.path)) return next();
+      return res.status(403).json({ error: "no_customer" });
+    }
+    req.scope = scope;
     next();
   } catch (e) { next(e); }
+}
+
+/** Routes behind requirePermission always have a scope; a missing one is a wiring bug. */
+export function scopeOf(req: Request): Scope {
+  if (!req.scope) throw new Error("scope missing — attachScope not applied");
+  return req.scope;
+}
+
+/** /api/user payload: user (no password) + effective customer. */
+export async function sessionUserPayload(user: SelectUser, session: { customerId?: number | null }): Promise<SessionUser> {
+  const { password: _pw, ...safe } = user;
+  const effectiveId = user.role === "superadmin" ? (session.customerId ?? null) : user.customerId;
+  const c = effectiveId == null ? undefined : await storage.getCustomer(effectiveId);
+  const customer = c ? { id: c.id, code: c.code, name: c.name, regionId: c.regionId } : null;
+  return { ...safe, customer, customerScope: user.role === "superadmin" && effectiveId == null ? "all" : "one" };
 }
 
 /** 401 if anonymous, 403 if the role's access to `module` is below `level`. */
