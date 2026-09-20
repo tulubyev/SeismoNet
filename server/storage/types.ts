@@ -42,11 +42,11 @@ export interface IStorage {
   createRegion(region: InsertRegion): Promise<Region>;
   
   // Station operations
-  getStations(scope?: ObjectScope): Promise<Station[]>;
-  getStationsByRegionId(regionId: number, scope?: ObjectScope): Promise<Station[]>;
-  getStation(id: number): Promise<Station | undefined>;
-  getStationByStationId(stationId: string): Promise<Station | undefined>;
-  createStation(station: InsertStation): Promise<Station>;
+  getStations(scope: Scope): Promise<Station[]>;
+  getStationsByRegionId(regionId: number, scope: Scope): Promise<Station[]>;
+  getStation(id: number, scope: Scope): Promise<Station | undefined>;
+  getStationByStationId(stationId: string, scope: Scope): Promise<Station | undefined>;
+  createStation(station: InsertStation, customerId: number): Promise<Station>;
   updateStation(stationId: string, updates: Partial<Station>): Promise<Station | undefined>;
   updateStationStatus(stationId: string, status: string): Promise<Station | undefined>;
   updateStationBatteryInfo(stationId: string, batteryLevel: number, batteryVoltage: number, powerConsumption: number): Promise<Station | undefined>;
@@ -89,10 +89,10 @@ export interface IStorage {
   markAllAlertsAsRead(): Promise<void>;
 
   // Infrastructure object operations
-  getInfrastructureObjects(scope?: ObjectScope): Promise<InfrastructureObject[]>;
-  getInfrastructureObject(id: number, scope?: ObjectScope): Promise<InfrastructureObject | undefined>;
-  getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined>;
-  createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject>;
+  getInfrastructureObjects(scope: Scope): Promise<InfrastructureObject[]>;
+  getInfrastructureObject(id: number, scope: Scope): Promise<InfrastructureObject | undefined>;
+  getInfrastructureObjectByObjectId(objectId: string, scope: Scope): Promise<InfrastructureObject | undefined>;
+  createInfrastructureObject(obj: InsertInfrastructureObject, customerId: number): Promise<InfrastructureObject>;
   updateInfrastructureObject(id: number, data: Partial<InsertInfrastructureObject>): Promise<InfrastructureObject | undefined>;
   deleteInfrastructureObject(id: number): Promise<boolean>;
 
@@ -157,10 +157,10 @@ export interface IStorage {
   replaceCalibrationAfc(sessionId: number, points: InsertCalibrationAfc[]): Promise<CalibrationAfc[]>;
 
   // Developer operations
-  getDevelopers(): Promise<Developer[]>;
-  getDeveloper(id: number): Promise<Developer | undefined>;
-  getDeveloperByName(name: string): Promise<Developer | undefined>;
-  createDeveloper(dev: InsertDeveloper): Promise<Developer>;
+  getDevelopers(scope: Scope): Promise<Developer[]>;
+  getDeveloper(id: number, scope: Scope): Promise<Developer | undefined>;
+  getDeveloperByName(name: string, scope: Scope): Promise<Developer | undefined>;
+  createDeveloper(dev: InsertDeveloper, customerId: number): Promise<Developer>;
   updateDeveloper(id: number, data: Partial<InsertDeveloper>): Promise<Developer | undefined>;
   deleteDeveloper(id: number): Promise<boolean>;
 

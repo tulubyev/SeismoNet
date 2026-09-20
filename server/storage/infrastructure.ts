@@ -1,31 +1,33 @@
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 import { Developer, InfrastructureObject, InsertDeveloper, InsertInfrastructureObject, InsertObjectCategory, ObjectCategory, infrastructureObjects, objectCategories, sensorInstallations } from "@shared/schema";
-import type { ObjectScope } from "./types";
+import { customerWhere, objectIdsWhere, andAll } from "./scope";
+import type { Scope } from "./types";
+
+const objectWhere = (scope: Scope) => andAll(customerWhere(scope, schema.infrastructureObjects.customerId), objectIdsWhere(scope, schema.infrastructureObjects.id));
 
 export const infrastructureStorage = {
   // ─── Infrastructure object operations ────────────────────────────────────────
 
-  async getInfrastructureObjects(scope?: ObjectScope): Promise<InfrastructureObject[]> {
+  async getInfrastructureObjects(scope: Scope): Promise<InfrastructureObject[]> {
     return db.query.infrastructureObjects.findMany({
-      where: scope ? (t, { inArray }) => inArray(t.id, scope.objectIds.length ? scope.objectIds : [-1]) : undefined,
+      where: objectWhere(scope),
       orderBy: (t, { asc }) => [asc(t.name)],
     });
   },
 
-  async getInfrastructureObject(id: number, scope?: ObjectScope): Promise<InfrastructureObject | undefined> {
-    if (scope && !scope.objectIds.includes(id)) return undefined;
-    return db.query.infrastructureObjects.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  async getInfrastructureObject(id: number, scope: Scope): Promise<InfrastructureObject | undefined> {
+    return db.query.infrastructureObjects.findFirst({ where: andAll(eq(schema.infrastructureObjects.id, id), objectWhere(scope)) });
   },
 
-  async getInfrastructureObjectByObjectId(objectId: string): Promise<InfrastructureObject | undefined> {
+  async getInfrastructureObjectByObjectId(objectId: string, scope: Scope): Promise<InfrastructureObject | undefined> {
     return db.query.infrastructureObjects.findFirst({
-      where: (t, { eq }) => eq(t.objectId, objectId)
+      where: andAll(eq(schema.infrastructureObjects.objectId, objectId), objectWhere(scope)),
     });
   },
 
-  async createInfrastructureObject(obj: InsertInfrastructureObject): Promise<InfrastructureObject> {
-    const [newObj] = await db.insert(schema.infrastructureObjects).values(obj).returning();
+  async createInfrastructureObject(obj: InsertInfrastructureObject, customerId: number): Promise<InfrastructureObject> {
+    const [newObj] = await db.insert(schema.infrastructureObjects).values({ ...obj, customerId }).returning();
     return newObj;
   },
 
@@ -51,26 +53,27 @@ export const infrastructureStorage = {
 
   // ─── Developer operations ────────────────────────────────────────────────────
 
-  async getDevelopers(): Promise<Developer[]> {
+  async getDevelopers(scope: Scope): Promise<Developer[]> {
     return db.query.developers.findMany({
-      orderBy: (t, { asc }) => [asc(t.name)]
+      where: customerWhere(scope, schema.developers.customerId),
+      orderBy: (t, { asc }) => [asc(t.name)],
     });
   },
 
-  async getDeveloper(id: number): Promise<Developer | undefined> {
+  async getDeveloper(id: number, scope: Scope): Promise<Developer | undefined> {
     return db.query.developers.findFirst({
-      where: (t, { eq }) => eq(t.id, id)
+      where: andAll(eq(schema.developers.id, id), customerWhere(scope, schema.developers.customerId)),
     });
   },
 
-  async getDeveloperByName(name: string): Promise<Developer | undefined> {
+  async getDeveloperByName(name: string, scope: Scope): Promise<Developer | undefined> {
     return db.query.developers.findFirst({
-      where: (t, { eq }) => eq(t.name, name)
+      where: andAll(eq(schema.developers.name, name), customerWhere(scope, schema.developers.customerId)),
     });
   },
 
-  async createDeveloper(dev: InsertDeveloper): Promise<Developer> {
-    const [created] = await db.insert(schema.developers).values(dev).returning();
+  async createDeveloper(dev: InsertDeveloper, customerId: number): Promise<Developer> {
+    const [created] = await db.insert(schema.developers).values({ ...dev, customerId }).returning();
     return created;
   },
 
