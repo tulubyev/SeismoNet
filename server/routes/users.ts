@@ -28,6 +28,7 @@ const createSchema = insertUserSchema
     email: z.string().email(),
     password: PASSWORD,
     role: z.enum(ROLES),
+    customerId: z.number().int().positive().nullable().optional(),
   });
 
 const patchSchema = z.object({
@@ -38,6 +39,7 @@ const patchSchema = z.object({
   organization: z.string().nullable().optional(),
   jobTitle: z.string().nullable().optional(),
   contactPhone: z.string().nullable().optional(),
+  customerId: z.number().int().positive().nullable().optional(),
 });
 
 router.get("/api/users", guard("read"), async (req, res) => {
@@ -56,7 +58,10 @@ router.post("/api/users", guard("write"), async (req, res) => {
     const { password, ...rest } = parsed.data;
     if (await storage.getUserByUsername(rest.username)) return res.status(409).json({ error: "Логин уже занят" });
     if (await storage.getUserByEmail(rest.email)) return res.status(409).json({ error: "Email уже используется" });
-    const user = await storage.createUser({ ...rest, password: await hashPassword(password), active: true });
+    const customerId = parsed.data.role === "superadmin" ? null : parsed.data.customerId ?? null;
+    if (parsed.data.role !== "superadmin" && customerId === null) return res.status(400).json({ error: "customer_required" });
+    if (customerId !== null && !(await storage.getCustomer(customerId))) return res.status(400).json({ error: "unknown customer" });
+    const user = await storage.createUser({ ...rest, customerId, password: await hashPassword(password), active: true });
     void storage.logAudit({ ...actorOf(req), action: "user.create", targetType: "user", targetId: user.id, details: { username: user.username, role: user.role } });
     res.status(201).json(safe(user));
   } catch (error) {
@@ -82,16 +87,26 @@ router.patch("/api/users/:id", guard("write"), async (req, res) => {
       const clash = await storage.getUserByEmail(parsed.data.email);
       if (clash && clash.id !== id) return res.status(409).json({ error: "Email уже используется" });
     }
+    const nextRole = parsed.data.role ?? target.role;
+    const nextCustomer = parsed.data.customerId !== undefined ? parsed.data.customerId : target.customerId;
+    const patch: typeof parsed.data = { ...parsed.data };
+    if (nextRole === "superadmin") {
+      patch.customerId = null;
+    } else if (nextCustomer === null) {
+      return res.status(400).json({ error: "customer_required" });
+    } else if (!(await storage.getCustomer(nextCustomer))) {
+      return res.status(400).json({ error: "unknown customer" });
+    }
     let updated: User | undefined;
     try {
-      updated = await storage.updateUserGuarded(id, parsed.data);
+      updated = await storage.updateUserGuarded(id, patch);
     } catch (e) {
       if (e instanceof LastSuperadminError) return res.status(409).json({ error: e.message });
       throw e;
     }
     if (!updated) return res.status(404).json({ error: "not found" });
     if (parsed.data.active === false && target.active) updated = (await storage.bumpSessionEpoch(id)) ?? updated;
-    void storage.logAudit({ ...actorOf(req), action: "user.update", targetType: "user", targetId: id, details: parsed.data });
+    void storage.logAudit({ ...actorOf(req), action: "user.update", targetType: "user", targetId: id, details: patch });
     res.json(safe(updated));
   } catch (error) {
     console.error(`users route error: ${describeError(error)}`);

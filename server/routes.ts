@@ -7,6 +7,7 @@ import { attachWebSocket } from "./ws";
 import healthRouter from "./routes/health";
 import usersRouter from "./routes/users";
 import auditRouter from "./routes/audit";
+import customersRouter from "./routes/customers";
 import stationsRouter from "./routes/stations";
 import monitoringRouter from "./routes/monitoring";
 import notificationsRouter from "./routes/notifications";
@@ -32,6 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(healthRouter);
   app.use(usersRouter);
   app.use(auditRouter);
+  app.use(customersRouter);
   app.use(stationsRouter);
   app.use(monitoringRouter);
   app.use(notificationsRouter);
