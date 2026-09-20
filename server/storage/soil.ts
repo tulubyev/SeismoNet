@@ -1,27 +1,29 @@
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 import { InsertSoilLayer, InsertSoilProfile, SoilLayer, SoilProfile, soilLayers, soilProfiles } from "@shared/schema";
+import { customerWhere, andAll } from "./scope";
+import type { Scope } from "./types";
 
 export const soilStorage = {
   // ─── Soil profile operations ──────────────────────────────────────────────────
 
-  async getSoilProfiles(objectId?: number): Promise<SoilProfile[]> {
-    if (objectId !== undefined) {
-      return db.query.soilProfiles.findMany({
-        where: (t, { eq }) => eq(t.objectId, objectId)
-      });
-    }
-    return db.query.soilProfiles.findMany();
-  },
-
-  async getSoilProfile(id: number): Promise<SoilProfile | undefined> {
-    return db.query.soilProfiles.findFirst({
-      where: (t, { eq }) => eq(t.id, id)
+  async getSoilProfiles(objectId: number | undefined, scope: Scope): Promise<SoilProfile[]> {
+    return db.query.soilProfiles.findMany({
+      where: andAll(
+        objectId !== undefined ? eq(schema.soilProfiles.objectId, objectId) : undefined,
+        customerWhere(scope, schema.soilProfiles.customerId),
+      ),
     });
   },
 
-  async getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined> {
-    const all = await db.query.soilProfiles.findMany();
+  async getSoilProfile(id: number, scope: Scope): Promise<SoilProfile | undefined> {
+    return db.query.soilProfiles.findFirst({
+      where: andAll(eq(schema.soilProfiles.id, id), customerWhere(scope, schema.soilProfiles.customerId)),
+    });
+  },
+
+  async getSoilProfileNearCoords(lat: number, lng: number, scope: Scope): Promise<SoilProfile | undefined> {
+    const all = await db.query.soilProfiles.findMany({ where: customerWhere(scope, schema.soilProfiles.customerId) });
     let nearest: SoilProfile | undefined;
     let minDist = Infinity;
     for (const p of all) {
@@ -34,8 +36,8 @@ export const soilStorage = {
     return minDist < 0.1 ? nearest : undefined;
   },
 
-  async createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile> {
-    const [newProfile] = await db.insert(schema.soilProfiles).values(profile).returning();
+  async createSoilProfile(profile: InsertSoilProfile, customerId: number): Promise<SoilProfile> {
+    const [newProfile] = await db.insert(schema.soilProfiles).values({ ...profile, customerId }).returning();
     return newProfile;
   },
 

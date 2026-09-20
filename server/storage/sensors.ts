@@ -1,21 +1,30 @@
 import { db, schema } from "../db";
-import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { InsertSensor, InsertSensorInstallation, Sensor, SensorInstallation, sensorInstallations, sensors } from "@shared/schema";
-import type { ObjectScope } from "./types";
+import { customerWhere, objectIdsWhere, stationInCustomer, andAll } from "./scope";
+import type { Scope } from "./types";
+
+const installationScope = (scope: Scope) =>
+  andAll(stationInCustomer(scope, schema.sensorInstallations.stationId), objectIdsWhere(scope, schema.sensorInstallations.objectId));
+
+const sensorScope = (scope: Scope) =>
+  andAll(customerWhere(scope, schema.sensors.customerId), objectIdsWhere(scope, schema.sensors.objectId));
 
 export const sensorsStorage = {
   // ─── Sensor installation operations ──────────────────────────────────────────
 
-  async getSensorInstallations(objectId?: number, scope?: ObjectScope): Promise<SensorInstallation[]> {
-    const conds: SQL[] = [];
-    if (objectId !== undefined) conds.push(eq(schema.sensorInstallations.objectId, objectId));
-    if (scope) conds.push(inArray(schema.sensorInstallations.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
-    return db.query.sensorInstallations.findMany({ where: conds.length ? and(...conds) : undefined });
+  async getSensorInstallations(objectId: number | undefined, scope: Scope): Promise<SensorInstallation[]> {
+    return db.query.sensorInstallations.findMany({
+      where: andAll(
+        objectId !== undefined ? eq(schema.sensorInstallations.objectId, objectId) : undefined,
+        installationScope(scope),
+      ),
+    });
   },
 
-  async getSensorInstallation(id: number): Promise<SensorInstallation | undefined> {
+  async getSensorInstallation(id: number, scope: Scope): Promise<SensorInstallation | undefined> {
     return db.query.sensorInstallations.findFirst({
-      where: (t, { eq }) => eq(t.id, id)
+      where: andAll(eq(schema.sensorInstallations.id, id), installationScope(scope)),
     });
   },
 
@@ -40,32 +49,30 @@ export const sensorsStorage = {
 
   // ─── Sensor device operations ─────────────────────────────────────────────────
 
-  async getSensors(stationId?: string, objectId?: number, scope?: ObjectScope): Promise<Sensor[]> {
-    const conds: SQL[] = [];
-    if (objectId != null) conds.push(eq(schema.sensors.objectId, objectId));
-    else if (stationId) conds.push(eq(schema.sensors.stationId, stationId));
-    if (scope) conds.push(inArray(schema.sensors.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
+  async getSensors(stationId: string | undefined, objectId: number | undefined, scope: Scope): Promise<Sensor[]> {
+    const where = andAll(
+      objectId != null ? eq(schema.sensors.objectId, objectId) : undefined,
+      objectId == null && stationId ? eq(schema.sensors.stationId, stationId) : undefined,
+      sensorScope(scope),
+    );
     const orderBy = objectId != null
       ? [asc(schema.sensors.floor), asc(schema.sensors.sensorCode)]
       : stationId
         ? [asc(schema.sensors.sensorCode)]
         : [asc(schema.sensors.stationId), asc(schema.sensors.sensorCode)];
-    return db.query.sensors.findMany({ where: conds.length ? and(...conds) : undefined, orderBy });
+    return db.query.sensors.findMany({ where, orderBy });
   },
 
-  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
-  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
-  // granting staff any access here.
-  async getSensor(id: number): Promise<Sensor | undefined> {
-    return db.query.sensors.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  async getSensor(id: number, scope: Scope): Promise<Sensor | undefined> {
+    return db.query.sensors.findFirst({ where: andAll(eq(schema.sensors.id, id), sensorScope(scope)) });
   },
 
-  async getSensorBySensorCode(code: string): Promise<Sensor | undefined> {
-    return db.query.sensors.findFirst({ where: (t, { eq }) => eq(t.sensorCode, code) });
+  async getSensorBySensorCode(code: string, scope: Scope): Promise<Sensor | undefined> {
+    return db.query.sensors.findFirst({ where: andAll(eq(schema.sensors.sensorCode, code), sensorScope(scope)) });
   },
 
-  async createSensor(sensor: InsertSensor): Promise<Sensor> {
-    const [row] = await db.insert(schema.sensors).values(sensor).returning();
+  async createSensor(sensor: InsertSensor, customerId: number): Promise<Sensor> {
+    const [row] = await db.insert(schema.sensors).values({ ...sensor, customerId }).returning();
     return row;
   },
 

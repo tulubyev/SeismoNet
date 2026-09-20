@@ -1,28 +1,29 @@
 import { db, schema } from "../db";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { CalculationNoteHistory, ComparisonSet, InsertCalculationNoteHistory, InsertComparisonSet, InsertSeismicCalculation, SeismicCalculation } from "@shared/schema";
-import { NOTE_HISTORY_LIMIT, type ObjectScope } from "./types";
+import { customerWhere, objectIdsWhere, andAll } from "./scope";
+import { NOTE_HISTORY_LIMIT, type Scope } from "./types";
+
+const calcScope = (scope: Scope) =>
+  andAll(customerWhere(scope, schema.seismicCalculations.customerId), objectIdsWhere(scope, schema.seismicCalculations.objectId));
 
 export const calculationsStorage = {
   // ─── Seismic calculation operations ──────────────────────────────────────────
-  async getSeismicCalculations(calcType?: string, limit = 50, scope?: ObjectScope): Promise<SeismicCalculation[]> {
-    const conds = [];
-    if (calcType) conds.push(eq(schema.seismicCalculations.calcType, calcType));
-    if (scope) conds.push(inArray(schema.seismicCalculations.objectId, scope.objectIds.length ? scope.objectIds : [-1]));
+  async getSeismicCalculations(calcType: string | undefined, limit = 50, scope: Scope): Promise<SeismicCalculation[]> {
     return db.query.seismicCalculations.findMany({
-      where: conds.length ? and(...conds) : undefined,
+      where: andAll(
+        calcType ? eq(schema.seismicCalculations.calcType, calcType) : undefined,
+        calcScope(scope),
+      ),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
       limit,
     });
   },
-  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
-  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
-  // granting staff any access here.
-  async getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined> {
-    return db.query.seismicCalculations.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  async getSeismicCalculation(id: number, scope: Scope): Promise<SeismicCalculation | undefined> {
+    return db.query.seismicCalculations.findFirst({ where: andAll(eq(schema.seismicCalculations.id, id), calcScope(scope)) });
   },
-  async createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation> {
-    const [row] = await db.insert(schema.seismicCalculations).values(calc).returning();
+  async createSeismicCalculation(calc: InsertSeismicCalculation, customerId: number): Promise<SeismicCalculation> {
+    const [row] = await db.insert(schema.seismicCalculations).values({ ...calc, customerId }).returning();
     return row;
   },
   async updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined> {
@@ -80,16 +81,19 @@ export const calculationsStorage = {
   },
 
   // ─── Comparison set operations ───────────────────────────────────────────────
-  async getComparisonSets(): Promise<ComparisonSet[]> {
+  async getComparisonSets(scope: Scope): Promise<ComparisonSet[]> {
     return db.query.comparisonSets.findMany({
+      where: customerWhere(scope, schema.comparisonSets.customerId),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
     });
   },
-  async getComparisonSet(id: number): Promise<ComparisonSet | undefined> {
-    return db.query.comparisonSets.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+  async getComparisonSet(id: number, scope: Scope): Promise<ComparisonSet | undefined> {
+    return db.query.comparisonSets.findFirst({
+      where: andAll(eq(schema.comparisonSets.id, id), customerWhere(scope, schema.comparisonSets.customerId)),
+    });
   },
-  async createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet> {
-    const [row] = await db.insert(schema.comparisonSets).values(set).returning();
+  async createComparisonSet(set: InsertComparisonSet, customerId: number): Promise<ComparisonSet> {
+    const [row] = await db.insert(schema.comparisonSets).values({ ...set, customerId }).returning();
     return row;
   },
   async deleteComparisonSet(id: number): Promise<boolean> {

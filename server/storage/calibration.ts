@@ -1,33 +1,32 @@
 import { db, schema } from "../db";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { CalibrationAfc, CalibrationSession, InsertCalibrationAfc, InsertCalibrationSession } from "@shared/schema";
+import { customerWhere, andAll } from "./scope";
+import type { Scope } from "./types";
+
+const calibrationScope = (scope: Scope) => customerWhere(scope, schema.calibrationSessions.customerId);
 
 export const calibrationStorage = {
   // ─── Calibration session operations ────────────────────────────────────────
 
-  async getCalibrationSessions(installationId?: number): Promise<CalibrationSession[]> {
-    if (installationId !== undefined) {
-      return db.query.calibrationSessions.findMany({
-        where: (t, { eq }) => eq(t.installationId, installationId),
-        orderBy: (t, { desc }) => [desc(t.sessionDate)]
-      });
-    }
+  async getCalibrationSessions(installationId: number | undefined, scope: Scope): Promise<CalibrationSession[]> {
     return db.query.calibrationSessions.findMany({
+      where: andAll(
+        installationId !== undefined ? eq(schema.calibrationSessions.installationId, installationId) : undefined,
+        calibrationScope(scope),
+      ),
       orderBy: (t, { desc }) => [desc(t.sessionDate)]
     });
   },
 
-  // Unscoped on purpose: the only scoped role (staff) has `none` on this module
-  // (shared/permissions.test.ts guards that). Add a `scope` parameter before
-  // granting staff any access here.
-  async getCalibrationSession(id: number): Promise<CalibrationSession | undefined> {
+  async getCalibrationSession(id: number, scope: Scope): Promise<CalibrationSession | undefined> {
     return db.query.calibrationSessions.findFirst({
-      where: (t, { eq }) => eq(t.id, id)
+      where: andAll(eq(schema.calibrationSessions.id, id), calibrationScope(scope)),
     });
   },
 
-  async createCalibrationSession(session: InsertCalibrationSession): Promise<CalibrationSession> {
-    const [newSession] = await db.insert(schema.calibrationSessions).values(session).returning();
+  async createCalibrationSession(session: InsertCalibrationSession, customerId: number): Promise<CalibrationSession> {
+    const [newSession] = await db.insert(schema.calibrationSessions).values({ ...session, customerId }).returning();
     return newSession;
   },
 

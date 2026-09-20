@@ -65,11 +65,11 @@ export interface IStorage {
   createWaveformData(waveformData: InsertWaveformData): Promise<WaveformData>;
   
   // Maintenance operations
-  getMaintenanceRecords(stationId: string): Promise<MaintenanceRecord[]>;
-  getMaintenanceRecord(id: number): Promise<MaintenanceRecord | undefined>;
+  getMaintenanceRecords(stationId: string, scope: Scope): Promise<MaintenanceRecord[]>;
+  getMaintenanceRecord(id: number, scope: Scope): Promise<MaintenanceRecord | undefined>;
   createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord>;
   updateMaintenanceStatus(id: number, status: string): Promise<MaintenanceRecord | undefined>;
-  getUpcomingMaintenanceRecords(days: number): Promise<MaintenanceRecord[]>;
+  getUpcomingMaintenanceRecords(days: number, scope: Scope): Promise<MaintenanceRecord[]>;
   
   // Research network operations
   getResearchNetworks(): Promise<ResearchNetwork[]>;
@@ -83,7 +83,7 @@ export interface IStorage {
   createSystemStatus(status: InsertSystemStatus): Promise<SystemStatus>;
   
   // Alert operations
-  getAlerts(limit: number): Promise<Alert[]>;
+  getAlerts(limit: number, scope: Scope): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
   markAlertAsRead(id: number): Promise<Alert | undefined>;
   markAllAlertsAsRead(): Promise<void>;
@@ -105,10 +105,10 @@ export interface IStorage {
   deleteObjectCategory(id: number): Promise<boolean>;
 
   // Soil profile operations
-  getSoilProfiles(objectId?: number): Promise<SoilProfile[]>;
-  getSoilProfile(id: number): Promise<SoilProfile | undefined>;
-  getSoilProfileNearCoords(lat: number, lng: number): Promise<SoilProfile | undefined>;
-  createSoilProfile(profile: InsertSoilProfile): Promise<SoilProfile>;
+  getSoilProfiles(objectId: number | undefined, scope: Scope): Promise<SoilProfile[]>;
+  getSoilProfile(id: number, scope: Scope): Promise<SoilProfile | undefined>;
+  getSoilProfileNearCoords(lat: number, lng: number, scope: Scope): Promise<SoilProfile | undefined>;
+  createSoilProfile(profile: InsertSoilProfile, customerId: number): Promise<SoilProfile>;
   updateSoilProfile(id: number, data: Partial<InsertSoilProfile>): Promise<SoilProfile | undefined>;
   deleteSoilProfile(id: number): Promise<boolean>;
   getSoilLayers(profileId: number): Promise<SoilLayer[]>;
@@ -117,17 +117,17 @@ export interface IStorage {
   deleteSoilLayer(id: number): Promise<boolean>;
 
   // Sensor installation operations
-  getSensorInstallations(objectId?: number, scope?: ObjectScope): Promise<SensorInstallation[]>;
-  getSensorInstallation(id: number): Promise<SensorInstallation | undefined>;
+  getSensorInstallations(objectId: number | undefined, scope: Scope): Promise<SensorInstallation[]>;
+  getSensorInstallation(id: number, scope: Scope): Promise<SensorInstallation | undefined>;
   createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation>;
   updateSensorInstallation(id: number, data: Partial<InsertSensorInstallation>): Promise<SensorInstallation | undefined>;
   deleteSensorInstallation(id: number): Promise<boolean>;
 
   // Sensor device operations
-  getSensors(stationId?: string, objectId?: number, scope?: ObjectScope): Promise<Sensor[]>;
-  getSensor(id: number): Promise<Sensor | undefined>;
-  getSensorBySensorCode(code: string): Promise<Sensor | undefined>;
-  createSensor(sensor: InsertSensor): Promise<Sensor>;
+  getSensors(stationId: string | undefined, objectId: number | undefined, scope: Scope): Promise<Sensor[]>;
+  getSensor(id: number, scope: Scope): Promise<Sensor | undefined>;
+  getSensorBySensorCode(code: string, scope: Scope): Promise<Sensor | undefined>;
+  createSensor(sensor: InsertSensor, customerId: number): Promise<Sensor>;
   updateSensor(id: number, data: Partial<InsertSensor>): Promise<Sensor | undefined>;
   deleteSensor(id: number): Promise<boolean>;
 
@@ -138,15 +138,15 @@ export interface IStorage {
   createBuildingNorm(norm: InsertBuildingNorm): Promise<BuildingNorm>;
 
   // Seismogram record operations
-  getSeismogramRecords(stationId?: string, limit?: number): Promise<SeismogramRecord[]>;
-  getSeismogramRecord(id: number): Promise<SeismogramRecord | undefined>;
+  getSeismogramRecords(stationId: string | undefined, limit: number, scope: Scope): Promise<SeismogramRecord[]>;
+  getSeismogramRecord(id: number, scope: Scope): Promise<SeismogramRecord | undefined>;
   createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord>;
   updateSeismogramProcessingStatus(id: number, status: string): Promise<SeismogramRecord | undefined>;
 
   // Calibration session operations
-  getCalibrationSessions(installationId?: number): Promise<CalibrationSession[]>;
-  getCalibrationSession(id: number): Promise<CalibrationSession | undefined>;
-  createCalibrationSession(session: InsertCalibrationSession): Promise<CalibrationSession>;
+  getCalibrationSessions(installationId: number | undefined, scope: Scope): Promise<CalibrationSession[]>;
+  getCalibrationSession(id: number, scope: Scope): Promise<CalibrationSession | undefined>;
+  createCalibrationSession(session: InsertCalibrationSession, customerId: number): Promise<CalibrationSession>;
   updateCalibrationSession(id: number, data: Partial<InsertCalibrationSession>): Promise<CalibrationSession | undefined>;
   deleteCalibrationSession(id: number): Promise<boolean>;
 
@@ -165,9 +165,9 @@ export interface IStorage {
   deleteDeveloper(id: number): Promise<boolean>;
 
   // Seismic calculation operations
-  getSeismicCalculations(calcType?: string, limit?: number, scope?: ObjectScope): Promise<SeismicCalculation[]>;
-  getSeismicCalculation(id: number): Promise<SeismicCalculation | undefined>;
-  createSeismicCalculation(calc: InsertSeismicCalculation): Promise<SeismicCalculation>;
+  getSeismicCalculations(calcType: string | undefined, limit: number, scope: Scope): Promise<SeismicCalculation[]>;
+  getSeismicCalculation(id: number, scope: Scope): Promise<SeismicCalculation | undefined>;
+  createSeismicCalculation(calc: InsertSeismicCalculation, customerId: number): Promise<SeismicCalculation>;
   updateSeismicCalculation(id: number, data: Partial<Pick<InsertSeismicCalculation, 'notes'>> & { notesUpdatedBy?: string | null }): Promise<SeismicCalculation | undefined>;
   deleteSeismicCalculation(id: number): Promise<boolean>;
 
@@ -176,9 +176,9 @@ export interface IStorage {
   createCalculationNoteHistory(entry: InsertCalculationNoteHistory): Promise<CalculationNoteHistory>;
 
   // Saved comparison set operations
-  getComparisonSets(): Promise<ComparisonSet[]>;
-  getComparisonSet(id: number): Promise<ComparisonSet | undefined>;
-  createComparisonSet(set: InsertComparisonSet): Promise<ComparisonSet>;
+  getComparisonSets(scope: Scope): Promise<ComparisonSet[]>;
+  getComparisonSet(id: number, scope: Scope): Promise<ComparisonSet | undefined>;
+  createComparisonSet(set: InsertComparisonSet, customerId: number): Promise<ComparisonSet>;
   deleteComparisonSet(id: number): Promise<boolean>;
 
   // Audit log

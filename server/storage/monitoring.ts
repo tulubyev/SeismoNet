@@ -1,6 +1,8 @@
 import { db, schema } from "../db";
-import { desc, eq } from "drizzle-orm";
+import { eq, isNull, ne, or } from "drizzle-orm";
 import { Alert, InsertAlert, InsertResearchNetwork, InsertSystemStatus, ResearchNetwork, SystemStatus, alerts, researchNetworks, systemStatus } from "@shared/schema";
+import { stationInCustomer } from "./scope";
+import type { Scope } from "./types";
 
 export const monitoringStorage = {
   // Research network operations
@@ -59,8 +61,11 @@ export const monitoringStorage = {
   },
   
   // Alert operations
-  async getAlerts(limit: number): Promise<Alert[]> {
+  async getAlerts(limit: number, scope: Scope): Promise<Alert[]> {
     return db.query.alerts.findMany({
+      where: scope.customerId === null
+        ? undefined
+        : or(ne(alerts.relatedEntityType, 'station'), isNull(alerts.relatedEntityType), stationInCustomer(scope, alerts.relatedEntityId)),
       orderBy: (alerts, { desc }) => [desc(alerts.timestamp)],
       limit
     });
