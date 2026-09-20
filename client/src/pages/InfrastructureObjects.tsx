@@ -14,7 +14,7 @@ import {
   Calendar, Layers, Shield, AlertTriangle, Filter, Box, Radio,
   Plus, Pencil, Trash2, Save, X as IconX
 } from 'lucide-react';
-import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor, Customer } from '@shared/schema';
+import type { InfrastructureObject, SensorInstallation, ObjectCategory, Developer, Sensor, Customer, Region } from '@shared/schema';
 import Building3DViewer, { type SchemaParams } from '@/components/infrastructure/Building3DViewer';
 import SoilProfilesTab from '@/components/infrastructure/SoilProfilesTab';
 import DeveloperObjectFilter, {
@@ -23,6 +23,7 @@ import DeveloperObjectFilter, {
 } from '@/components/DeveloperObjectFilter';
 import { apiRequest } from '@/lib/queryClient';
 import { usePermission } from '@/hooks/use-permission';
+import { useAuth } from '@/hooks/use-auth';
 import { SP14_K1_OPTIONS, SP14_K2_OPTIONS, sp14K1Label, sp14K2Label } from '@/data/sp14-accelerograms';
 
 // ─── Lookup helpers ───────────────────────────────────────────────────────────
@@ -725,11 +726,24 @@ const DetailPanel: FC<{ obj: InfrastructureObject; sensors: SensorInstallation[]
 
 const InfrastructureObjects: FC = () => {
   const { customerScope } = usePermission();
+  const { customer } = useAuth();
   const [search,             setSearch]             = useState('');
-  const [districtFilter,     setDistrictFilter]     = useState('all');
+  const [districtFilter,     setDistrictFilter]     = useState('');
   const [devFilter,          setDevFilter]          = useState<DeveloperObjectFilterValue>(DEVELOPER_FILTER_DEFAULT);
   const [constructionFilter, setConstructionFilter] = useState('all');
   const [selectedObj,        setSelectedObj]        = useState<InfrastructureObject | null>(null);
+
+  const { data: regions = [] } = useQuery<Region[]>({ queryKey: ['/api/regions'] });
+
+  // The Irkutsk district dropdown only makes sense while the active customer is
+  // actually bound to the Иркутск region — otherwise it hides every other
+  // customer's objects behind a fixed, Irkutsk-only district list.
+  const isIrkutskRegion = customer?.regionId != null &&
+    regions.find(r => r.id === customer.regionId)?.name === 'Иркутск';
+
+  // Switch the district filter's sentinel value when the mode changes so a
+  // leftover 'all'/'' value from the other mode doesn't silently over-filter.
+  useEffect(() => { setDistrictFilter(isIrkutskRegion ? 'all' : ''); }, [isIrkutskRegion]);
 
   const { data: objects = [], isLoading } = useQuery<InfrastructureObject[]>({
     queryKey: ['/api/infrastructure-objects']
@@ -767,8 +781,9 @@ const InfrastructureObjects: FC = () => {
       (obj.address ?? '').toLowerCase().includes(q) ||
       (obj.objectId ?? '').toLowerCase().includes(q);
 
-    const matchDistrict = districtFilter === 'all' ||
-      (obj.district ?? '') === districtFilter;
+    const matchDistrict = isIrkutskRegion
+      ? (districtFilter === 'all' || (obj.district ?? '') === districtFilter)
+      : (districtFilter.trim() === '' || (obj.district ?? '').toLowerCase().includes(districtFilter.trim().toLowerCase()));
 
     const matchConstruction = constructionFilter === 'all' ||
       (obj.structuralSystem ?? '') === constructionFilter;
@@ -794,8 +809,10 @@ const InfrastructureObjects: FC = () => {
     }
   }, [objects.length]);
 
+  const districtFilterActive = isIrkutskRegion ? districtFilter !== 'all' : districtFilter.trim() !== '';
+
   const activeFilterCount = [
-    districtFilter !== 'all',
+    districtFilterActive,
     devFilter.developerName !== 'all',
     devFilter.complexName !== 'all',
     devFilter.objectId !== 'all',
@@ -803,7 +820,7 @@ const InfrastructureObjects: FC = () => {
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setDistrictFilter('all');
+    setDistrictFilter(isIrkutskRegion ? 'all' : '');
     setDevFilter(DEVELOPER_FILTER_DEFAULT);
     setConstructionFilter('all');
     setSearch('');
@@ -871,18 +888,30 @@ const InfrastructureObjects: FC = () => {
                   </div>
                   {/* Row 2: district + construction type */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Select value={districtFilter} onValueChange={setDistrictFilter}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                        <SelectValue placeholder="Район города" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Все районы</SelectItem>
-                        {IRKUTSK_DISTRICTS.map(d => (
-                          <SelectItem key={d} value={d}>{d}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {isIrkutskRegion ? (
+                      <Select value={districtFilter} onValueChange={setDistrictFilter}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                          <SelectValue placeholder="Район города" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Все районы</SelectItem>
+                          {IRKUTSK_DISTRICTS.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="relative">
+                        <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                        <Input
+                          placeholder="Район / территория"
+                          value={districtFilter}
+                          onChange={e => setDistrictFilter(e.target.value)}
+                          className="pl-8 h-9 text-sm"
+                        />
+                      </div>
+                    )}
                     <Select value={constructionFilter} onValueChange={setConstructionFilter}>
                       <SelectTrigger className="h-9 text-sm">
                         <Layers className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />

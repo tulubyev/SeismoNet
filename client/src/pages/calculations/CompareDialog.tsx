@@ -113,7 +113,7 @@ export const CompareDialog: FC<CompareDialogProps> = ({
   const [exportedAt, setExportedAt] = useState('');
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { can } = usePermission();
+  const { can, canCreate } = usePermission();
   // Reset the name input whenever the dialog opens or the selection changes.
   useEffect(() => { if (open) setSetName(''); }, [open, calcs.map(c => c.id).join(',')]);
   const calcType = calcs[0]?.calcType as CalcType | undefined;
@@ -311,7 +311,8 @@ export const CompareDialog: FC<CompareDialogProps> = ({
                 data-testid="input-save-set-name"
               />
               <Button size="sm" variant="default" className="h-8 text-xs gap-1"
-                disabled={!setName.trim() || isSaving}
+                disabled={!setName.trim() || isSaving || !canCreate}
+                title={!canCreate ? 'Выберите заказчика' : undefined}
                 onClick={() => { onSaveSet(setName.trim()); setSetName(''); }}
                 data-testid="btn-save-set">
                 {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
