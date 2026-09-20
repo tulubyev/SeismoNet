@@ -2,18 +2,18 @@ import type { IncomingMessage, Server } from "http";
 import type { Duplex } from "stream";
 import { WebSocketServer, WebSocket } from "ws";
 import { and } from "drizzle-orm";
-import { storage, type ObjectScope } from "./storage";
+import { storage, type Scope } from "./storage";
 import { WebSocketMessageType, WebSocketMessage } from "@shared/schema";
 import { sendLowBatteryAlert as sendUnisenderBatteryAlert } from "./services/unisender";
 import { sendLowBatteryAlert as sendTelegramBatteryAlert } from "./services/telegram";
 import { describeError } from "./lib/errors";
-import { resolveSessionUser } from "./auth";
+import { resolveSessionUser, resolveScope } from "./auth";
 import type { User as SelectUser } from "@shared/schema";
 
 // Clients connected via WebSocket
 const clients = new Set<WebSocket>();
 
-type WsContext = { user: SelectUser; scope: ObjectScope };
+type WsContext = { user: SelectUser; scope: Scope };
 
 export function broadcastMessage(message: WebSocketMessage) {
   clients.forEach(client => {
@@ -23,12 +23,13 @@ export function broadcastMessage(message: WebSocketMessage) {
   });
 }
 
-/** Session cookie → user + object scope, or null (anonymous / stale / store error). */
+/** Session cookie → user + request scope, or null (anonymous / stale / no customer / store error). */
 export async function authorizeUpgrade(req: IncomingMessage): Promise<WsContext | null> {
   try {
     const user = await resolveSessionUser(req);
     if (!user) return null;
-    const scope: ObjectScope = user.role === "staff" ? { objectIds: await storage.getUserObjectIds(user.id) } : undefined;
+    const scope = await resolveScope(user, (req as { session?: { customerId?: number | null } }).session?.customerId, () => storage.getUserObjectIds(user.id));
+    if (scope === "no_customer") return null;
     return { user, scope };
   } catch (err) {
     console.error(`WS upgrade auth failed: ${describeError(err)}`);
@@ -174,7 +175,7 @@ export function attachWebSocket(httpServer: Server) {
 }
 
 // Simulate real-time data for the frontend
-function startSimulation(ws: WebSocket, scope: ObjectScope) {
+function startSimulation(ws: WebSocket, scope: Scope) {
   // Variables to track simulation state
   let simulationIntervalId: NodeJS.Timeout;
   
@@ -284,7 +285,7 @@ function startSimulation(ws: WebSocket, scope: ObjectScope) {
       const stationIds = ["PNWST-03", "SOCAL-12", "ALASKA-07", "FIJI-01"];
       const randomStationId = stationIds[Math.floor(Math.random() * stationIds.length)];
       
-      storage.getStationByStationId(randomStationId).then(station => {
+      storage.getStationByStationId(randomStationId, scope).then(station => {
         if (station) {
           // Simulate some battery drain (0-1% decrease)
           const batteryDrain = Math.random();

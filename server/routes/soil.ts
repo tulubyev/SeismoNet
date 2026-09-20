@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and } from "drizzle-orm";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, requireCustomer, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
 router.get('/api/soil-profiles', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const objectId = req.query.objectId ? parseInt(req.query.objectId as string) : undefined;
-    const profiles = await storage.getSoilProfiles(objectId);
+    const profiles = await storage.getSoilProfiles(objectId, scopeOf(req));
     res.json(profiles);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching soil profiles' });
@@ -23,7 +23,7 @@ router.get('/api/soil-profiles/nearest', requirePermission('soil', 'read'), asyn
     const lat = parseFloat(req.query.lat as string);
     const lng = parseFloat(req.query.lng as string);
     if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ message: 'lat and lng query params required' });
-    const profile = await storage.getSoilProfileNearCoords(lat, lng);
+    const profile = await storage.getSoilProfileNearCoords(lat, lng, scopeOf(req));
     if (!profile) return res.status(404).json({ message: 'No profile near given coordinates' });
     res.json(profile);
   } catch (error) {
@@ -34,7 +34,7 @@ router.get('/api/soil-profiles/nearest', requirePermission('soil', 'read'), asyn
 router.get('/api/soil-profiles/:id', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const profile = await storage.getSoilProfile(id);
+    const profile = await storage.getSoilProfile(id, scopeOf(req));
     if (!profile) return res.status(404).json({ message: 'Profile not found' });
     res.json(profile);
   } catch (error) {
@@ -45,6 +45,8 @@ router.get('/api/soil-profiles/:id', requirePermission('soil', 'read'), async (r
 router.get('/api/soil-profiles/:id/layers', requirePermission('soil', 'read'), async (req, res) => {
   try {
     const profileId = parseInt(req.params.id);
+    const profile = await storage.getSoilProfile(profileId, scopeOf(req));
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
     const layers = await storage.getSoilLayers(profileId);
     res.json(layers);
   } catch (error) {
@@ -54,7 +56,9 @@ router.get('/api/soil-profiles/:id/layers', requirePermission('soil', 'read'), a
 
 router.post('/api/soil-profiles', requirePermission('soil', 'write'), async (req, res) => {
   try {
-    const profile = await storage.createSoilProfile(req.body);
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
+    const { customerId: _ignored, ...body } = req.body ?? {};
+    const profile = await storage.createSoilProfile(body, customerId);
     res.status(201).json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Error creating soil profile' });
@@ -63,6 +67,9 @@ router.post('/api/soil-profiles', requirePermission('soil', 'write'), async (req
 
 router.post('/api/soil-layers', requirePermission('soil', 'write'), async (req, res) => {
   try {
+    const profileId = req.body?.profileId;
+    const profile = await storage.getSoilProfile(profileId, scopeOf(req));
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
     const layer = await storage.createSoilLayer(req.body);
     res.status(201).json(layer);
   } catch (error) {
@@ -72,7 +79,10 @@ router.post('/api/soil-layers', requirePermission('soil', 'write'), async (req, 
 
 router.patch('/api/soil-profiles/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
-    const updated = await storage.updateSoilProfile(parseInt(req.params.id), req.body);
+    const id = parseInt(req.params.id);
+    const existing = await storage.getSoilProfile(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Profile not found' });
+    const updated = await storage.updateSoilProfile(id, req.body);
     if (!updated) return res.status(404).json({ message: 'Profile not found' });
     res.json(updated);
   } catch (error) { res.status(500).json({ message: 'Error updating soil profile' }); }
@@ -81,7 +91,7 @@ router.patch('/api/soil-profiles/:id', requirePermission('soil', 'write'), async
 router.delete('/api/soil-profiles/:id', requirePermission('soil', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const profile = await storage.getSoilProfile(id);
+    const profile = await storage.getSoilProfile(id, scopeOf(req));
     if (!profile) return res.status(404).json({ message: 'Profile not found' });
     const layers = await storage.getSoilLayers(id);
     for (const layer of layers) await storage.deleteSoilLayer(layer.id);

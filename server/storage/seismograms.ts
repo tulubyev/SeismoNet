@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { InsertSeismogramRecord, SeismogramRecord, seismogramRecords } from "@shared/schema";
 import { stationInCustomer, andAll } from "./scope";
 import { scopedStationIds } from "./stations";
@@ -16,18 +16,21 @@ async function stationScope(scope: Scope) {
 export const seismogramsStorage = {
   // ─── Seismogram record operations ─────────────────────────────────────────────
 
+  // Plain select builder, not db.query.*: the relational query API wraps the
+  // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+  // inside stationScope ("invalid reference to FROM-clause entry").
   async getSeismogramRecords(stationId: string | undefined, limit: number = 50, scope: Scope): Promise<SeismogramRecord[]> {
-    return db.query.seismogramRecords.findMany({
-      where: andAll(stationId ? eq(schema.seismogramRecords.stationId, stationId) : undefined, await stationScope(scope)),
-      orderBy: (t, { desc }) => [desc(t.startTime)],
-      limit,
-    });
+    return db.select().from(schema.seismogramRecords)
+      .where(andAll(stationId ? eq(schema.seismogramRecords.stationId, stationId) : undefined, await stationScope(scope)))
+      .orderBy(desc(schema.seismogramRecords.startTime))
+      .limit(limit);
   },
 
   async getSeismogramRecord(id: number, scope: Scope): Promise<SeismogramRecord | undefined> {
-    return db.query.seismogramRecords.findFirst({
-      where: andAll(eq(schema.seismogramRecords.id, id), await stationScope(scope)),
-    });
+    const [row] = await db.select().from(schema.seismogramRecords)
+      .where(andAll(eq(schema.seismogramRecords.id, id), await stationScope(scope)))
+      .limit(1);
+    return row;
   },
 
   async createSeismogramRecord(record: InsertSeismogramRecord): Promise<SeismogramRecord> {

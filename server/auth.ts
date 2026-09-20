@@ -264,6 +264,13 @@ export function scopeOf(req: Request): Scope {
   return req.scope;
 }
 
+/** Creating a tenant row needs a concrete customer; superadmin in "all" mode must pick one. */
+export function requireCustomer(req: Request, res: Response): number | undefined {
+  const id = scopeOf(req).customerId;
+  if (id === null) { res.status(400).json({ error: "select_customer" }); return undefined; }
+  return id;
+}
+
 /** /api/user payload: user (no password) + effective customer. */
 export async function sessionUserPayload(user: SelectUser, session: { customerId?: number | null }): Promise<SessionUser> {
   const { password: _pw, ...safe } = user;

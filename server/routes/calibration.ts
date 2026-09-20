@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, requireCustomer, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -15,7 +15,7 @@ router.get('/api/calibration-sessions', requirePermission('calibration', 'read')
       installationId = parseInt(req.query.installationId as string);
       if (isNaN(installationId) || installationId <= 0) return res.status(400).json({ message: 'installationId must be a positive integer' });
     }
-    const sessions = await storage.getCalibrationSessions(installationId);
+    const sessions = await storage.getCalibrationSessions(installationId, scopeOf(req));
     res.json(sessions);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching calibration sessions' });
@@ -24,7 +24,7 @@ router.get('/api/calibration-sessions', requirePermission('calibration', 'read')
 
 router.get('/api/calibration-sessions/:id', requirePermission('calibration', 'read'), async (req, res) => {
   try {
-    const session = await storage.getCalibrationSession(parseInt(req.params.id));
+    const session = await storage.getCalibrationSession(parseInt(req.params.id), scopeOf(req));
     if (!session) return res.status(404).json({ message: 'Session not found' });
     res.json(session);
   } catch (error) {
@@ -49,7 +49,8 @@ router.post('/api/calibration-sessions', requirePermission('calibration', 'write
   const parsed = calibrationSessionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
   try {
-    const session = await storage.createCalibrationSession(parsed.data);
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
+    const session = await storage.createCalibrationSession(parsed.data, customerId);
     res.status(201).json(session);
   } catch (error) {
     res.status(500).json({ message: 'Error creating calibration session' });
@@ -60,7 +61,10 @@ router.patch('/api/calibration-sessions/:id', requirePermission('calibration', '
   const parsed = calibrationSessionSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid session data', errors: parsed.error.flatten() });
   try {
-    const updated = await storage.updateCalibrationSession(parseInt(req.params.id), parsed.data);
+    const id = parseInt(req.params.id);
+    const existing = await storage.getCalibrationSession(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Session not found' });
+    const updated = await storage.updateCalibrationSession(id, parsed.data);
     if (!updated) return res.status(404).json({ message: 'Session not found' });
     res.json(updated);
   } catch (error) {
@@ -70,7 +74,10 @@ router.patch('/api/calibration-sessions/:id', requirePermission('calibration', '
 
 router.delete('/api/calibration-sessions/:id', requirePermission('calibration', 'write'), async (req, res) => {
   try {
-    const ok = await storage.deleteCalibrationSession(parseInt(req.params.id));
+    const id = parseInt(req.params.id);
+    const existing = await storage.getCalibrationSession(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Session not found' });
+    const ok = await storage.deleteCalibrationSession(id);
     if (!ok) return res.status(404).json({ message: 'Session not found' });
     res.json({ success: true });
   } catch (error) {
@@ -84,6 +91,8 @@ router.get('/api/calibration-afc', requirePermission('calibration', 'read'), asy
   try {
     const sessionId = parseInt(req.query.sessionId as string);
     if (isNaN(sessionId) || sessionId <= 0) return res.status(400).json({ message: 'sessionId must be a positive integer' });
+    const session = await storage.getCalibrationSession(sessionId, scopeOf(req));
+    if (!session) return res.status(404).json({ message: `Calibration session ${sessionId} not found` });
     const points = await storage.getCalibrationAfc(sessionId);
     res.json(points);
   } catch (error) {
@@ -107,7 +116,7 @@ router.put('/api/calibration-afc', requirePermission('calibration', 'write'), as
   if (!parsed.success) return res.status(400).json({ message: 'Invalid AFC data', errors: parsed.error.flatten() });
   try {
     const { sessionId, points } = parsed.data;
-    const session = await storage.getCalibrationSession(sessionId);
+    const session = await storage.getCalibrationSession(sessionId, scopeOf(req));
     if (!session) return res.status(404).json({ message: `Calibration session ${sessionId} not found` });
     const result = await storage.replaceCalibrationAfc(sessionId, points.map(p => ({ ...p, sessionId })));
     res.json(result);

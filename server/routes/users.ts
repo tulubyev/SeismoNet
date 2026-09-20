@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { storage } from "../storage";
+import { storage, type Scope } from "../storage";
 import { requirePermission, scopeOf } from "../auth";
 import { hashPassword } from "../lib/password";
 import { describeError } from "../lib/errors";
@@ -138,11 +138,14 @@ router.put("/api/users/:id/objects", guard("write"), async (req, res) => {
     const id = idOf(req.params.id);
     const parsed = z.object({ objectIds: z.array(z.number().int().positive()) }).safeParse(req.body);
     if (!id || !parsed.success) return res.status(400).json({ error: "validation" });
-    if (!(await storage.getUser(id))) return res.status(404).json({ error: "not found" });
+    const target = await storage.getUser(id);
+    if (!target) return res.status(404).json({ error: "not found" });
+    if (target.customerId == null) return res.status(400).json({ error: "superadmin has no objects" });
     // De-duplicate and validate up front: an unknown id would otherwise surface
     // as an FK violation, i.e. a 500 for what is a client mistake.
     const objectIds = Array.from(new Set(parsed.data.objectIds));
-    const known = new Set((await storage.getInfrastructureObjects()).map(o => o.id));
+    const scope: Scope = { customerId: target.customerId };
+    const known = new Set((await storage.getInfrastructureObjects(scope)).map(o => o.id));
     if (objectIds.some(oid => !known.has(oid))) return res.status(400).json({ error: "unknown object id" });
     await storage.setUserObjects(id, objectIds);
     void storage.logAudit({ ...actorOf(req), action: "user.objects_set", targetType: "user", targetId: id, details: { objectIds } });

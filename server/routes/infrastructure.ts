@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, requireCustomer, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -9,7 +9,7 @@ const router = Router();
 
 router.get('/api/infrastructure-objects', requirePermission('objects', 'read'), async (req, res) => {
   try {
-    const objects = await storage.getInfrastructureObjects(req.objectScope);
+    const objects = await storage.getInfrastructureObjects(scopeOf(req));
     res.json(objects);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching infrastructure objects' });
@@ -19,7 +19,7 @@ router.get('/api/infrastructure-objects', requirePermission('objects', 'read'), 
 router.get('/api/infrastructure-objects/:id', requirePermission('objects', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const obj = await storage.getInfrastructureObject(id, req.objectScope);
+    const obj = await storage.getInfrastructureObject(id, scopeOf(req));
     if (!obj) return res.status(404).json({ message: 'Object not found' });
     res.json(obj);
   } catch (error) {
@@ -29,7 +29,9 @@ router.get('/api/infrastructure-objects/:id', requirePermission('objects', 'read
 
 router.post('/api/infrastructure-objects', requirePermission('objects', 'write'), async (req, res) => {
   try {
-    const newObj = await storage.createInfrastructureObject(req.body);
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
+    const { customerId: _ignored, ...body } = req.body ?? {};
+    const newObj = await storage.createInfrastructureObject(body, customerId);
     res.status(201).json(newObj);
   } catch (error) {
     res.status(500).json({ message: 'Error creating infrastructure object' });
@@ -39,6 +41,8 @@ router.post('/api/infrastructure-objects', requirePermission('objects', 'write')
 router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getInfrastructureObject(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Object not found' });
     const updated = await storage.updateInfrastructureObject(id, req.body);
     if (!updated) return res.status(404).json({ message: 'Object not found' });
     res.json(updated);
@@ -50,6 +54,8 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
 router.delete('/api/infrastructure-objects/:id', requirePermission('objects', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getInfrastructureObject(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Object not found' });
     const ok = await storage.deleteInfrastructureObject(id);
     if (!ok) return res.status(404).json({ message: 'Object not found' });
     res.json({ success: true });

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { insertSeismicCalculationSchema } from "@shared/schema";
-import { requirePermission } from "../auth";
+import { requirePermission, requireCustomer, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -14,7 +14,7 @@ router.get('/api/calculations', requirePermission('mtsm', 'read'), async (req, r
     const rows = await storage.getSeismicCalculations(
       type as string | undefined,
       limit ? parseInt(limit as string) : 50,
-      req.objectScope
+      scopeOf(req)
     );
     res.json(rows);
   } catch (e) {
@@ -26,7 +26,7 @@ router.get('/api/calculations', requirePermission('mtsm', 'read'), async (req, r
 router.get('/api/calculations/:id', requirePermission('mtsm', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const row = await storage.getSeismicCalculation(id);
+    const row = await storage.getSeismicCalculation(id, scopeOf(req));
     if (!row) return res.status(404).json({ message: 'Calculation not found' });
     res.json(row);
   } catch (e) {
@@ -36,12 +36,14 @@ router.get('/api/calculations/:id', requirePermission('mtsm', 'read'), async (re
 
 router.post('/api/calculations', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
+    const { customerId: _ignored, ...body } = req.body ?? {};
     const parsed = insertSeismicCalculationSchema.safeParse({
-      ...req.body,
+      ...body,
       createdBy: (req.user as { id?: number } | undefined)?.id ?? null,
     });
     if (!parsed.success) return res.status(400).json({ message: 'Invalid calculation data', errors: parsed.error.flatten() });
-    const row = await storage.createSeismicCalculation(parsed.data);
+    const row = await storage.createSeismicCalculation(parsed.data, customerId);
     res.status(201).json(row);
   } catch (e) {
     res.status(500).json({ message: 'Error saving calculation' });
@@ -52,6 +54,8 @@ router.patch('/api/calculations/:id', requirePermission('mtsm', 'write'), async 
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+    const existing = await storage.getSeismicCalculation(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Calculation not found' });
     const patchSchema = insertSeismicCalculationSchema.pick({ notes: true }).partial();
     const parsed = patchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: 'Invalid patch data', errors: parsed.error.flatten() });
@@ -69,6 +73,8 @@ router.get('/api/calculations/:id/note-history', requirePermission('mtsm', 'read
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+    const existing = await storage.getSeismicCalculation(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Calculation not found' });
     const history = await storage.getCalculationNoteHistory(id);
     res.json(history);
   } catch (e) {
@@ -81,6 +87,8 @@ router.post('/api/calculations/:id/note-history/revert', requirePermission('mtsm
   try {
     const id = parseInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+    const existingCalc = await storage.getSeismicCalculation(id, scopeOf(req));
+    if (!existingCalc) return res.status(404).json({ message: 'Calculation not found' });
     const { historyId } = req.body as { historyId?: number };
     if (typeof historyId !== 'number') return res.status(400).json({ message: 'historyId required' });
     const history = await storage.getCalculationNoteHistory(id);
@@ -99,6 +107,8 @@ router.post('/api/calculations/:id/note-history/revert', requirePermission('mtsm
 router.delete('/api/calculations/:id', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getSeismicCalculation(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Calculation not found' });
     const ok = await storage.deleteSeismicCalculation(id);
     if (!ok) return res.status(404).json({ message: 'Calculation not found' });
     res.json({ success: true });
@@ -109,9 +119,9 @@ router.delete('/api/calculations/:id', requirePermission('mtsm', 'write'), async
 
 // ─── Saved comparison sets API ────────────────────────────────────────────────
 
-router.get('/api/comparison-sets', requirePermission('mtsm', 'read'), async (_req, res) => {
+router.get('/api/comparison-sets', requirePermission('mtsm', 'read'), async (req, res) => {
   try {
-    const sets = await storage.getComparisonSets();
+    const sets = await storage.getComparisonSets(scopeOf(req));
     res.json(sets);
   } catch (e) {
     console.error('GET /api/comparison-sets failed:', e);
@@ -121,6 +131,7 @@ router.get('/api/comparison-sets', requirePermission('mtsm', 'read'), async (_re
 
 router.post('/api/comparison-sets', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
     const { name, calcType, calcIds } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ message: 'name is required' });
@@ -137,7 +148,7 @@ router.post('/api/comparison-sets', requirePermission('mtsm', 'write'), async (r
       calcType,
       calcIds: calcIds as number[],
       createdBy: (req.user as { username?: string } | undefined)?.username ?? null,
-    });
+    }, customerId);
     res.status(201).json(set);
   } catch (e) {
     console.error('POST /api/comparison-sets failed:', e);
@@ -148,6 +159,8 @@ router.post('/api/comparison-sets', requirePermission('mtsm', 'write'), async (r
 router.delete('/api/comparison-sets/:id', requirePermission('mtsm', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getComparisonSet(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Comparison set not found' });
     const ok = await storage.deleteComparisonSet(id);
     if (!ok) return res.status(404).json({ message: 'Comparison set not found' });
     res.json({ success: true });

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, schema as dbSchema } from "../db";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, scopeOf } from "../auth";
 import { encodeMiniSEED, type MseedChannel } from "../lib/miniseed";
 
 const router = Router();
@@ -14,7 +14,7 @@ router.get('/api/seismograms', requirePermission('seismograms', 'read'), async (
   try {
     const stationId = req.query.stationId as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const records = await storage.getSeismogramRecords(stationId, limit);
+    const records = await storage.getSeismogramRecords(stationId, limit, scopeOf(req));
     res.json(records);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching seismogram records' });
@@ -24,7 +24,7 @@ router.get('/api/seismograms', requirePermission('seismograms', 'read'), async (
 router.get('/api/seismograms/:id', requirePermission('seismograms', 'read'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const record = await storage.getSeismogramRecord(id);
+    const record = await storage.getSeismogramRecord(id, scopeOf(req));
     if (!record) return res.status(404).json({ message: 'Seismogram not found' });
     res.json(record);
   } catch (error) {
@@ -34,6 +34,8 @@ router.get('/api/seismograms/:id', requirePermission('seismograms', 'read'), asy
 
 router.post('/api/seismograms', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
+    const station = await storage.getStationByStationId(req.body?.stationId, scopeOf(req));
+    if (!station) return res.status(400).json({ error: 'unknown station' });
     const body = { ...req.body };
     if (typeof body.startTime === 'string') body.startTime = new Date(body.startTime);
     if (typeof body.endTime === 'string') body.endTime = new Date(body.endTime);
@@ -50,7 +52,7 @@ router.post('/api/seismograms', requirePermission('seismograms', 'write'), async
 router.patch('/api/seismograms/:id/use-for-modeling', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const record = await storage.getSeismogramRecord(id);
+    const record = await storage.getSeismogramRecord(id, scopeOf(req));
     if (!record) return res.status(404).json({ message: 'Seismogram not found' });
     const [updated] = await db
       .update(dbSchema.seismogramRecords)
@@ -66,6 +68,8 @@ router.patch('/api/seismograms/:id/use-for-modeling', requirePermission('seismog
 router.patch('/api/seismograms/:id/status', requirePermission('seismograms', 'write'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const existing = await storage.getSeismogramRecord(id, scopeOf(req));
+    if (!existing) return res.status(404).json({ message: 'Seismogram not found' });
     const { status } = req.body;
     const updated = await storage.updateSeismogramProcessingStatus(id, status);
     if (!updated) return res.status(404).json({ message: 'Seismogram not found' });
@@ -81,7 +85,7 @@ router.get('/api/seismograms/:id/mseed', requirePermission('seismograms', 'read'
   try {
     const id = parseInt(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid id' });
-    const rec = await storage.getSeismogramRecord(id);
+    const rec = await storage.getSeismogramRecord(id, scopeOf(req));
     if (!rec) return res.status(404).json({ message: 'Seismogram not found' });
 
     const sampleRate = rec.sampleRate ?? 100;

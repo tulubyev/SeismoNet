@@ -9,10 +9,14 @@ import type { InsertAlert, InsertBuildingNorm, InsertDeveloper, InsertEvent, Ins
 export async function seedDatabase(): Promise<void> {
   const dbStorage = storage;
 
+  const ecsem = await dbStorage.getCustomerByCode("ecsem");
+  if (!ecsem) { console.error("seed: customer ecsem missing"); return; }
+  const cid = ecsem.id;
+
   // Remove legacy international stations that don't belong to the Irkutsk network
   const LEGACY_STATION_IDS = ["PNWST-03", "SOCAL-12", "ALASKA-07", "FIJI-01"];
   for (const legacyId of LEGACY_STATION_IDS) {
-    const legacy = await dbStorage.getStationByStationId(legacyId);
+    const legacy = await dbStorage.getStationByStationId(legacyId, { customerId: cid });
     if (legacy) {
       await db.delete(schema.stations).where(eq(schema.stations.id, legacy.id));
       console.log(`Removed legacy station: ${legacyId}`);
@@ -20,8 +24,8 @@ export async function seedDatabase(): Promise<void> {
   }
 
   // Check if there's already data in the database
-  const existingUsers = await dbStorage.getUsers();
-  const existingStations = await dbStorage.getStations();
+  const existingUsers = await dbStorage.getUsers({ customerId: null });
+  const existingStations = await dbStorage.getStations({ customerId: cid });
   
   // Initialize users if none exist
   if (existingUsers.length === 0) {
@@ -299,7 +303,7 @@ export async function seedDatabase(): Promise<void> {
     ];
     
     for (const station of sampleStations) {
-      await dbStorage.createStation(station);
+      await dbStorage.createStation(station, cid);
     }
     
     // Sample events
@@ -624,7 +628,7 @@ export async function seedDatabase(): Promise<void> {
   }
 
   // ── Seed Irkutsk infrastructure objects ──────────────────────────────────────
-  const existingObjects = await dbStorage.getInfrastructureObjects();
+  const existingObjects = await dbStorage.getInfrastructureObjects({ customerId: cid });
   if (existingObjects.length === 0) {
     console.log('Seeding Irkutsk infrastructure objects...');
 
@@ -716,7 +720,7 @@ export async function seedDatabase(): Promise<void> {
     ];
 
     for (const obj of irkutskObjects) {
-      await dbStorage.createInfrastructureObject(obj);
+      await dbStorage.createInfrastructureObject(obj, cid);
     }
   }
 
@@ -945,9 +949,9 @@ export async function seedDatabase(): Promise<void> {
   ];
 
   for (const devObj of developerBuildings) {
-    const existing = await dbStorage.getInfrastructureObjectByObjectId(devObj.objectId);
+    const existing = await dbStorage.getInfrastructureObjectByObjectId(devObj.objectId, { customerId: cid });
     if (!existing) {
-      await dbStorage.createInfrastructureObject(devObj);
+      await dbStorage.createInfrastructureObject(devObj, cid);
     }
   }
   console.log('Developer high-rise buildings seeded (skipped if already present).');
@@ -1298,17 +1302,17 @@ export async function seedDatabase(): Promise<void> {
   ];
 
   for (const obj of testObjects) {
-    const existing = await dbStorage.getInfrastructureObjectByObjectId(obj.objectId);
+    const existing = await dbStorage.getInfrastructureObjectByObjectId(obj.objectId, { customerId: cid });
     if (!existing) {
-      await dbStorage.createInfrastructureObject(obj);
+      await dbStorage.createInfrastructureObject(obj, cid);
     }
   }
   console.log('Test diversity objects seeded (skipped if already present).');
 
   // ── Seed sensor installations linking stations to test objects ────────────────
-  const allObjects = await dbStorage.getInfrastructureObjects();
+  const allObjects = await dbStorage.getInfrastructureObjects({ customerId: cid });
   const objectByCode = (code: string) => allObjects.find(o => o.objectId === code);
-  const existingInstalls = await dbStorage.getSensorInstallations();
+  const existingInstalls = await dbStorage.getSensorInstallations(undefined, { customerId: cid });
   const hasInstall = (stationId: string, objectId: number) =>
     existingInstalls.some(i => i.stationId === stationId && i.objectId === objectId && i.isActive);
 
@@ -1511,9 +1515,9 @@ export async function seedDatabase(): Promise<void> {
     },
   ];
   for (const dev of devSeeds) {
-    const existing = await dbStorage.getDeveloperByName(dev.name);
+    const existing = await dbStorage.getDeveloperByName(dev.name, { customerId: cid });
     if (!existing) {
-      await dbStorage.createDeveloper(dev);
+      await dbStorage.createDeveloper(dev, cid);
     }
   }
   console.log('Developers seeded (skipped if already present).');
@@ -1933,22 +1937,22 @@ export async function seedDatabase(): Promise<void> {
     ];
 
     for (const st of irkStations) {
-      const exists = await dbStorage.getStationByStationId(st.stationId);
+      const exists = await dbStorage.getStationByStationId(st.stationId, { customerId: cid });
       if (!exists) {
-        await dbStorage.createStation(st);
+        await dbStorage.createStation(st, cid);
       }
     }
   }
 
   // ── Seed sensor installations ──────────────────────────────────────────────────
-  const existingInstallations = await dbStorage.getSensorInstallations();
+  const existingInstallations = await dbStorage.getSensorInstallations(undefined, { customerId: cid });
   if (existingInstallations.length === 0) {
     console.log('Seeding sensor installations...');
 
     // Get seeded objects by objectId
-    const objAdmin  = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-001');
-    const objGES    = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-003');
-    const objBGMU   = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-004');
+    const objAdmin  = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-001', { customerId: cid });
+    const objGES    = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-003', { customerId: cid });
+    const objBGMU   = await dbStorage.getInfrastructureObjectByObjectId('IRK-OBJ-004', { customerId: cid });
 
     if (objAdmin) {
       const installs: InsertSensorInstallation[] = [
@@ -2086,7 +2090,7 @@ export async function seedDatabase(): Promise<void> {
   }
 
   // ── Seed historical seismogram catalog ──────────────────────────────────────
-  const existingSeismograms = await dbStorage.getSeismogramRecords(undefined, 1);
+  const existingSeismograms = await dbStorage.getSeismogramRecords(undefined, 1, { customerId: cid });
   if (existingSeismograms.length === 0) {
     console.log('Seeding historical seismogram catalog...');
 
@@ -2263,7 +2267,7 @@ export async function seedDatabase(): Promise<void> {
 
   // ── Seed soil profiles (real Irkutsk borehole points) ───────────────────────
   {
-    const existingSoilProfiles = await dbStorage.getSoilProfiles();
+    const existingSoilProfiles = await dbStorage.getSoilProfiles(undefined, { customerId: cid });
     const existingNames = new Set(existingSoilProfiles.map(p => p.profileName));
     console.log('Seeding soil profiles and layers (skipping existing)...');
 
@@ -2445,7 +2449,7 @@ export async function seedDatabase(): Promise<void> {
     let seededCount = 0;
     for (const seed of soilSeeds) {
       if (!existingNames.has(seed.profile.profileName)) {
-        const profile = await dbStorage.createSoilProfile(seed.profile);
+        const profile = await dbStorage.createSoilProfile(seed.profile, cid);
         for (const layer of seed.layers) {
           await dbStorage.createSoilLayer({ ...layer, profileId: profile.id });
         }
@@ -2485,8 +2489,8 @@ export async function seedDatabase(): Promise<void> {
   ];
 
   for (const st of districtStations) {
-    const exists = await dbStorage.getStationByStationId(st.stationId);
-    if (!exists) await dbStorage.createStation(st);
+    const exists = await dbStorage.getStationByStationId(st.stationId, { customerId: cid });
+    if (!exists) await dbStorage.createStation(st, cid);
   }
   console.log('District stations (IRK-DIST-001..020) seeded (skipped if already present).');
 
@@ -2504,7 +2508,7 @@ export async function seedDatabase(): Promise<void> {
     const codeA = `SS-${prefix}-${num}-A`; // accelerometer
     const codeB = `SS-${prefix}-${num}-B`; // seismometer
 
-    const existsA = await dbStorage.getSensorBySensorCode(codeA);
+    const existsA = await dbStorage.getSensorBySensorCode(codeA, { customerId: cid });
     if (!existsA) {
       await dbStorage.createSensor({
         sensorCode: codeA,
@@ -2519,9 +2523,9 @@ export async function seedDatabase(): Promise<void> {
         calibrationDate: new Date('2025-04-01'),
         isActive: true,
         location: 'foundation',
-      });
+      }, cid);
     }
-    const existsB = await dbStorage.getSensorBySensorCode(codeB);
+    const existsB = await dbStorage.getSensorBySensorCode(codeB, { customerId: cid });
     if (!existsB) {
       await dbStorage.createSensor({
         sensorCode: codeB,
@@ -2536,17 +2540,17 @@ export async function seedDatabase(): Promise<void> {
         calibrationDate: new Date('2025-04-01'),
         isActive: true,
         location: 'free_field',
-      });
+      }, cid);
     }
   }
   console.log('Sensor devices seeded for managed stations.');
 
   // ── Seed sensors for all infrastructure objects (foundation / floor / roof) ──
-  const existingObjSensors = await dbStorage.getSensors(undefined, undefined);
+  const existingObjSensors = await dbStorage.getSensors(undefined, undefined, { customerId: cid });
   const existingObjSensorCodes = new Set(
     existingObjSensors.filter(s => s.objectId != null).map(s => s.sensorCode)
   );
-  const allObjs = await dbStorage.getInfrastructureObjects();
+  const allObjs = await dbStorage.getInfrastructureObjects({ customerId: cid });
   const expectedTotal = allObjs.reduce((sum, o) => sum + 6 + Math.max(o.floors ?? 1, 1), 0);
   const alreadySeeded = existingObjSensorCodes.size;
   if (alreadySeeded < expectedTotal) {
@@ -2584,7 +2588,7 @@ export async function seedDatabase(): Promise<void> {
             installationDate: new Date('2024-06-01'),
             calibrationDate: new Date('2025-01-15'),
             isActive: isOnline(isMonitored),
-          });
+          }, cid);
           objSensorCount++;
         }
       }
@@ -2609,7 +2613,7 @@ export async function seedDatabase(): Promise<void> {
             installationDate: new Date('2024-06-01'),
             calibrationDate: new Date('2025-01-15'),
             isActive: isOnline(false),
-          });
+          }, cid);
           objSensorCount++;
         }
       }
@@ -2633,7 +2637,7 @@ export async function seedDatabase(): Promise<void> {
             installationDate: new Date('2024-06-01'),
             calibrationDate: new Date('2025-01-15'),
             isActive: isOnline(isMonitored),
-          });
+          }, cid);
           objSensorCount++;
         }
       }

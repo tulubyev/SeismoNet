@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -53,7 +53,7 @@ router.get('/api/system/status', requirePermission('monitoring', 'read'), async 
 router.get('/api/alerts', requirePermission('monitoring', 'read'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 10;
-    const alerts = await storage.getAlerts(limit);
+    const alerts = await storage.getAlerts(limit, scopeOf(req));
     res.json(alerts);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching alerts' });
@@ -115,7 +115,7 @@ router.get('/api/regions/:id', requirePermission('monitoring', 'read'), async (r
 router.get('/api/regions/:id/stations', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const regionId = parseInt(req.params.id);
-    const stations = await storage.getStationsByRegionId(regionId, req.objectScope);
+    const stations = await storage.getStationsByRegionId(regionId, scopeOf(req));
     res.json(stations);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching stations for region' });

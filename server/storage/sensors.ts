@@ -14,18 +14,20 @@ export const sensorsStorage = {
   // ─── Sensor installation operations ──────────────────────────────────────────
 
   async getSensorInstallations(objectId: number | undefined, scope: Scope): Promise<SensorInstallation[]> {
-    return db.query.sensorInstallations.findMany({
-      where: andAll(
-        objectId !== undefined ? eq(schema.sensorInstallations.objectId, objectId) : undefined,
-        installationScope(scope),
-      ),
-    });
+    // Plain select builder, not db.query.*: the relational query API wraps the
+    // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+    // inside installationScope ("invalid reference to FROM-clause entry").
+    return db.select().from(schema.sensorInstallations).where(andAll(
+      objectId !== undefined ? eq(schema.sensorInstallations.objectId, objectId) : undefined,
+      installationScope(scope),
+    ));
   },
 
   async getSensorInstallation(id: number, scope: Scope): Promise<SensorInstallation | undefined> {
-    return db.query.sensorInstallations.findFirst({
-      where: andAll(eq(schema.sensorInstallations.id, id), installationScope(scope)),
-    });
+    const [row] = await db.select().from(schema.sensorInstallations)
+      .where(andAll(eq(schema.sensorInstallations.id, id), installationScope(scope)))
+      .limit(1);
+    return row;
   },
 
   async createSensorInstallation(inst: InsertSensorInstallation): Promise<SensorInstallation> {

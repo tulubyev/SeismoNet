@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq, isNull, ne, or } from "drizzle-orm";
+import { desc, eq, isNull, ne, or } from "drizzle-orm";
 import { Alert, InsertAlert, InsertResearchNetwork, InsertSystemStatus, ResearchNetwork, SystemStatus, alerts, researchNetworks, systemStatus } from "@shared/schema";
 import { stationInCustomer } from "./scope";
 import type { Scope } from "./types";
@@ -61,14 +61,16 @@ export const monitoringStorage = {
   },
   
   // Alert operations
+  // Plain select builder, not db.query.*: the relational query API wraps the
+  // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+  // inside stationInCustomer ("invalid reference to FROM-clause entry").
   async getAlerts(limit: number, scope: Scope): Promise<Alert[]> {
-    return db.query.alerts.findMany({
-      where: scope.customerId === null
+    return db.select().from(schema.alerts)
+      .where(scope.customerId === null
         ? undefined
-        : or(ne(alerts.relatedEntityType, 'station'), isNull(alerts.relatedEntityType), stationInCustomer(scope, alerts.relatedEntityId)),
-      orderBy: (alerts, { desc }) => [desc(alerts.timestamp)],
-      limit
-    });
+        : or(ne(alerts.relatedEntityType, 'station'), isNull(alerts.relatedEntityType), stationInCustomer(scope, alerts.relatedEntityId)))
+      .orderBy(desc(alerts.timestamp))
+      .limit(limit);
   },
   
   async createAlert(alert: InsertAlert): Promise<Alert> {

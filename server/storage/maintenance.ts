@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { and, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, desc, asc, eq, gt, inArray, lte } from "drizzle-orm";
 import { InsertMaintenanceRecord, MaintenanceRecord, maintenanceRecords, stations } from "@shared/schema";
 import { stationInCustomer, andAll } from "./scope";
 import { scopedStationIds } from "./stations";
@@ -15,17 +15,20 @@ async function stationScope(scope: Scope) {
 
 export const maintenanceStorage = {
   // Maintenance operations
+  // Plain select builder, not db.query.*: the relational query API wraps the
+  // table in a camelCase-aliased subquery, which breaks the correlated EXISTS
+  // inside stationScope ("invalid reference to FROM-clause entry").
   async getMaintenanceRecords(stationId: string, scope: Scope): Promise<MaintenanceRecord[]> {
-    return db.query.maintenanceRecords.findMany({
-      where: andAll(eq(schema.maintenanceRecords.stationId, stationId), await stationScope(scope)),
-      orderBy: (records, { desc }) => [desc(records.performedAt)]
-    });
+    return db.select().from(schema.maintenanceRecords)
+      .where(andAll(eq(schema.maintenanceRecords.stationId, stationId), await stationScope(scope)))
+      .orderBy(desc(schema.maintenanceRecords.performedAt));
   },
 
   async getMaintenanceRecord(id: number, scope: Scope): Promise<MaintenanceRecord | undefined> {
-    return db.query.maintenanceRecords.findFirst({
-      where: andAll(eq(schema.maintenanceRecords.id, id), await stationScope(scope)),
-    });
+    const [row] = await db.select().from(schema.maintenanceRecords)
+      .where(andAll(eq(schema.maintenanceRecords.id, id), await stationScope(scope)))
+      .limit(1);
+    return row;
   },
 
   async createMaintenanceRecord(record: InsertMaintenanceRecord): Promise<MaintenanceRecord> {
@@ -60,14 +63,13 @@ export const maintenanceStorage = {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
-    return db.query.maintenanceRecords.findMany({
-      where: andAll(
+    return db.select().from(schema.maintenanceRecords)
+      .where(andAll(
         lte(schema.maintenanceRecords.scheduledAt, futureDate),
         gt(schema.maintenanceRecords.scheduledAt, new Date()),
         eq(schema.maintenanceRecords.status, "scheduled"),
         await stationScope(scope),
-      ),
-      orderBy: (records, { asc }) => [asc(records.scheduledAt)]
-    });
+      ))
+      .orderBy(asc(schema.maintenanceRecords.scheduledAt));
   },
 };

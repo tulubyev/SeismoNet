@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and } from "drizzle-orm";
 import { storage } from "../storage";
-import { requirePermission } from "../auth";
+import { requirePermission, scopeOf } from "../auth";
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
 // Get all stations
 router.get('/api/stations', requirePermission('stations', 'read'), async (req, res) => {
   try {
-    const stations = await storage.getStations(req.objectScope);
+    const stations = await storage.getStations(scopeOf(req));
     res.json(stations);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching stations' });
@@ -21,7 +21,7 @@ router.get('/api/stations', requirePermission('stations', 'read'), async (req, r
 // Get a specific station by ID
 router.get('/api/stations/:stationId', requirePermission('stations', 'read'), async (req, res) => {
   try {
-    const station = await storage.getStationByStationId(req.params.stationId);
+    const station = await storage.getStationByStationId(req.params.stationId, scopeOf(req));
     if (!station) {
       return res.status(404).json({ message: 'Station not found' });
     }
@@ -37,7 +37,7 @@ router.get('/api/stations/:stationId', requirePermission('stations', 'read'), as
 // Get all maintenance records for a station
 router.get('/api/stations/:stationId/maintenance', requirePermission('stations', 'read'), async (req, res) => {
   try {
-    const records = await storage.getMaintenanceRecords(req.params.stationId);
+    const records = await storage.getMaintenanceRecords(req.params.stationId, scopeOf(req));
     res.json(records);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching maintenance records' });
@@ -48,7 +48,7 @@ router.get('/api/stations/:stationId/maintenance', requirePermission('stations',
 router.get('/api/maintenance/:id', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const recordId = parseInt(req.params.id);
-    const record = await storage.getMaintenanceRecord(recordId);
+    const record = await storage.getMaintenanceRecord(recordId, scopeOf(req));
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' });
     }
@@ -62,17 +62,17 @@ router.get('/api/maintenance/:id', requirePermission('stations', 'read'), async 
 router.post('/api/stations/:stationId/maintenance', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
-    const station = await storage.getStationByStationId(stationId);
-    
+    const station = await storage.getStationByStationId(stationId, scopeOf(req));
+
     if (!station) {
       return res.status(404).json({ message: 'Station not found' });
     }
-    
+
     const record = {
       ...req.body,
       stationId
     };
-    
+
     const newRecord = await storage.createMaintenanceRecord(record);
     res.status(201).json(newRecord);
   } catch (error) {
@@ -85,11 +85,16 @@ router.patch('/api/maintenance/:id/status', requirePermission('stations', 'write
   try {
     const recordId = parseInt(req.params.id);
     const { status } = req.body;
-    
+
     if (!status) {
       return res.status(400).json({ message: 'Status is required' });
     }
-    
+
+    const existing = await storage.getMaintenanceRecord(recordId, scopeOf(req));
+    if (!existing) {
+      return res.status(404).json({ message: 'Maintenance record not found' });
+    }
+
     const updatedRecord = await storage.updateMaintenanceStatus(recordId, status);
     
     if (!updatedRecord) {
@@ -106,7 +111,7 @@ router.patch('/api/maintenance/:id/status', requirePermission('stations', 'write
 router.get('/api/maintenance/upcoming', requirePermission('stations', 'read'), async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
-    const records = await storage.getUpcomingMaintenanceRecords(days);
+    const records = await storage.getUpcomingMaintenanceRecords(days, scopeOf(req));
     res.json(records);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching upcoming maintenance records' });
@@ -117,6 +122,10 @@ router.get('/api/maintenance/upcoming', requirePermission('stations', 'read'), a
 router.patch('/api/stations/:stationId', requirePermission('stations', 'write'), async (req, res) => {
   try {
     const stationId = req.params.stationId;
+    const existing = await storage.getStationByStationId(stationId, scopeOf(req));
+    if (!existing) {
+      return res.status(404).json({ message: 'Station not found' });
+    }
     const updates = req.body;
     const updatedStation = await storage.updateStation(stationId, updates);
     if (!updatedStation) {
@@ -133,11 +142,16 @@ router.patch('/api/stations/:stationId/battery', requirePermission('stations', '
   try {
     const stationId = req.params.stationId;
     const { batteryLevel, batteryVoltage, powerConsumption } = req.body;
-    
+
     if (batteryLevel === undefined || batteryVoltage === undefined || powerConsumption === undefined) {
       return res.status(400).json({ message: 'Battery level, voltage, and power consumption are required' });
     }
-    
+
+    const existing = await storage.getStationByStationId(stationId, scopeOf(req));
+    if (!existing) {
+      return res.status(404).json({ message: 'Station not found' });
+    }
+
     const updatedStation = await storage.updateStationBatteryInfo(
       stationId, 
       batteryLevel, 
@@ -160,11 +174,16 @@ router.patch('/api/stations/:stationId/storage', requirePermission('stations', '
   try {
     const stationId = req.params.stationId;
     const { storageRemaining } = req.body;
-    
+
     if (storageRemaining === undefined) {
       return res.status(400).json({ message: 'Storage remaining percentage is required' });
     }
-    
+
+    const existing = await storage.getStationByStationId(stationId, scopeOf(req));
+    if (!existing) {
+      return res.status(404).json({ message: 'Station not found' });
+    }
+
     const updatedStation = await storage.updateStationStorageInfo(stationId, storageRemaining);
     
     if (!updatedStation) {

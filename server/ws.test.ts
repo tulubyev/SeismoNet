@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WebSocketServer } from 'ws';
 import type { Duplex } from 'stream';
 import { authorizeUpgrade, handleWsUpgrade } from './ws';
-import { resolveSessionUser } from './auth';
+import { resolveSessionUser, resolveScope } from './auth';
 import { storage } from './storage';
 
 /** Flush the microtask queue past `authorizeUpgrade`'s awaits and its `.then()`. */
@@ -18,7 +18,7 @@ function fakeWss() {
 
 vi.mock('./services/unisender', () => ({ sendLowBatteryAlert: vi.fn() }));
 vi.mock('./services/telegram', () => ({ sendLowBatteryAlert: vi.fn() }));
-vi.mock('./auth', () => ({ resolveSessionUser: vi.fn() }));
+vi.mock('./auth', () => ({ resolveSessionUser: vi.fn(), resolveScope: vi.fn() }));
 vi.mock('./storage', () => ({ storage: { getUserObjectIds: vi.fn() } }));
 
 describe('authorizeUpgrade', () => {
@@ -28,12 +28,18 @@ describe('authorizeUpgrade', () => {
   });
   it('scopes staff to their objects', async () => {
     vi.mocked(resolveSessionUser).mockResolvedValueOnce({ id: 9, role: 'staff' } as never);
-    vi.mocked(storage.getUserObjectIds).mockResolvedValueOnce([4]);
-    expect(await authorizeUpgrade({ headers: {} } as never)).toEqual({ user: { id: 9, role: 'staff' }, scope: { objectIds: [4] } });
+    vi.mocked(resolveScope).mockResolvedValueOnce({ customerId: 3, objectIds: [4] });
+    expect(await authorizeUpgrade({ headers: {} } as never)).toEqual({ user: { id: 9, role: 'staff' }, scope: { customerId: 3, objectIds: [4] } });
   });
   it('leaves other roles unscoped', async () => {
     vi.mocked(resolveSessionUser).mockResolvedValueOnce({ id: 1, role: 'superadmin' } as never);
-    expect(await authorizeUpgrade({ headers: {} } as never)).toEqual({ user: { id: 1, role: 'superadmin' }, scope: undefined });
+    vi.mocked(resolveScope).mockResolvedValueOnce({ customerId: null });
+    expect(await authorizeUpgrade({ headers: {} } as never)).toEqual({ user: { id: 1, role: 'superadmin' }, scope: { customerId: null } });
+  });
+  it('rejects a user with no customer', async () => {
+    vi.mocked(resolveSessionUser).mockResolvedValueOnce({ id: 2, role: 'viewer' } as never);
+    vi.mocked(resolveScope).mockResolvedValueOnce('no_customer');
+    expect(await authorizeUpgrade({ headers: {} } as never)).toBeNull();
   });
   it('treats a session-store error as anonymous', async () => {
     vi.mocked(resolveSessionUser).mockRejectedValueOnce(new Error('store down'));
