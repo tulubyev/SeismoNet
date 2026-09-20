@@ -8,7 +8,7 @@ import type { Alert, InfrastructureObject, SeismogramRecord } from '@shared/sche
 import {
   Settings as SettingsIcon, ArrowRight,
   HardHat, PlusSquare, Radio, Network, Server, Database, BellRing, Siren,
-  Wrench, Users,
+  Wrench, Users, Building2,
 } from 'lucide-react';
 
 const SystemManagement: FC = () => {
@@ -29,6 +29,12 @@ const SystemManagement: FC = () => {
       desc: 'Роли, доступ, объекты застройщиков', badge: null,
       color: 'text-sky-300', bg: 'bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20',
       module: 'users' as Module,
+    }] : []),
+    ...(can('customers') ? [{
+      href: '/admin/customers', icon: Building2, title: 'Заказчики',
+      desc: 'Организации и их площадки', badge: null,
+      color: 'text-sky-300', bg: 'bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20',
+      module: 'customers' as Module,
     }] : []),
     {
       href: '/developers', icon: HardHat, title: 'Застройщики',

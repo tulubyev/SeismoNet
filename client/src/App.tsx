@@ -37,6 +37,7 @@ const AboutEarthquakes = lazy(() => import("@/pages/AboutEarthquakes"));
 const SeismicBasics = lazy(() => import("@/pages/SeismicBasics"));
 const Interesting = lazy(() => import("@/pages/Interesting"));
 const AdminUsers = lazy(() => import("@/pages/admin/Users"));
+const AdminCustomers = lazy(() => import("@/pages/admin/Customers"));
 
 // Heavy pages are code-split (React.lazy) so the first load only ships the
 // shell + HomePage/Dashboard; the layout stays mounted while a chunk loads.
@@ -85,6 +86,7 @@ const ROUTES: Array<[string, FC]> = [
   ["/building-norms", page(BuildingNorms, 'norms')],
   ["/settings", page(Settings, 'settings')],
   ["/admin/users", page(AdminUsers, 'users')],
+  ["/admin/customers", page(AdminCustomers, 'customers')],
   ["/seismonet-project", page(SeismoNetProject)],
   ["/about-project", page(AboutProject)],
   ["/partners", page(Partners)],

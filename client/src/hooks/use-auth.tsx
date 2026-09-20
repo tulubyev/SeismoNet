@@ -4,16 +4,19 @@ import {
   useMutation,
   UseMutationResult,
 } from "@tanstack/react-query";
-import { InsertUser, User } from "@shared/schema";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { InsertUser, SessionUser } from "@shared/schema";
+import { apiJson, apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type AuthContextType = {
-  user: User | null;
+  user: SessionUser | null;
   isLoading: boolean;
   error: Error | null;
-  loginMutation: UseMutationResult<User, Error, LoginData>;
+  loginMutation: UseMutationResult<SessionUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
+  customer: SessionUser["customer"] | null;
+  customerScope: SessionUser["customerScope"] | null;
+  setCustomer: (customerId: number | null) => Promise<void>;
 };
 
 type LoginData = Pick<InsertUser, "username" | "password">;
@@ -29,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     isLoading,
     refetch: refetchUser
-  } = useQuery<User | null, Error>({
+  } = useQuery<SessionUser | null, Error>({
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
@@ -82,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await res.json();
       return userData;
     },
-    onSuccess: (loggedInUser: User) => {
+    onSuccess: (loggedInUser: SessionUser) => {
       // Drop everything the previous session cached: a role switch must not
       // leave another user's rows visible until the next refetch.
       queryClient.clear();
@@ -146,6 +149,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const setCustomer = async (customerId: number | null) => {
+    const next = await apiJson<SessionUser>("PUT", "/api/session/customer", { customerId });
+    // A different customer means different rows behind every cached query key.
+    queryClient.clear();
+    queryClient.setQueryData(["/api/user"], next);
+    refetchUser();
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -154,6 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         loginMutation,
         logoutMutation,
+        customer: user?.customer ?? null,
+        customerScope: user?.customerScope ?? null,
+        setCustomer,
       }}
     >
       {children}

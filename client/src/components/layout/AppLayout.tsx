@@ -1,6 +1,7 @@
 import { FC, ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
+import { usePermission } from '@/hooks/use-permission';
 import { ROLE_LABELS, type Role } from '@shared/permissions';
 import {
   ArrowDown, ArrowUp, ArrowLeft,
@@ -12,11 +13,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import type { Alert } from '@shared/schema';
+import type { Alert, Customer } from '@shared/schema';
+
+type CustomerRow = Customer & { regionName: string | null; objects: number; users: number };
 
 const PARENT_ROUTES: Record<string, string> = {
   '/monitoring-hub':     '/',
@@ -173,8 +177,14 @@ const AlertsPanel: FC = () => {
 
 const TopBar: FC = () => {
   const [location] = useLocation();
-  const { user, logoutMutation } = useAuth();
+  const { user, logoutMutation, customer, customerScope, setCustomer } = useAuth();
+  const { isSuperadmin } = usePermission();
   const { data: alerts = [] } = useQuery<Alert[]>({ queryKey: ['/api/alerts'] });
+  const { data: customers = [] } = useQuery<CustomerRow[]>({
+    queryKey: ['/api/customers'],
+    enabled: isSuperadmin,
+  });
+  const activeCustomers = customers.filter(c => c.active);
   const unread = alerts.filter(a => !a.isRead).length;
 
   const isHome = location === '/';
@@ -191,7 +201,9 @@ const TopBar: FC = () => {
           </div>
           <span className="text-white font-semibold text-xs leading-tight hidden sm:block">
             SeismoNet
-            <span className="text-blue-400 font-normal ml-1 text-[10px]">г. Иркутск</span>
+            <span className="text-blue-400 font-normal ml-1 text-[10px]">
+            {customer?.name ?? (customerScope === 'all' ? 'Все заказчики' : '')}
+          </span>
           </span>
         </div>
       </Link>
@@ -269,6 +281,23 @@ const TopBar: FC = () => {
           </PopoverContent>
         </Popover>
 
+        {isSuperadmin && (
+          <Select
+            value={customer ? String(customer.id) : 'all'}
+            onValueChange={v => setCustomer(v === 'all' ? null : Number(v))}
+          >
+            <SelectTrigger className="h-8 w-40 text-xs bg-transparent border-slate-600 text-slate-300 hover:text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все заказчики</SelectItem>
+              {activeCustomers.map(c => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 px-2 text-slate-300 hover:text-white hover:bg-slate-700 gap-1.5">
@@ -281,6 +310,9 @@ const TopBar: FC = () => {
             <DropdownMenuLabel className="text-xs">
               <div className="font-semibold">{user?.username}</div>
               <div className="text-slate-500 font-normal">{ROLE_LABELS[user?.role as Role] ?? user?.role}</div>
+              {!isSuperadmin && customer && (
+                <div className="text-slate-500 font-normal">{customer.name}</div>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
