@@ -66,7 +66,8 @@ client/src/App.tsx     роутер wouter; тяжёлые страницы че
 client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inline) + pages/analysis/{AmplificationTab,ResponseTab,ResonanceTab}.tsx;
                        Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx;
                        admin/Users.tsx + pages/admin/users/{shared,CreateDialog,EditDialog,PasswordDialog,ObjectsDialog,AuditLog}.tsx;
-                       admin/Customers.tsx + pages/admin/customers/{CreateDialog,EditDialog}.tsx
+                       admin/Customers.tsx + pages/admin/customers/{CreateDialog,EditDialog}.tsx;
+                       InfrastructureObjects.tsx + pages/infrastructure/{ObjectDialog,shared}.tsx (создание/редактирование объекта)
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
 client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
@@ -130,7 +131,7 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
   (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).
 - Мультитенантность (2026-09-19): RLS не включена — изоляция только на уровне SQL-скоупа в `server/storage`,
-  «второе кольцо» RLS — сознательно отложено. В клиенте нет формы создания/редактирования инфраструктурных
-  объектов (соответственно нет и выбора региона в форме объекта — регион проставляется бэкендом). Роута
-  `POST /api/stations` не существует. Линейные объекты (трубопроводы) заводятся как точки с типом `pipeline`;
+  «второе кольцо» RLS — сознательно отложено. Ранее в клиенте не было формы создания/редактирования инфраструктурных
+  объектов — форма есть с 21.09.2026 (`client/src/pages/infrastructure/ObjectDialog.tsx`, права `objects: write`,
+  то есть superadmin и designer). Роута `POST /api/stations` не существует. Линейные объекты (трубопроводы) заводятся как точки с типом `pipeline`;
   геометрия линий — будущая доработка.
