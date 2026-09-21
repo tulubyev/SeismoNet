@@ -67,7 +67,8 @@ client/src/pages/      24 страницы; Analysis.tsx (4 вкладки inlin
                        Calculations.tsx + pages/calculations/{shared,CalcDetailDialog,NotesEditor,details,CompareDialog}.tsx;
                        admin/Users.tsx + pages/admin/users/{shared,CreateDialog,EditDialog,PasswordDialog,ObjectsDialog,AuditLog}.tsx;
                        admin/Customers.tsx + pages/admin/customers/{CreateDialog,EditDialog}.tsx;
-                       InfrastructureObjects.tsx + pages/infrastructure/{ObjectDialog,shared}.tsx (создание/редактирование объекта)
+                       InfrastructureObjects.tsx + pages/infrastructure/{ObjectDialog,shared}.tsx (создание/редактирование объекта);
+                       AddStation.tsx — создание станции (POST /api/stations, права stations: write)
 client/src/components/ui  shadcn/ui (new-york), только используемые компоненты
 client/src/hooks/      use-auth (Context), useWebSocket, useSeismicData
 client/src/lib/        queryClient, leaflet (бандл Leaflet + window.L), epicenterCalculator, seismicCalculations, waveformVisualization, mapUtils
@@ -126,12 +127,12 @@ client/src/lib/numeric/ чистые численные методы с тест
 - Симулятор данных в `server/ws.ts` (`startSimulation`) шлёт синтетические волны для станций
   `PNWST-03`, `SOCAL-12`, `ALASKA-07` и может слать реальные Telegram-алерты о батарее.
 - CI нет; тесты только для `lib/numeric` и части server/shared (см. `npm test` выше). `npm run check` — baseline
-  45 ошибок типов (20.09.2026), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig
+  22 ошибки типов (21.09.2026, было 45 до переписывания AddStation.tsx), все в старом коде (routes/*, страницы); часть из-за отсутствия `target` в tsconfig
   (TS1252/TS2802). Не ухудшать; чинить отдельной задачей.
 - Replit-артефакты удалены 16.09.2026; резервная копия 65 Replit-веток — `../SeismoNet-replit-branches.bundle`
   (вне репо). Локальные ветки/remotes `subrepl-*` и `replit-agent` удалить руками (см. README → «Чистка»).
 - Мультитенантность (2026-09-19): RLS не включена — изоляция только на уровне SQL-скоупа в `server/storage`,
   «второе кольцо» RLS — сознательно отложено. Ранее в клиенте не было формы создания/редактирования инфраструктурных
   объектов — форма есть с 21.09.2026 (`client/src/pages/infrastructure/ObjectDialog.tsx`, права `objects: write`,
-  то есть superadmin и designer). Роута `POST /api/stations` не существует. Линейные объекты (трубопроводы) заводятся как точки с типом `pipeline`;
+  то есть superadmin и designer). Линейные объекты (трубопроводы) заводятся как точки с типом `pipeline`;
   геометрия линий — будущая доработка.
