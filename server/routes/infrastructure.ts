@@ -40,7 +40,7 @@ router.post('/api/infrastructure-objects', requirePermission('objects', 'write')
     const parsed = insertInfrastructureObjectSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
-      return res.status(400).json({ error: "unknown region" });
+      return res.status(400).json({ error: "Регион не найден" });
     }
     if (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scope)) {
       return res.status(409).json({ error: "Код объекта уже занят" });
@@ -61,7 +61,7 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
     const parsed = patchInfrastructureObjectSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
-      return res.status(400).json({ error: "unknown region" });
+      return res.status(400).json({ error: "Регион не найден" });
     }
     if (parsed.data.objectId !== undefined && parsed.data.objectId !== existing.objectId
         && (await storage.getInfrastructureObjectByObjectId(parsed.data.objectId, scope))) {

@@ -517,12 +517,30 @@ export const comparisonSets = pgTable("comparison_sets", {
 
 // ─── Insert schemas ────────────────────────────────────────────────────────────
 
+// `numeric` columns map to a bare z.string() under drizzle-zod — createInsertSchema
+// has no idea the string is meant to be a latitude/longitude, so "55,7", "999" and
+// even "" all pass through untouched. These refinements are passed as the second
+// (per-column) argument to createInsertSchema below, which keeps the result a
+// ZodObject (unlike a top-level .refine(), which would return a ZodEffects and
+// break `insertInfrastructureObjectSchema.partial()` in routes/infrastructure.ts).
+const latitudeField = () => z.string().trim()
+  .regex(/^-?\d+(\.\d+)?$/, 'Широта: число со знаком и точкой')
+  .refine(v => Math.abs(Number(v)) <= 90, 'Широта вне диапазона -90..90');
+const longitudeField = () => z.string().trim()
+  .regex(/^-?\d+(\.\d+)?$/, 'Долгота: число со знаком и точкой')
+  .refine(v => Math.abs(Number(v)) <= 180, 'Долгота вне диапазона -180..180');
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLogin: true });
 export const insertUserObjectSchema = createInsertSchema(userObjects);
 export type UserObject = typeof userObjects.$inferSelect;
 export type InsertUserObject = z.infer<typeof insertUserObjectSchema>;
 export const insertRegionSchema = createInsertSchema(regions).omit({ id: true });
-export const insertStationSchema = createInsertSchema(stations).omit({ id: true, customerId: true });
+export const insertStationSchema = createInsertSchema(stations, {
+  latitude: latitudeField,
+  longitude: longitudeField,
+  name: () => z.string().min(1, 'Название: обязательное поле'),
+  stationId: () => z.string().min(3, 'Код станции: минимум 3 символа'),
+}).omit({ id: true, customerId: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertWaveformDataSchema = createInsertSchema(waveformData).omit({ id: true });
 export const insertResearchNetworkSchema = createInsertSchema(researchNetworks).omit({ id: true });
@@ -533,7 +551,12 @@ export const insertHistoricalAnalysisSchema = createInsertSchema(historicalAnaly
 export const insertComparisonStudySchema = createInsertSchema(comparisonStudies).omit({ id: true, createdAt: true, updatedAt: true });
 
 // New Irkutsk-specific schemas
-export const insertInfrastructureObjectSchema = createInsertSchema(infrastructureObjects).omit({ id: true, createdAt: true, updatedAt: true, customerId: true });
+export const insertInfrastructureObjectSchema = createInsertSchema(infrastructureObjects, {
+  latitude: latitudeField,
+  longitude: longitudeField,
+  name: () => z.string().min(1, 'Название: обязательное поле'),
+  objectId: () => z.string().min(3, 'Код объекта: минимум 3 символа'),
+}).omit({ id: true, createdAt: true, updatedAt: true, customerId: true });
 export const insertSoilProfileSchema = createInsertSchema(soilProfiles).omit({ id: true, createdAt: true, customerId: true });
 export const insertSoilLayerSchema = createInsertSchema(soilLayers).omit({ id: true });
 export const insertSensorInstallationSchema = createInsertSchema(sensorInstallations).omit({ id: true });

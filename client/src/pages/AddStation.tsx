@@ -87,12 +87,21 @@ const suggestStationId = (customerCode: string | undefined, stations: Station[])
   return `${prefix}${String(n).padStart(3, '0')}`;
 };
 
-/** "" -> null, never 0 or NaN. */
+/** "" -> null, never 0 or NaN. A strict `Number()` conversion (not parseInt/
+ * parseFloat) so trailing garbage like "12v" doesn't silently become 12 — it
+ * becomes null instead. An 'int' field also rejects a non-integer value. */
 const toNumber = (value: string | undefined, kind: 'int' | 'float'): number | null => {
   if (!value || value.trim() === '') return null;
-  const n = kind === 'int' ? parseInt(value, 10) : parseFloat(value);
-  return Number.isNaN(n) ? null : n;
+  const n = Number(value.trim());
+  if (Number.isNaN(n)) return null;
+  if (kind === 'int' && !Number.isInteger(n)) return null;
+  return n;
 };
+
+/** Accepts the Russian decimal-comma convention ("52,3") and normalizes it to
+ * a dot before validation/storage — otherwise Number("52,3") is NaN and the
+ * user sees a range error instead of the value being accepted. */
+const normalizeDecimal = (value: string): string => value.replace(',', '.');
 
 const toPayload = (data: AddStationFormValues) => ({
   stationId: data.stationId.trim(),
@@ -122,7 +131,7 @@ const AddStation: FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const { data: regions = [] } = useQuery<Region[]>({ queryKey: ['/api/regions'] });
-  const { data: stations = [] } = useQuery<Station[]>({ queryKey: ['/api/stations'] });
+  const { data: stations = [], isSuccess: stationsLoaded } = useQuery<Station[]>({ queryKey: ['/api/stations'] });
 
   const form = useForm<AddStationFormValues>({
     resolver: zodResolver(addStationSchema),
@@ -145,15 +154,19 @@ const AddStation: FC = () => {
     },
   });
 
-  // Prefill the station code once the existing stations have loaded, but never
-  // clobber a code the user has already started typing.
+  // Prefill the station code once the stations query has actually resolved —
+  // gating on `stations.length === 0` is wrong because useQuery defaults to
+  // `[]` while still loading, which is indistinguishable from "this customer
+  // genuinely has zero stations" and would leave their very first station's
+  // code blank. Gate on `isSuccess` instead, and still never clobber a code
+  // the user has already started typing.
   useEffect(() => {
-    if (stations.length === 0) return;
+    if (!stationsLoaded) return;
     if (form.getValues('stationId') !== '') return;
     const suggested = suggestStationId(customer?.code, stations);
     if (suggested) form.setValue('stationId', suggested);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stations]);
+  }, [stationsLoaded, stations]);
 
   const mutation = useMutation({
     mutationFn: (payload: ReturnType<typeof toPayload>) => apiJson('POST', '/api/stations', payload),
@@ -236,7 +249,7 @@ const AddStation: FC = () => {
                     <FormItem>
                       <FormLabel>Широта</FormLabel>
                       <FormControl>
-                        <Input placeholder="52.2870" {...field} />
+                        <Input placeholder="52.2870" {...field} onChange={e => field.onChange(normalizeDecimal(e.target.value))} />
                       </FormControl>
                       <FormDescription>Десятичные градусы, от -90 до 90.</FormDescription>
                       <FormMessage />
@@ -251,7 +264,7 @@ const AddStation: FC = () => {
                     <FormItem>
                       <FormLabel>Долгота</FormLabel>
                       <FormControl>
-                        <Input placeholder="104.3050" {...field} />
+                        <Input placeholder="104.3050" {...field} onChange={e => field.onChange(normalizeDecimal(e.target.value))} />
                       </FormControl>
                       <FormDescription>Десятичные градусы, от -180 до 180.</FormDescription>
                       <FormMessage />

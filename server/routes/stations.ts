@@ -43,7 +43,7 @@ router.post('/api/stations', requirePermission('stations', 'write'), async (req,
     const parsed = insertStationSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
-      return res.status(400).json({ error: "unknown region" });
+      return res.status(400).json({ error: "Регион не найден" });
     }
     if (await storage.getStationByStationId(parsed.data.stationId, scope)) {
       return res.status(409).json({ error: "Код станции уже занят" });

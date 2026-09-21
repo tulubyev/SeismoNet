@@ -262,11 +262,11 @@ export const ObjectDialog: FC<{ open: boolean; object: InfrastructureObject | nu
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Широта</Label>
-              <Input value={f.latitude} onChange={e => setF({ ...f, latitude: e.target.value })} placeholder="52.2870" />
+              <Input value={f.latitude} onChange={e => setF({ ...f, latitude: e.target.value.replace(',', '.') })} placeholder="52.2870" />
             </div>
             <div>
               <Label>Долгота</Label>
-              <Input value={f.longitude} onChange={e => setF({ ...f, longitude: e.target.value })} placeholder="104.3050" />
+              <Input value={f.longitude} onChange={e => setF({ ...f, longitude: e.target.value.replace(',', '.') })} placeholder="104.3050" />
             </div>
           </div>
           <div>
