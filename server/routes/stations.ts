@@ -1,8 +1,13 @@
 import { Router } from "express";
-import { storage } from "../storage";
-import { requirePermission, scopeOf } from "../auth";
+import { storage, type Scope } from "../storage";
+import { requirePermission, requireCustomer, scopeOf } from "../auth";
+import { insertStationSchema } from "@shared/schema";
 
 const router = Router();
+// stationId is globally unique, so a duplicate-code lookup must search across every
+// customer, not just the caller's own — this scope removes the customer filter
+// entirely rather than narrowing it, which already covers the caller's own rows too.
+const scope: Scope = { customerId: null };
 
 
 // API routes
@@ -27,6 +32,26 @@ router.get('/api/stations/:stationId', requirePermission('stations', 'read'), as
     res.json(station);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching station' });
+  }
+});
+
+// Create a new station
+router.post('/api/stations', requirePermission('stations', 'write'), async (req, res) => {
+  try {
+    const customerId = requireCustomer(req, res); if (customerId === undefined) return;
+    const { customerId: _c, id: _i, ...body } = req.body ?? {};
+    const parsed = insertStationSchema.safeParse(body);
+    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
+      return res.status(400).json({ error: "unknown region" });
+    }
+    if (await storage.getStationByStationId(parsed.data.stationId, scope)) {
+      return res.status(409).json({ error: "Код станции уже занят" });
+    }
+    const newStation = await storage.createStation(parsed.data, customerId);
+    res.status(201).json(newStation);
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating station' });
   }
 });
 
