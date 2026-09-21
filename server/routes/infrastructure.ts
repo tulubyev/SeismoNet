@@ -1,10 +1,19 @@
 import { Router } from "express";
+import type { ZodIssue } from "zod";
 import { storage, type Scope } from "../storage";
 import { requirePermission, requireCustomer, scopeOf } from "../auth";
 import { insertInfrastructureObjectSchema } from "@shared/schema";
 
 const router = Router();
 const patchInfrastructureObjectSchema = insertInfrastructureObjectSchema.partial();
+// The bare word "validation" told the user nothing about which field was
+// wrong — apiJson surfaces `error` verbatim in a toast. Build a short Russian
+// message from the first issue instead, keeping the full `issues` array in
+// the payload for anyone who needs it (devtools, future richer client UI).
+const validationMessage = (issues: ZodIssue[]): string => {
+  const issue = issues[0];
+  return `Проверьте поле «${issue.path.join('.')}»: ${issue.message}`;
+};
 // objectId is globally unique, so a duplicate-code lookup must search across every
 // customer, not just the caller's own — this scope removes the customer filter
 // entirely rather than narrowing it, which already covers the caller's own rows too.
@@ -38,7 +47,7 @@ router.post('/api/infrastructure-objects', requirePermission('objects', 'write')
     const customerId = requireCustomer(req, res); if (customerId === undefined) return;
     const { customerId: _ignored, ...body } = req.body ?? {};
     const parsed = insertInfrastructureObjectSchema.safeParse(body);
-    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    if (!parsed.success) return res.status(400).json({ error: validationMessage(parsed.error.issues), issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
       return res.status(400).json({ error: "Регион не найден" });
     }
@@ -59,7 +68,7 @@ router.patch('/api/infrastructure-objects/:id', requirePermission('objects', 'wr
     if (!existing) return res.status(404).json({ message: 'Object not found' });
     const { customerId: _c, id: _i, ...body } = req.body ?? {};
     const parsed = patchInfrastructureObjectSchema.safeParse(body);
-    if (!parsed.success) return res.status(400).json({ error: "validation", issues: parsed.error.issues });
+    if (!parsed.success) return res.status(400).json({ error: validationMessage(parsed.error.issues), issues: parsed.error.issues });
     if (parsed.data.regionId != null && !(await storage.getRegion(parsed.data.regionId))) {
       return res.status(400).json({ error: "Регион не найден" });
     }

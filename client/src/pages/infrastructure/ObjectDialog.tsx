@@ -117,8 +117,21 @@ const suggestObjectId = (customerCode: string | undefined, objects: Infrastructu
   return `${prefix}${String(n).padStart(3, "0")}`;
 };
 
+// Mirrors insertInfrastructureObjectSchema's server-side objectId rule
+// (min 3 chars) plus the segmented-code shape every existing object_id in the
+// database actually has (IRK-DEV-001, IRK-OBJ-001, IRK-TEST-001, …, checked
+// via the DB tunnel) — same convention AddStation.tsx enforces for stationId.
+// Without this, clearing the suggested code down to e.g. "AB" passed client
+// validation and only failed server-side with the bare "validation" string.
+const OBJECT_ID_PATTERN = /^[A-Z0-9]+(-[A-Z0-9]+)+$/;
+
 const validate = (f: Form): string | null => {
-  if (!f.objectId.trim()) return "Код объекта: обязательное поле";
+  const objectId = f.objectId.trim();
+  if (!objectId) return "Код объекта: обязательное поле";
+  if (objectId.length < 3) return "Код объекта: минимум 3 символа";
+  if (!OBJECT_ID_PATTERN.test(objectId)) {
+    return "Код объекта вида IRK-OBJ-001: латиница в верхнем регистре, цифры и дефисы";
+  }
   if (!f.name.trim()) return "Название: обязательное поле";
   if (!f.objectType) return "Категория / тип: обязательное поле";
   const lat = Number(f.latitude);
